@@ -1,0 +1,111 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+
+    <title>JSNES</title>
+    <script src="jquery-1.2.6.min.js" type="text/javascript" charset="utf-8"></script>
+    <script src="jquery.dimensions.min.js" type="text/javascript" charset="utf-8"></script>
+    <script src="cpu.js" type="text/javascript" charset="utf-8"></script>
+    <script src="cpuinfo.js" type="text/javascript" charset="utf-8"></script>
+    <script src="globals.js" type="text/javascript" charset="utf-8"></script>
+    <script src="keyboard.js" type="text/javascript" charset="utf-8"></script>
+    <script src="mappers.js" type="text/javascript" charset="utf-8"></script>
+    <script src="memory.js" type="text/javascript" charset="utf-8"></script>
+    <script src="nametable.js" type="text/javascript" charset="utf-8"></script>
+    <script src="nes.js" type="text/javascript" charset="utf-8"></script>
+    <script src="palettetable.js" type="text/javascript" charset="utf-8"></script>
+    <script src="ppu.js" type="text/javascript" charset="utf-8"></script>
+    <script src="rom.js" type="text/javascript" charset="utf-8"></script>
+    <script src="roms.js" type="text/javascript" charset="utf-8"></script>
+    <script src="tile.js" type="text/javascript" charset="utf-8"></script>
+    <script src="utils.js" type="text/javascript" charset="utf-8"></script>
+    <script type="text/javascript" charset="utf-8">
+        var nes;
+        var roms = {};
+        
+        $(document).ready(function() {
+            $("#status").text("Initialising...");
+            for (rom in roms_list) {
+                $('<option>'+roms_list[rom]+'</option>')
+                    .attr("value", roms_list[rom]).appendTo("#roms");
+            }
+            nes = new NES();
+        });
+    </script>
+    <style type="text/css" media="screen">
+        #screen {
+            float:left;
+            margin-right: 50px;
+        }
+    </style>
+</head>
+
+<body>
+<h1>JSNES</h1>
+
+<canvas id="screen" width="256" height="240"></canvas>
+
+<p><strong>Status:</strong> <span id="status">Loading...</span></p>
+<input type="button" value="start" onclick="nes.start()" />
+<input type="button" value="stop" onclick="nes.stop()" />
+
+<p><select id="roms" size="20"></select></p>
+
+<script type="text/javascript" charset="utf-8">
+    // Mouse events
+    $("#screen").mousedown(function(e){
+        if (nes && nes.memMapper) {
+            nes.memMapper.mousePressed = true;
+            nes.memMapper.mouseX = e.pageX-$("#screen").offset()["left"];
+            nes.memMapper.mouseY = e.pageY-$("#screen").offset()["top"];
+        }
+    });
+    
+    $("#screen").mouseup(function(){
+        if (nes && nes.memMapper) {
+            nes.memMapper.mousePressed = false;
+            nes.memMapper.mouseX = 0;
+            nes.memMapper.mouseY = 0;
+        }
+    });
+
+    $("#roms").dblclick(function() {
+        var romName = $("#roms").val();
+        $("#status").text("Downloading "+romName);
+        $.getScript("roms/"+escape(romName)+".js", function(){
+            nes.loadRom(romName);
+        });
+    });
+    
+</script>
+
+<!--<div>
+<h2>CPU</h2>
+<table>
+    <tr><th>REG_ACC</th><td id="cpu_acc"></td></tr>
+    <tr><th>REG_X</th><td id="cpu_x"></td></tr>
+    <tr><th>REG_Y</th><td id="cpu_y"></td></tr>
+    <tr><th>REG_PC</th><td id="cpu_pc"></td></tr>
+    <tr><th>REG_SP</th><td id="cpu_sp"></td></tr>
+    <tr><th>F_CARRY</th><td id="cpu_f_carry"></td></tr>
+    <tr><th>F_ZERO</th><td id="cpu_f_zero"></td></tr>
+    <tr><th>F_INTERRUPT</th><td id="cpu_f_interrupt"></td></tr>
+    <tr><th>F_DECIMAL</th><td id="cpu_f_decimal"></td></tr>
+    <tr><th>F_BRK</th><td id="cpu_f_brk"></td></tr>
+    <tr><th>F_OVERFLOW</th><td id="cpu_f_overflow"></td></tr>
+    <tr><th>F_SIGN</th><td id="cpu_f_sign"></td></tr>
+</table>
+</div>
+<div>
+<h2>PPU</h2>
+<table>
+    <tr><th>curX</th><td id="ppu_curX"></td></tr>
+    <tr><th>scanline</th><td id="ppu_scanline"></td></tr>
+</table>
+</div>-->
+
+</body>
+</html>
