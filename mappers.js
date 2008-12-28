@@ -18,11 +18,11 @@ function MapperDefault(nes) {
 		if(address<0x2000){
 			
 			// Mirroring of RAM:
-			this.nes.cpuMem.mem[address & 0x7FF] = value;
+			this.nes.cpuMem[address & 0x7FF] = value;
 			
 		}else if(address>0x4017){
 			
-			this.nes.cpuMem.mem[address] = value;
+			this.nes.cpuMem[address] = value;
 			if(address>=0x6000 && address<0x8000){
 				
 				// Write to SaveRAM. Store in file:
@@ -60,7 +60,7 @@ function MapperDefault(nes) {
 				}else{
 					
 					// Check whether the actual value equals the compare value:
-					if(nes.cpuMem.mem[address] == nes.gameGenie.getCodeCompare(tmp)){
+					if(nes.cpuMem[address] == nes.gameGenie.getCodeCompare(tmp)){
 						
 						// The values match, so use the supplied game genie value:
 						return (short)nes.gameGenie.getCodeValue(tmp);
@@ -78,7 +78,7 @@ function MapperDefault(nes) {
 		if(address > 0x4017){
 			
 			// ROM:
-			return this.nes.cpuMem.mem[address];
+			return this.nes.cpuMem[address];
 					
 		}else if(address >= 0x2000){
 			
@@ -88,7 +88,7 @@ function MapperDefault(nes) {
 		}else{
 			
 			// RAM (mirrored)
-			return this.nes.cpuMem.mem[address&0x7FF];
+			return this.nes.cpuMem[address&0x7FF];
 			
 		}
 		
@@ -118,7 +118,7 @@ function MapperDefault(nes) {
 						// in main memory and in the
 						// PPU as flags):
 						// (not in the real NES)
-						return this.nes.cpuMem.mem[0x2000];
+						return this.nes.cpuMem[0x2000];
 						
 					}case 0x1:{
 						
@@ -128,7 +128,7 @@ function MapperDefault(nes) {
 						// in main memory and in the
 						// PPU as flags):
 						// (not in the real NES)
-						return this.nes.cpuMem.mem[0x2001];
+						return this.nes.cpuMem[0x2001];
 						
 					}case 0x2:{
 						
@@ -233,14 +233,14 @@ function MapperDefault(nes) {
 			case 0x2000:{
 				
 				// PPU Control register 1
-				this.nes.cpuMem.write(address,value);
+				this.nes.cpuMem[address] = value;
 				this.nes.ppu.updateControlReg1(value);
 				break;
 				
 			}case 0x2001:{
 				
 				// PPU Control register 2
-				this.nes.cpuMem.write(address,value);
+				this.nes.cpuMem[address] = value;
 				this.nes.ppu.updateControlReg2(value);
 				break;
 				
@@ -486,7 +486,7 @@ function MapperDefault(nes) {
 			var ram = this.nes.rom.batteryRam;
 			if(ram!=null && ram.length==0x2000){
 				// Load Battery RAM into memory:
-				arraycopy(ram,0,this.nes.cpuMem.mem,0x6000,0x2000);
+				arraycopy(ram, 0, this.nes.cpuMem, 0x6000, 0x2000);
 			}
 		}
 	}
@@ -496,7 +496,7 @@ function MapperDefault(nes) {
 		bank %= this.nes.rom.romCount;
 		//var data = this.nes.rom.rom[bank];
 		//cpuMem.write(address,data,data.length);
-		arraycopy(this.nes.rom.rom[bank],0,this.nes.cpuMem.mem,address,16384);
+		arraycopy(this.nes.rom.rom[bank], 0, this.nes.cpuMem, address, 16384);
 		
 	}
 	
@@ -506,7 +506,7 @@ function MapperDefault(nes) {
 		this.nes.ppu.triggerRendering();
 		
 		arraycopy(this.nes.rom.vrom[bank%this.nes.rom.vromCount],0,
-		    this.nes.ppuMem.mem,address,4096);
+		    this.nes.ppuMem,address,4096);
 		
 		var vromTile = this.nes.rom.vromTile[bank%this.nes.rom.vromCount];
 		arraycopy(vromTile,0,this.nes.ppu.ptTile,address>>4,256);
@@ -534,9 +534,9 @@ function MapperDefault(nes) {
 		if(this.nes.rom.vromCount == 0)return;
 		this.nes.ppu.triggerRendering();
 		
-		var bank4k = (bank1k/4)%rom.vromCount;
+		var bank4k = parseInt(bank1k/4)%rom.vromCount;
 		var bankoffset = (bank1k%4)*1024;
-		arraycopy(this.nes.rom.vrom[bank4k],0,this.nes.ppuMem.mem,
+		arraycopy(this.nes.rom.vrom[bank4k],0,this.nes.ppuMem,
 		    bankoffset,1024);
 		
 		// Update tiles:
@@ -553,10 +553,10 @@ function MapperDefault(nes) {
 		if(this.nes.rom.vromCount == 0)return;
 		this.nes.ppu.triggerRendering();
 		
-		var bank4k = (bank2k/2)%this.nes.rom.vromCount;
+		var bank4k = parseInt(bank2k/2)%this.nes.rom.vromCount;
 		var bankoffset = (bank2k%2)*2048;
 		arraycopy(this.nes.rom.getVromBank(bank4k),bankoffset,
-		    this.nes.ppuMem.mem,address,2048);
+		    this.nes.ppuMem,address,2048);
 		
 		// Update tiles:
 		var vromTile = this.nes.rom.vromTile[bank4k];
@@ -569,10 +569,12 @@ function MapperDefault(nes) {
 	
 	this.load8kRomBank = function(bank8k, address){
 		
-		var bank16k = (bank8k/2)%this.nes.rom.romCount;
+		var bank16k = parseInt(bank8k/2)%this.nes.rom.romCount;
 		var offset = (bank8k%2)*8192;
 		
-		this.nes.cpuMem.write(address,this.nes.rom.rom[bank16k],offset,8192);
+		//this.nes.cpuMem.write(address,this.nes.rom.rom[bank16k],offset,8192);
+		arraycopy(this.nes.rom.rom[bank16k], offset, 
+		          this.nes.cpuMem, address, 8192);
 		
 	}
 

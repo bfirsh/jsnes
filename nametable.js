@@ -17,10 +17,6 @@ function NameTable(width, height, name) {
 		return this.attrib[y*this.width+x];
 	}
 	
-	this.writeTileIndex = function(index, value){
-		this.tile[index] = value;
-	}
-	
 	this.writeAttrib = function(index, value){
 		
 		var basex,basey;

@@ -120,7 +120,7 @@ function PPU(nes) {
     this.dummyPixPriTable = new Array(256*240);
     this.oldFrame = new Array(256*240);
     this.buffer = new Array(256*240);
-    this.tpix;
+    this.tpix = null;
     
     this.scanlineChanged = Array(240);
     this.requestRenderAll=false;
@@ -596,16 +596,15 @@ function PPU(nes) {
     
     this.setStatusFlag = function(flag, value){
         var n = 1<<flag;
-        var memValue = this.nes.cpuMem.load(0x2002);
-        memValue = ((memValue&(255-n))|(value?n:0));
-        this.nes.cpuMem.write(0x2002,memValue);
+        this.nes.cpuMem[0x2002] = 
+            ((this.nes.cpuMem[0x2002]&(255-n))|(value?n:0));
     }
     
     // CPU Register $2002:
     // Read the Status Register.
     this.readStatusRegister = function(){
         
-        this.tmp = this.nes.cpuMem.load(0x2002);
+        this.tmp = this.nes.cpuMem[0x2002];
         
         // Reset scroll & VRAM Address toggle:
         this.firstWrite = true;
@@ -635,7 +634,7 @@ function PPU(nes) {
         sramAddress++; // Increment address
         sramAddress%=0x100;
         return tmp;*/
-        return this.sprMem.load(this.sramAddress)
+        return this.sprMem[this.sramAddress]
     }
     
     
@@ -643,7 +642,7 @@ function PPU(nes) {
     // Write to SPR-RAM (Sprite RAM).
     // The address should be set first.
     this.sramWrite = function(value){
-        this.sprMem.write(this.sramAddress,value);
+        this.sprMem[this.sramAddress] = value;
         this.spriteRamWriteUpdate(this.sramAddress,value);
         this.sramAddress++; // Increment address
         this.sramAddress%=0x100;
@@ -727,7 +726,7 @@ function PPU(nes) {
         
             // Update buffered value:
             if(this.vramAddress < 0x2000){
-                this.vramBufferedReadValue = this.ppuMem.load(this.vramAddress);
+                this.vramBufferedReadValue = this.ppuMem[this.vramAddress];
             }else{
                 this.vramBufferedReadValue = this.mirroredLoad(this.vramAddress);
             }
@@ -794,9 +793,9 @@ function PPU(nes) {
         var baseAddress = value * 0x100;
         var data;
         for(var i=this.sramAddress;i<256;i++){
-            data = this.nes.cpuMem.load(baseAddress+i);
-            this.sprMem.write(i,data);
-            this.spriteRamWriteUpdate(i,data);
+            data = this.nes.cpuMem[baseAddress+i];
+            this.sprMem[i] = data;
+            this.spriteRamWriteUpdate(i, data);
         }
         
         this.nes.cpu.haltCycles(513);
@@ -883,7 +882,7 @@ function PPU(nes) {
     // Reads from memory, taking into account
     // mirroring/mapping of address ranges.
     this.mirroredLoad = function(address){
-        return this.ppuMem.load(this.vramMirrorTable[address]);
+        return this.ppuMem[this.vramMirrorTable[address]];
     }
     
     // Writes to memory, taking into account
@@ -1041,7 +1040,6 @@ function PPU(nes) {
                         if(this.t.opaque[this.cntFV]){
                             for(;this.sx<8;this.sx++){
                                 buffer[this.destIndex] = this.imgPalette[this.tpix[this.tscanoffset+this.sx]+this.att];
-                                //this.writePixel(this.destIndex, this.imgPalette[this.tpix[this.tscanoffset+this.sx]+this.att]);
                                 this.pixrendered[destIndex] |= 256;
                                 this.destIndex++;
                             }
@@ -1051,7 +1049,6 @@ function PPU(nes) {
                                 if(this.col != 0){
                                     //console.log("Writing "+this.imgPalette[this.col+this.att].toString(16)+" to buffer at "+this.destIndex.toString(16));
                                     buffer[this.destIndex] = this.imgPalette[this.col+this.att];
-                                    //this.writePixel(this.destIndex, this.imgPalette[this.col+this.att]);
                                     this.pixrendered[this.destIndex] |= 256;
                                 }
                                 this.destIndex++;
@@ -1339,12 +1336,12 @@ function PPU(nes) {
     // appropriately.
     this.writeMem = function(address, value){
         
-        this.ppuMem.write(address,value);
+        this.ppuMem[address] = value;
         
         // Update internally buffered data:
         if(address < 0x2000){
             
-            this.ppuMem.write(address,value);
+            this.ppuMem[address] = value;
             this.patternWrite(address,value);
             
         }else if(address >=0x2000 && address <0x23c0){
@@ -1394,19 +1391,19 @@ function PPU(nes) {
         for(var i=0;i<16;i++){
             if(this.f_dispType == 0){
                 this.imgPalette[i] = this.nes.palTable.getEntry(
-                                        this.ppuMem.load(0x3f00+i)&63);
+                                        this.ppuMem[0x3f00+i]&63);
             }else{
                 this.imgPalette[i] = this.nes.palTable.getEntry(
-                                        this.ppuMem.load(0x3f00+i)&32);
+                                        this.ppuMem[0x3f00+i]&32);
             }
         }
         for(var i=0;i<16;i++){
             if(this.f_dispType == 0){
                 this.sprPalette[i] = this.nes.palTable.getEntry(
-                                        this.ppuMem.load(0x3f10+i)&63);
+                                        this.ppuMem[0x3f10+i]&63);
             }else{
                 this.sprPalette[i] = this.nes.palTable.getEntry(
-                                        this.ppuMem.load(0x3f10+i)&32);
+                                        this.ppuMem[0x3f10+i]&32);
             }
         }
         
@@ -1422,10 +1419,10 @@ function PPU(nes) {
         var leftOver = address%16;
         if(leftOver<8){
             this.ptTile[tileIndex].setScanline(
-                leftOver,value,this.ppuMem.load(address+8));
+                leftOver, value, this.ppuMem[address+8]);
         }else{
             this.ptTile[tileIndex].setScanline(
-                leftOver-8,this.ppuMem.load(address-8),value);
+                leftOver-8, this.ppuMem[address-8], value);
         }
     }
     
@@ -1442,7 +1439,7 @@ function PPU(nes) {
     // Updates the internal name table buffers
     // with this new byte.
     this.nameTableWrite = function(index, address, value){
-        this.nameTable[index].writeTileIndex(address,value);
+        this.nameTable[index].tile[address] = value;
         
         // Update Sprite #0 hit:
         //updateSpr0Hit();
@@ -1505,8 +1502,6 @@ function PPU(nes) {
     }
     
     this.reset = function() {
-        this.ppuMem.reset();
-        this.sprMem.reset();
         
         this.vramBufferedReadValue = 0;
         this.sramAddress           = 0;

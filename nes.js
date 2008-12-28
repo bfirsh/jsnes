@@ -1,9 +1,10 @@
 function NES() {
     Globals.nes = this;
     
-    this.cpuMem = new Memory(this, 0x10000);	// Main memory (internal to CPU)
-    this.ppuMem = new Memory(this, 0x8000);	// VRAM memory (internal to PPU)
-    this.sprMem = new Memory(this, 0x100);	// Sprite RAM  (internal to PPU)
+    this.cpuMem = new Array(0x10000);	// Main memory (internal to CPU)
+    this.ppuMem = new Array(0x8000);	// VRAM memory (internal to PPU)
+    this.sprMem = new Array(0x100);	// Sprite RAM  (internal to PPU)
+
     this.cpu = new CPU(this);
     this.ppu = new PPU(this);
     this.memMapper = null;
@@ -140,14 +141,14 @@ function NES() {
 	this.clearCPUMemory = function() {
 		var flushval = Globals.memoryFlushValue;
 		for(var i=0;i<0x2000;i++) {
-			this.cpuMem.mem[i] = flushval;
+			this.cpuMem[i] = flushval;
 		}
 		for(var p=0;p<4;p++){
 			var i = p*0x800;
-			this.cpuMem.mem[i+0x008] = 0xF7;
-			this.cpuMem.mem[i+0x009] = 0xEF;
-			this.cpuMem.mem[i+0x00A] = 0xDF;
-			this.cpuMem.mem[i+0x00F] = 0xBF;
+			this.cpuMem[i+0x008] = 0xF7;
+			this.cpuMem[i+0x009] = 0xEF;
+			this.cpuMem[i+0x00A] = 0xDF;
+			this.cpuMem[i+0x00F] = 0xBF;
 		}
 	}
 	
@@ -191,9 +192,9 @@ function NES() {
 			this.rom.closeRom();
 		if(this.memMapper != null)
 			this.memMapper.reset();
-		this.cpuMem.reset();
-		this.ppuMem.reset();
-		this.sprMem.reset();
+		for (var i=0; i<this.cpuMem.length; i++) this.cpuMem[i] = 0;
+        for (var i=0; i<this.ppuMem.length; i++) this.ppuMem[i] = 0;
+        for (var i=0; i<this.sprMem.length; i++) this.sprMem[i] = 0;
 		this.clearCPUMemory();
 		this.cpu.reset();
 		this.cpu.init();

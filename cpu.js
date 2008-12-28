@@ -246,7 +246,7 @@ function CPU(nes) {
                 // at the given location.
                 addr = this.load16bit(opaddr+2);// Find op
                 if(addr < 0x1FFF){
-                    addr = this.nes.cpuMem.mem[addr] + (this.nes.cpuMem.mem[(addr&0xFF00)|(((addr&0xFF)+1)&0xFF)]<<8);// Read from address given in op
+                    addr = this.nes.cpuMem[addr] + (this.nes.cpuMem[(addr&0xFF00)|(((addr&0xFF)+1)&0xFF)]<<8);// Read from address given in op
                 }else{
                     addr = this.mmap.load(addr)+(this.mmap.load((addr&0xFF00)|(((addr&0xFF)+1)&0xFF))<<8);
                 }
@@ -1086,12 +1086,12 @@ function CPU(nes) {
     }
     
     this.load = function(addr){
-        return addr<0x2000 ? this.nes.cpuMem.mem[addr&0x7FF] : this.mmap.load(addr);
+        return addr<0x2000 ? this.nes.cpuMem[addr&0x7FF] : this.mmap.load(addr);
     }
     
     this.load16bit = function(addr){
         return addr<0x1FFF ?
-            this.nes.cpuMem.mem[addr&0x7FF] | (this.nes.cpuMem.mem[(addr+1)&0x7FF]<<8)
+            this.nes.cpuMem[addr&0x7FF] | (this.nes.cpuMem[(addr+1)&0x7FF]<<8)
             :
             this.mmap.load(addr) | (this.mmap.load(addr+1)<<8)
             ;
@@ -1099,7 +1099,7 @@ function CPU(nes) {
     
     this.write = function(addr, val){
         if(addr < 0x2000){
-            this.nes.cpuMem.mem[addr&0x7FF] = val;
+            this.nes.cpuMem[addr&0x7FF] = val;
         }else{
             this.mmap.write(addr,val);
         }
