@@ -77,8 +77,8 @@ function ROM(nes) {
 	
 	// The mappers supported:
 	this.supportedMappers[0] = true; // No Mapper
-	/*this.supportedMappers[1] = true; // MMC1
-	this.supportedMappers[2] = true; // UNROM
+	this.supportedMappers[1] = true; // MMC1
+	/*this.supportedMappers[2] = true; // UNROM
 	this.supportedMappers[3] = true; // CNROM
 	this.supportedMappers[4] = true; // MMC3
 	this.supportedMappers[7] = true; // AOROM
@@ -211,10 +211,13 @@ function ROM(nes) {
 	        switch(this.mapperType) {
 	            case 0: // No mapper
 	                return new MapperDefault(this.nes);
+	            case 1: // MMC 1
+	                return new Mapper001(this.nes);
 	        }
 	    }
 	    else {
 	        alert("Mapper not supported: "+this.mapperType);
+	        return null;
 	    }
 	}
 }

@@ -173,6 +173,7 @@ function NES() {
 			this.reset();
 			
 			this.memMapper = this.rom.createMapper();
+			if (!this.memMapper) return;
 			this.cpu.mmap = this.memMapper;
 			this.memMapper.loadROM();
 			this.ppu.setMirroring(this.rom.getMirroringType());

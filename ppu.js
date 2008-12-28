@@ -947,7 +947,7 @@ function PPU(nes) {
     
     this.renderFramePartially = function(buffer, startScan, scanCount){
         
-        if(this.f_spVisibility == 1 && !Globals.disableSprites){
+        if(this.f_spVisibility == 1){
             this.renderSpritesPartially(startScan,scanCount,true);
         }
         
@@ -965,7 +965,7 @@ function PPU(nes) {
             }
         }
         
-        if(this.f_spVisibility == 1 && !Globals.disableSprites){
+        if(this.f_spVisibility == 1){
             this.renderSpritesPartially(startScan,scanCount,false);
         }
         
@@ -1120,9 +1120,9 @@ function PPU(nes) {
                         }
                         
                         if(this.f_spPatternTable==0){
-                            this.ptTile[this.sprTile[i]].render(0,this.srcy1,8,this.srcy2,this.sprX[i],this.sprY[i]+1,this.buffer,this.sprCol[i],this.sprPalette,this.horiFlip[i],this.vertFlip[i],i,this.pixrendered);
+                            this.ptTile[this.sprTile[i]].render(0, this.srcy1, 8, this.srcy2, this.sprX[i], this.sprY[i]+1, this.buffer,this.sprCol[i], this.sprPalette, this.horiFlip[i], this.vertFlip[i], i, this.pixrendered);
                         }else{
-                            this.ptTile[this.sprTile[i]+256].render(0,this.srcy1,8,this.srcy2,this.sprX[i],this.sprY[i]+1,this.buffer,this.sprCol[i],this.sprPalette,this.horiFlip[i],this.vertFlip[i],i,this.pixrendered);
+                            this.ptTile[this.sprTile[i]+256].render(0, this.srcy1, 8, this.srcy2, this.sprX[i], this.sprY[i]+1, this.buffer, this.sprCol[i], this.sprPalette, this.horiFlip[i], this.vertFlip[i], i, this.pixrendered);
                         }
                     }else{
                         // 8x16 sprites

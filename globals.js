@@ -22,7 +22,6 @@ var Globals = {
 	showPatterns: false,
 	showPalettes: false,
 	showNameTables: false,
-	disableSprites: false,
 	recordingAudio: false,
 	nsfMode: false,
 	timeEmulation: true,
