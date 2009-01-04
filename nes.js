@@ -88,7 +88,7 @@ function NES() {
 
                 }
             }
-            this.fillImage();
+            //this.fillImage();
             this.ctx.putImageData(this.imageData, 0, 0);
             setTimeout(function(o) {o.frame()}, 0, this);
     		/*$("#cpu_acc").text(this.cpu.REG_ACC.toString(16));

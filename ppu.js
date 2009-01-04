@@ -313,7 +313,6 @@ function PPU(nes) {
         // Make sure everything is rendered:
         if(this.lastRenderedScanline < 239){
             this.renderFramePartially(
-                this.buffer,
                 this.lastRenderedScanline+1,240-this.lastRenderedScanline
             );
         }
@@ -363,7 +362,7 @@ function PPU(nes) {
 
                     if(this.f_bgVisibility==1){
                         // Render dummy scanline:
-                        this.renderBgScanline(this.buffer,0);
+                        this.renderBgScanline(false,0);
                     }   
 
                 }
@@ -403,7 +402,7 @@ function PPU(nes) {
                             // update scroll:
                             this.cntHT = this.regHT;
                             this.cntH = this.regH;
-                            this.renderBgScanline(this.bgbuffer,this.scanline+1-21);
+                            this.renderBgScanline(true,this.scanline+1-21);
                         }
                         this.scanlineAlreadyRendered=false;
 
@@ -482,8 +481,7 @@ function PPU(nes) {
         }
         
         for(var i=0;i<this.buffer.length;i++) {
-            this.buffer[i]=bgColor;
-            //this.writePixel(i, bgColor);
+            this.writePixel(i, bgColor);
         }
         for(var i=0;i<this.pixrendered.length;i++) {
             this.pixrendered[i]=65;
@@ -498,23 +496,19 @@ function PPU(nes) {
             // Spr 0 position:
             if(this.sprX[0]>=0 && this.sprX[0]<256 && this.sprY[0]>=0 && this.sprY[0]<240){
                 for(var i=0;i<256;i++){ 
-                    this.buffer[(this.sprY[0]<<8)+i] = 0xFF5555;
-                    //this.writePixel((this.sprY[0]<<8)+i, 0xFF5555);
+                    this.writePixel((this.sprY[0]<<8)+i, 0xFF5555);
                 }
                 for(var i=0;i<240;i++){
-                    this.buffer[(i<<8)+this.sprX[0]] = 0xFF5555;
-                    //this.writePixel((i<<8)+this.sprX[0], 0xFF5555);
+                    this.writePixel((i<<8)+this.sprX[0], 0xFF5555);
                 }
             }
             // Hit position:
             if(this.spr0HitX>=0 && this.spr0HitX<256 && this.spr0HitY>=0 && this.spr0HitY<240){
                 for(var i=0;i<256;i++){ 
-                    this.buffer[(this.spr0HitY<<8)+i] = 0x55FF55;
-                    //this.writePixel((this.spr0HitY<<8)+i, 0x55FF55);
+                    this.writePixel((this.spr0HitY<<8)+i, 0x55FF55);
                 }
                 for(var i=0;i<240;i++){
-                    this.buffer[(i<<8)+this.spr0HitX] = 0x55FF55;
-                    //this.writePixel((i<<8)+this.spr0HitX, 0x55FF55);
+                    this.writePixel((i<<8)+this.spr0HitX, 0x55FF55);
                 }
             }
         }
@@ -526,8 +520,7 @@ function PPU(nes) {
             // Clip left 8-pixels column:
             for(var y=0;y<240;y++){
                 for(var x=0;x<8;x++){
-                    this.buffer[(y<<8)+x] = 0;
-                    //this.writePixel((y<<8)+x, 0);
+                    this.writePixel((y<<8)+x, 0);
                 }
             }
         }
@@ -536,8 +529,7 @@ function PPU(nes) {
             // Clip right 8-pixels column too:
             for(var y=0;y<240;y++){
                 for(var x=0;x<8;x++){
-                    this.buffer[(y<<8)+255-x] = 0;
-                    //this.writePixel((y<<8)+255-x, 0);
+                    this.writePixel((y<<8)+255-x, 0);
                 }
             }
         }
@@ -546,10 +538,8 @@ function PPU(nes) {
         if(this.clipToTvSize){
             for(var y=0;y<8;y++){
                 for(var x=0;x<256;x++){
-                    this.buffer[(y<<8)+x] = 0;
-                    //this.writePixel((y<<8)+x, 0);
-                    this.buffer[((239-y)<<8)+x] = 0;
-                    //this.writePixel(((239-y)<<8)+x, 0);
+                    this.writePixel((y<<8)+x, 0);
+                    this.writePixel(((239-y)<<8)+x, 0);
                 }
             }
         }
@@ -933,7 +923,6 @@ function PPU(nes) {
             
             // Render sprites, and combine:
             this.renderFramePartially(
-                this.buffer,
                 this.lastRenderedScanline+1,
                 this.scanline-21-this.lastRenderedScanline
             );
@@ -945,7 +934,7 @@ function PPU(nes) {
         
     }
     
-    this.renderFramePartially = function(buffer, startScan, scanCount){
+    this.renderFramePartially = function(startScan, scanCount){
         
         if(this.f_spVisibility == 1){
             this.renderSpritesPartially(startScan,scanCount,true);
@@ -958,9 +947,8 @@ function PPU(nes) {
             for(this.destIndex=this.si;this.destIndex<this.ei;this.destIndex++){
                 if(this.pixrendered[this.destIndex]>0xFF){
                     //console.log("Writing "+this.imgPalette[this.col+this.att].toString(16)+" to buffer at "+this.destIndex.toString(16));
-                    buffer[this.destIndex] = this.bgbuffer[this.destIndex];
-                    //this.writePixel(this.destIndex, 
-                    //                this.bgbuffer[this.destIndex]);
+                    this.writePixel(this.destIndex, 
+                                    this.bgbuffer[this.destIndex]);
                 }
             }
         }
@@ -996,7 +984,7 @@ function PPU(nes) {
         
     }
     
-    this.renderBgScanline = function(buffer, scan){
+    this.renderBgScanline = function(bgbuffer, scan){
 
         this.baseTile = (this.regS==0?0:256);
         this.destIndex = (scan<<8)-this.regFH;
@@ -1039,8 +1027,14 @@ function PPU(nes) {
                         }
                         if(this.t.opaque[this.cntFV]){
                             for(;this.sx<8;this.sx++){
-                                buffer[this.destIndex] = this.imgPalette[this.tpix[this.tscanoffset+this.sx]+this.att];
-                                this.pixrendered[destIndex] |= 256;
+                                var pix = this.imgPalette[this.tpix[this.tscanoffset+this.sx]+this.att];
+                                if (bgbuffer) {
+                                    this.bgbuffer[this.destIndex] = pix;
+                                }
+                                else {
+                                    this.writePixel(this.destIndex, pix);
+                                }
+                                this.pixrendered[this.destIndex] |= 256;
                                 this.destIndex++;
                             }
                         }else{
@@ -1048,7 +1042,14 @@ function PPU(nes) {
                                 this.col = this.tpix[this.tscanoffset+this.sx];
                                 if(this.col != 0){
                                     //console.log("Writing "+this.imgPalette[this.col+this.att].toString(16)+" to buffer at "+this.destIndex.toString(16));
-                                    buffer[this.destIndex] = this.imgPalette[this.col+this.att];
+                                    var pix = 
+                                        this.imgPalette[this.col+this.att];
+                                    if (bgbuffer) {
+                                        this.bgbuffer[this.destIndex] = pix;
+                                    }
+                                    else {
+                                        this.writePixel(this.destIndex, pix);
+                                    }
                                     this.pixrendered[this.destIndex] |= 256;
                                 }
                                 this.destIndex++;
@@ -1120,9 +1121,9 @@ function PPU(nes) {
                         }
                         
                         if(this.f_spPatternTable==0){
-                            this.ptTile[this.sprTile[i]].render(0, this.srcy1, 8, this.srcy2, this.sprX[i], this.sprY[i]+1, this.buffer,this.sprCol[i], this.sprPalette, this.horiFlip[i], this.vertFlip[i], i, this.pixrendered);
+                            this.ptTile[this.sprTile[i]].render(0, this.srcy1, 8, this.srcy2, this.sprX[i], this.sprY[i]+1, this.sprCol[i], this.sprPalette, this.horiFlip[i], this.vertFlip[i], i, this.pixrendered);
                         }else{
-                            this.ptTile[this.sprTile[i]+256].render(0, this.srcy1, 8, this.srcy2, this.sprX[i], this.sprY[i]+1, this.buffer, this.sprCol[i], this.sprPalette, this.horiFlip[i], this.vertFlip[i], i, this.pixrendered);
+                            this.ptTile[this.sprTile[i]+256].render(0, this.srcy1, 8, this.srcy2, this.sprX[i], this.sprY[i]+1, this.sprCol[i], this.sprPalette, this.horiFlip[i], this.vertFlip[i], i, this.pixrendered);
                         }
                     }else{
                         // 8x16 sprites
@@ -1148,7 +1149,6 @@ function PPU(nes) {
                             this.srcy2,
                             this.sprX[i],
                             this.sprY[i]+1,
-                            this.buffer,
                             this.sprCol[i],
                             this.sprPalette,
                             this.horiFlip[i],
@@ -1175,7 +1175,6 @@ function PPU(nes) {
                             this.srcy2,
                             this.sprX[i],
                             this.sprY[i]+1+8,
-                            this.buffer,
                             this.sprCol[i],
                             this.sprPalette,
                             this.horiFlip[i],

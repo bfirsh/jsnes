@@ -35,7 +35,7 @@ function Tile() {
 	}
 	
 	
-	this.render = function(srcx1, srcy1, srcx2, srcy2, dx, dy, fBuffer, palAdd, palette, flipHorizontal, flipVertical, pri, priTable){
+	this.render = function(srcx1, srcy1, srcx2, srcy2, dx, dy, palAdd, palette, flipHorizontal, flipVertical, pri, priTable){
 	
 		if(dx<-7 || dx>=256 || dy<-7 || dy>=240){
 			return;
@@ -69,8 +69,7 @@ function Tile() {
 						this.tpri = priTable[this.fbIndex];
 						if(this.palIndex!=0 && pri<=(this.tpri&0xFF)){
 						    //console.log("Rendering upright tile to buffer");
-							fBuffer[this.fbIndex] = palette[this.palIndex+palAdd];
-							//Globals.nes.ppu.writePixel(this.fbIndex, palette[this.palIndex+palAdd]);
+							Globals.nes.ppu.writePixel(this.fbIndex, palette[this.palIndex+palAdd]);
 							this.tpri = (this.tpri&0xF00)|pri;
 							priTable[this.fbIndex] =this.tpri;
 						}
@@ -92,8 +91,7 @@ function Tile() {
 						this.palIndex = this.pix[this.tIndex];
 						this.tpri = priTable[this.fbIndex];
 						if(this.palIndex!=0 && pri<=(this.tpri&0xFF)){
-							fBuffer[this.fbIndex] = palette[this.palIndex+palAdd];
-							//Globals.nes.ppu.writePixel(this.fbIndex, palette[this.palIndex+palAdd]);
+							Globals.nes.ppu.writePixel(this.fbIndex, palette[this.palIndex+palAdd]);
 							this.tpri = (this.tpri&0xF00)|pri;
 							priTable[this.fbIndex] =this.tpri;
 						}
@@ -116,8 +114,7 @@ function Tile() {
 						this.palIndex = this.pix[this.tIndex];
 						this.tpri = priTable[this.fbIndex];
 						if(this.palIndex!=0 && pri<=(this.tpri&0xFF)){
-							fBuffer[this.fbIndex] = palette[this.palIndex+palAdd];
-							//Globals.nes.ppu.writePixel(this.fbIndex, palette[this.palIndex+palAdd]);
+							Globals.nes.ppu.writePixel(this.fbIndex, palette[this.palIndex+palAdd]);
 							this.tpri = (this.tpri&0xF00)|pri;
 							priTable[this.fbIndex] =this.tpri;
 						}
@@ -140,8 +137,7 @@ function Tile() {
 						this.palIndex = this.pix[this.tIndex];
 						this.tpri = priTable[this.fbIndex];
 						if(this.palIndex!=0 && pri<=(this.tpri&0xFF)){
-						    fBuffer[this.fbIndex] = palette[this.palIndex+palAdd];
-						    //Globals.nes.ppu.writePixel(this.fbIndex, palette[this.palIndex+palAdd]);
+						    Globals.nes.ppu.writePixel(this.fbIndex, palette[this.palIndex+palAdd]);
 							this.tpri = (this.tpri&0xF00)|pri;
 							priTable[this.fbIndex] =this.tpri;
 						}
