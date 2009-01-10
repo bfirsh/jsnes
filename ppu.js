@@ -119,7 +119,6 @@ function PPU(nes) {
     this.spr0dummybuffer = new Array(256*240);
     this.dummyPixPriTable = new Array(256*240);
     this.oldFrame = new Array(256*240);
-    this.buffer = new Array(256*240);
     this.tpix = null;
     
     this.scanlineChanged = Array(240);
@@ -480,7 +479,7 @@ function PPU(nes) {
             
         }
         
-        for(var i=0;i<this.buffer.length;i++) {
+        for(var i=0;i<256*240;i++) {
             this.writePixel(i, bgColor);
         }
         for(var i=0;i<this.pixrendered.length;i++) {

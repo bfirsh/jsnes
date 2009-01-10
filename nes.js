@@ -88,43 +88,9 @@ function NES() {
 
                 }
             }
-            //this.fillImage();
             this.ctx.putImageData(this.imageData, 0, 0);
             setTimeout(function(o) {o.frame()}, 0, this);
-    		/*$("#cpu_acc").text(this.cpu.REG_ACC.toString(16));
-    		$("#cpu_x").text(this.cpu.REG_X.toString(16));
-    		$("#cpu_y").text(this.cpu.REG_Y.toString(16));
-    		$("#cpu_pc").text(this.cpu.REG_PC.toString(16));
-    		$("#cpu_sp").text(this.cpu.REG_SP.toString(16));
-    		$("#cpu_f_carry").text(this.cpu.F_CARRY.toString(16));
-    		$("#cpu_f_zero").text(this.cpu.F_ZERO.toString(16));
-    		$("#cpu_f_interrupt").text(this.cpu.F_INTERRUPT.toString(16));
-    		$("#cpu_f_decimal").text(this.cpu.F_DECIMAL.toString(16));
-    		$("#cpu_f_brk").text(this.cpu.F_BRK.toString(16));
-    		$("#cpu_f_overflow").text(this.cpu.F_OVERFLOW.toString(16));
-    		$("#cpu_f_sign").text(this.cpu.F_SIGN.toString(16));
-    		
-    		
-    		$("#ppu_curX").text(this.ppu.curX);
-    		$("#ppu_scanline").text(this.ppu.scanline);*/
         }
-    }
-    
-    this.fillImage = function() {
-        var i = 0;
-        for (var j = 0; j < this.ppu.buffer.length; j++) {
-            this.imageData.data[i++] = this.ppu.buffer[j]&0xFF;
-            this.imageData.data[i++] = (this.ppu.buffer[j]>>8)&0xFF;
-            this.imageData.data[i++] = (this.ppu.buffer[j]>>16)&0xFF;
-            i++;
-        }
-    }
-    
-    this.testFrame = function() {
-        for (var i = 0; i < this.imageData.data.length; i+=4) {
-            this.imageData.data[i] = 0xFF;
-        }
-        this.ctx.putImageData(this.imageData, 0, 0);
     }
     
     this.stop = function() {
