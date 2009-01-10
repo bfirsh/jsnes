@@ -188,10 +188,10 @@ MapperDefault.prototype.regLoad = function(address){
                 
                     // 0x4017:
                     // Joystick 2 + Strobe
-                    if(this.mousePressed){
+                    /*if(this.mousePressed){
                         
                         // Check for white pixel nearby:
-                        
+                        // TODO
                         var sx,sy,ex,ey,w;
                         sx = Math.max(0,this.mouseX-4);
                         ex = Math.min(256,this.mouseX+4);
@@ -211,11 +211,11 @@ MapperDefault.prototype.regLoad = function(address){
                             }
                         }
                         
-                        return this.joy2Read()|w;
+                        return this.joy2Read()|w;*/
                         
-                    }else{
+                    //}else{
                         return this.joy2Read();
-                    }
+                    //}
                     
                 }
             }
