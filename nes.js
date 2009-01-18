@@ -10,11 +10,9 @@ function NES() {
     this.memMapper = null;
     this.palTable = new PaletteTable();
     this.rom = null;
-    this.cc = null;
     
     this.romFile = null;
     this.isRunning = false;
-    this.inFrame = false;
     
     this.palTable.loadNTSCPalette();
 	//this.palTable.loadDefaultPalette();
@@ -36,7 +34,7 @@ function NES() {
             if (!this.isRunning) {
                 $("#status").text("Running "+this.romFile)
                 this.isRunning = true;
-                this.frame();
+                this.frameInterval = setInterval('Globals.nes.frame()', Globals.frameTime);
             }
         }
         else
@@ -44,57 +42,55 @@ function NES() {
     }
     
     this.frame = function() {
-        if (this.isRunning) {
-            this.ppu.startFrame();
-            var cycles = 0;
-            FRAMELOOP: for (;;) {
-                if (this.cpu.cyclesToHalt == 0)
-                    // Execute a CPU instruction
-                    cycles = this.cpu.emulate()*3;
-                else {
-                    if (this.cpu.cyclesToHalt > 8) {
-                        cycles = 24;
-                        this.cpu.cyclesToHalt -= 8;
-                    }
-                    else {
-                        cycles = this.cpu.cyclesToHalt * 3;
-                        this.cpu.cyclesToHalt = 0;
-                    }
+        this.ppu.startFrame();
+        var cycles = 0;
+        FRAMELOOP: for (;;) {
+            if (this.cpu.cyclesToHalt == 0)
+                // Execute a CPU instruction
+                cycles = this.cpu.emulate()*3;
+            else {
+                if (this.cpu.cyclesToHalt > 8) {
+                    cycles = 24;
+                    this.cpu.cyclesToHalt -= 8;
                 }
-                
-                for(;cycles>0;cycles--){
-
-                    if(this.ppu.curX == this.ppu.spr0HitX 
-                            && this.ppu.f_spVisibility==1 
-                            && this.ppu.scanline-21 == this.ppu.spr0HitY){
-                        // Set sprite 0 hit flag:
-                        this.ppu.setStatusFlag(this.ppu.STATUS_SPRITE0HIT,true);
-                    }
-
-                    if(this.ppu.requestEndFrame){
-                        this.ppu.nmiCounter--;
-                        if(this.ppu.nmiCounter == 0){
-                            this.ppu.requestEndFrame = false;
-                            this.ppu.startVBlank();
-                            break FRAMELOOP;
-                        }
-                    }
-
-                    this.ppu.curX++;
-                    if(this.ppu.curX==341){
-                        this.ppu.curX = 0;
-                        this.ppu.endScanline();
-                    }
-
+                else {
+                    cycles = this.cpu.cyclesToHalt * 3;
+                    this.cpu.cyclesToHalt = 0;
                 }
             }
-            this.ctx.putImageData(this.imageData, 0, 0);
-            setTimeout(function(o) {o.frame()}, 0, this);
+            
+            for(;cycles>0;cycles--){
+
+                if(this.ppu.curX == this.ppu.spr0HitX 
+                        && this.ppu.f_spVisibility==1 
+                        && this.ppu.scanline-21 == this.ppu.spr0HitY){
+                    // Set sprite 0 hit flag:
+                    this.ppu.setStatusFlag(this.ppu.STATUS_SPRITE0HIT,true);
+                }
+
+                if(this.ppu.requestEndFrame){
+                    this.ppu.nmiCounter--;
+                    if(this.ppu.nmiCounter == 0){
+                        this.ppu.requestEndFrame = false;
+                        this.ppu.startVBlank();
+                        break FRAMELOOP;
+                    }
+                }
+
+                this.ppu.curX++;
+                if(this.ppu.curX==341){
+                    this.ppu.curX = 0;
+                    this.ppu.endScanline();
+                }
+
+            }
         }
+        this.ctx.putImageData(this.imageData, 0, 0);
     }
     
     this.stop = function() {
         $("#status").text("Stopped.");
+        clearInterval(this.frameInterval)
 		this.isRunning = false;
     }
     
