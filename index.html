@@ -27,9 +27,15 @@
         
         $(document).ready(function() {
             $("#status").text("Initialising...");
-            for (rom in roms_list) {
-                $('<option>'+roms_list[rom]+'</option>')
-                    .attr("value", roms_list[rom]).appendTo("#roms");
+            $("<option>Select a ROM...</option>").appendTo("#roms");
+            for (c in roms_list) {
+                var optgroup = $('<optgroup></optgroup>').attr("label", c);
+                for (i in roms_list[c]) if (roms_list[c].hasOwnProperty(i)) {
+                    $('<option>'+roms_list[c][i]+'</option>')
+                        .attr("value", roms_list[c][i])
+                        .appendTo(optgroup);
+                }
+                $("#roms").append(optgroup);
             }
             nes = new NES();
         });
@@ -47,11 +53,11 @@
 
 <canvas id="screen" width="256" height="240"></canvas>
 
-<p><strong>Status:</strong> <span id="status">Loading...</span></p>
-<input type="button" value="start" onclick="nes.start()" />
-<input type="button" value="stop" onclick="nes.stop()" />
+<!--<p><strong>Status:</strong> <span id="status">Loading...</span></p>-->
+<input type="button" value="pause" id="pause" disabled="disabled" />
+<input type="button" value="restart" id="restart" disabled="disabled" />
 
-<p><select id="roms" size="20"></select></p>
+<p><select id="roms"></select></p>
 
 <script type="text/javascript" charset="utf-8">
     // Mouse events
@@ -70,41 +76,40 @@
             nes.memMapper.mouseY = 0;
         }
     });
-
-    $("#roms").dblclick(function() {
+    
+    function resetButtons() {
+        $("#pause").attr("disabled", null).attr("value", "pause");
+        $("#restart").attr("disabled", null);
+    }
+    
+    $("#roms").change(function() {
+        resetButtons();
         var romName = $("#roms").val();
         $("#status").text("Downloading "+romName);
         $.getScript("roms/"+escape(romName)+".js", function(){
             nes.loadRom(romName);
+            nes.start();
         });
     });
     
+    $("#pause").click(function() {
+        b = $("#pause");
+        if (b.attr("value") == "pause") {
+            nes.stop();
+            b.attr("value", "resume");
+        }
+        else {
+            nes.start();
+            b.attr("value", "pause");
+        }
+    });
+    
+    $("#restart").click(function() {
+        nes.reloadRom();
+        nes.start();
+    });
+    
 </script>
-
-<!--<div>
-<h2>CPU</h2>
-<table>
-    <tr><th>REG_ACC</th><td id="cpu_acc"></td></tr>
-    <tr><th>REG_X</th><td id="cpu_x"></td></tr>
-    <tr><th>REG_Y</th><td id="cpu_y"></td></tr>
-    <tr><th>REG_PC</th><td id="cpu_pc"></td></tr>
-    <tr><th>REG_SP</th><td id="cpu_sp"></td></tr>
-    <tr><th>F_CARRY</th><td id="cpu_f_carry"></td></tr>
-    <tr><th>F_ZERO</th><td id="cpu_f_zero"></td></tr>
-    <tr><th>F_INTERRUPT</th><td id="cpu_f_interrupt"></td></tr>
-    <tr><th>F_DECIMAL</th><td id="cpu_f_decimal"></td></tr>
-    <tr><th>F_BRK</th><td id="cpu_f_brk"></td></tr>
-    <tr><th>F_OVERFLOW</th><td id="cpu_f_overflow"></td></tr>
-    <tr><th>F_SIGN</th><td id="cpu_f_sign"></td></tr>
-</table>
-</div>
-<div>
-<h2>PPU</h2>
-<table>
-    <tr><th>curX</th><td id="ppu_curX"></td></tr>
-    <tr><th>scanline</th><td id="ppu_scanline"></td></tr>
-</table>
-</div>-->
 
 </body>
 </html>

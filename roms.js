@@ -1,760 +1,772 @@
-var roms_list = new Array();
-roms_list.push('10-Yard Fight (U).nes');
-roms_list.push('1942 (JU) [!].nes');
-roms_list.push('1943 - The Battle of Midway (U).nes');
-roms_list.push('3-D Battles of World Runner, The (U).nes');
-roms_list.push('720 (U).nes');
-roms_list.push('8 Eyes (U).nes');
-roms_list.push('Abadox (U).nes');
-roms_list.push('Action 52 (U) [!].nes');
-roms_list.push('Addams Family, The (U).nes');
-roms_list.push('Addams Family, The - Pugsley\'s Scavenger Hunt (U).nes');
-roms_list.push('Advanced Dungeons & Dragons - Dragon Strike (U).nes');
-roms_list.push('Advanced Dungeons & Dragons - Heroes of the Lance (U).nes');
-roms_list.push('Advanced Dungeons & Dragons - Hillsfar (U) [!].nes');
-roms_list.push('Advanced Dungeons & Dragons - Pool of Radiance (U).nes');
-roms_list.push('Adventures in the Magic Kingdom (U).nes');
-roms_list.push('Adventures of Bayou Billy, The (U).nes');
-roms_list.push('Adventures of Captain Comic, The (U).nes');
-roms_list.push('Adventures of Dino Riki, The (U).nes');
-roms_list.push('Adventures of Lolo (U) [!].nes');
-roms_list.push('Adventures of Lolo 2 (U).nes');
-roms_list.push('Adventures of Lolo 3 (U).nes');
-roms_list.push('Adventures of Rad Gravity, The (U).nes');
-roms_list.push('Adventures of Rocky and Bullwinkle and Friends, The (U).nes');
-roms_list.push('Adventures of Tom Sawyer (U).nes');
-roms_list.push('After Burner (U).nes');
-roms_list.push('Air Fortress (U).nes');
-roms_list.push('Airwolf (U).nes');
-roms_list.push('Al Unser Jr. Turbo Racing (U).nes');
-roms_list.push('Aladdin (Unl).nes');
-roms_list.push('Alfred Chicken (U).nes');
-roms_list.push('Alien 3 (U).nes');
-roms_list.push('Alien Syndrome (U).nes');
-roms_list.push('All-Pro Basketball (U).nes');
-roms_list.push('Alpha Mission (U).nes');
-roms_list.push('Amagon (U).nes');
-roms_list.push('American Gladiators (U).nes');
-roms_list.push('Anticipation (U).nes');
-roms_list.push('Arch Rivals - A Basket Brawl! (U).nes');
-roms_list.push('Archon (U).nes');
-roms_list.push('Arkanoid (U).nes');
-roms_list.push('Arkista\'s Ring (U) [!].nes');
-roms_list.push('Astyanax (U).nes');
-roms_list.push('Athena (U).nes');
-roms_list.push('Athletic World (U).nes');
-roms_list.push('Attack of the Killer Tomatoes (U).nes');
-roms_list.push('Baby Boomer (U).nes');
-roms_list.push('Back to the Future (U).nes');
-roms_list.push('Back to the Future II & III (U).nes');
-roms_list.push('Bad Dudes (U).nes');
-roms_list.push('Bad News Baseball (U).nes');
-roms_list.push('Bad Street Brawler (U).nes');
-roms_list.push('Balloon Fight (JU) [!].nes');
-roms_list.push('Bandai Golf - Challenge Pebble Beach (U).nes');
-roms_list.push('Bandit Kings of Ancient China (U).nes');
-roms_list.push('Barbie (U) (Rev 3).nes');
-roms_list.push('Bard\'s Tale, The - Tales of the Unknown (U) [!].nes');
-roms_list.push('Barker Bill\'s Trick Shooting (U).nes');
-roms_list.push('Base Wars (U).nes');
-roms_list.push('Baseball (UE) [!].nes');
-roms_list.push('Baseball Simulator 1.000 (U).nes');
-roms_list.push('Baseball Stars (U).nes');
-roms_list.push('Baseball Stars II (U).nes');
-roms_list.push('Bases Loaded (U).nes');
-roms_list.push('Bases Loaded 3 (U).nes');
-roms_list.push('Bases Loaded 4 (U).nes');
-roms_list.push('Bases Loaded II (U).nes');
-roms_list.push('Batman (U).nes');
-roms_list.push('Batman - Return of the Joker (U).nes');
-roms_list.push('Batman Returns (U).nes');
-roms_list.push('Battle Chess (U).nes');
-roms_list.push('Battle of Olympus, The (U).nes');
-roms_list.push('Battle Tank (U).nes');
-roms_list.push('Battleship (U).nes');
-roms_list.push('Battletoads & Double Dragon - The Ultimate Team (U).nes');
-roms_list.push('Battletoads (U).nes');
-roms_list.push('Bee 52 (U).nes');
-roms_list.push('Beetlejuice (U) [!].nes');
-roms_list.push('Best of the Best - Championship Karate (U).nes');
-roms_list.push('Bible Adventures (U) (V1.3).nes');
-roms_list.push('Bible Buffet (U).nes');
-roms_list.push('Big Bird\'s Hide & Speak (U).nes');
-roms_list.push('Big Nose Freaks Out (U).nes');
-roms_list.push('Big Nose the Caveman (U).nes');
-roms_list.push('Bigfoot (U).nes');
-roms_list.push('Bill & Ted\'s Excellent Video Game Adventure (U).nes');
-roms_list.push('Bill Elliott\'s NASCAR Challenge (U).nes');
-roms_list.push('Bionic Commando (U) [!].nes');
-roms_list.push('Black Bass USA, The (U).nes');
-roms_list.push('Blackjack (U).nes');
-roms_list.push('Blades of Steel (U).nes');
-roms_list.push('Blaster Master (U).nes');
-roms_list.push('Blue Marlin, The (U).nes');
-roms_list.push('Blues Brothers, The (U).nes');
-roms_list.push('Bo Jackson Baseball (U).nes');
-roms_list.push('Bomberman (U).nes');
-roms_list.push('Bomberman II (U).nes');
-roms_list.push('Bonk\'s Adventure (U).nes');
-roms_list.push('Boulder Dash (U).nes');
-roms_list.push('Boy and His Blob, A - Trouble on Blobolonia (U).nes');
-roms_list.push('Bram Stoker\'s Dracula (U).nes');
-roms_list.push('Break Time - The National Pool Tour (U).nes');
-roms_list.push('BreakThru (U).nes');
-roms_list.push('Bubble Bath Babes (UE) [!].nes');
-roms_list.push('Bubble Bobble (U).nes');
-roms_list.push('Bubble Bobble Part 2 (U).nes');
-roms_list.push('Bucky O\'Hare (U) [!].nes');
-roms_list.push('Bugs Bunny Birthday Blowout, The (U).nes');
-roms_list.push('Bugs Bunny Crazy Castle, The (U).nes');
-roms_list.push('Bugs Bunny Fun House (U) (Prototype).nes');
-roms_list.push('Bump\'n\'Jump (U).nes');
-roms_list.push('Burai Fighter (U).nes');
-roms_list.push('Burger Time (U) [!].nes');
-roms_list.push('Cabal (U).nes');
-roms_list.push('Caesars Palace (U).nes');
-roms_list.push('California Games (U).nes');
-roms_list.push('California Raisins - The Grape Escape (U).nes');
-roms_list.push('Caltron 6-in-1 (U).nes');
-roms_list.push('Captain America and The Avengers (U).nes');
-roms_list.push('Captain Planet and The Planeteers (U).nes');
-roms_list.push('Captain Skyhawk (U).nes');
-roms_list.push('Casino Kid (U).nes');
-roms_list.push('Casino Kid 2 (U).nes');
-roms_list.push('Castelian (U).nes');
-roms_list.push('Castle of Deceit (U).nes');
-roms_list.push('Castle of Dragon (U).nes');
-roms_list.push('Castlequest (U).nes');
-roms_list.push('Castlevania (U) (PRG1).nes');
-roms_list.push('Castlevania II - Simon\'s Quest (U).nes');
-roms_list.push('Castlevania III - Dracula\'s Curse (U) [!].nes');
-roms_list.push('Caveman Games (U).nes');
-roms_list.push('Challenge of the Dragon (U).nes');
-roms_list.push('Championship Bowling (U) [!].nes');
-roms_list.push('Championship Pool (U).nes');
-roms_list.push('Cheetah Men II (U).nes');
-roms_list.push('Chessmaster, The (U).nes');
-roms_list.push('Chiller (U) [!].nes');
-roms_list.push('Chip \'n Dale Rescue Rangers (U) [!].nes');
-roms_list.push('Chip \'n Dale Rescue Rangers 2 (U).nes');
-roms_list.push('Chubby Cherub (U).nes');
-roms_list.push('Circus Caper (U).nes');
-roms_list.push('City Connection (U).nes');
-roms_list.push('Clash at Demonhead (U).nes');
-roms_list.push('Classic Concentration (U).nes');
-roms_list.push('Cliffhanger (U).nes');
-roms_list.push('Clu Clu Land (JU).nes');
-roms_list.push('Cobra Command (U).nes');
-roms_list.push('Cobra Triangle (U).nes');
-roms_list.push('Code Name - Viper (U).nes');
-roms_list.push('Color A Dinosaur (U).nes');
-roms_list.push('Commando (U).nes');
-roms_list.push('Conan (U).nes');
-roms_list.push('Conflict (U) [!].nes');
-roms_list.push('Conquest of the Crystal Palace (U).nes');
-roms_list.push('Contra (U) [!].nes');
-roms_list.push('Contra Force (U).nes');
-roms_list.push('Cool World (U).nes');
-roms_list.push('Cowboy Kid (U).nes');
-roms_list.push('Crash \'n the Boys - Street Challenge (U).nes');
-roms_list.push('Crystal Mines (U).nes');
-roms_list.push('Crystalis (U).nes');
-roms_list.push('Cyberball (U).nes');
-roms_list.push('Cybernoid - The Fighting Machine (U).nes');
-roms_list.push('Danny Sullivan\'s Indy Heat (U).nes');
-roms_list.push('Darkman (U).nes');
-roms_list.push('Darkwing Duck (U).nes');
-roms_list.push('Dash Galaxy in the Alien Asylum (U).nes');
-roms_list.push('Day Dreamin\' Davey (U).nes');
-roms_list.push('Days of Thunder (U).nes');
-roms_list.push('Deadly Towers (U).nes');
-roms_list.push('Death Race (U).nes');
-roms_list.push('Deathbots (U).nes');
-roms_list.push('Defender II (U).nes');
-roms_list.push('Defender of the Crown (U).nes');
-roms_list.push('Defenders of Dynatron City (U).nes');
-roms_list.push('Deja Vu (U).nes');
-roms_list.push('Demon Sword (U).nes');
-roms_list.push('Desert Commander (U).nes');
-roms_list.push('Destination Earthstar (U).nes');
-roms_list.push('Destiny of an Emperor (U).nes');
-roms_list.push('Dick Tracy (U).nes');
-roms_list.push('Die Hard (U).nes');
-roms_list.push('Dig Dug II (U) [!].nes');
-roms_list.push('Digger - The Legend of the Lost City (U).nes');
-roms_list.push('Dirty Harry (U).nes');
-roms_list.push('Dizzy The Adventurer (U).nes');
-roms_list.push('Donkey Kong (JU).nes');
-roms_list.push('Donkey Kong 3 (JUE).nes');
-roms_list.push('Donkey Kong Classics (U) [!].nes');
-roms_list.push('Donkey Kong Jr. (JU).nes');
-roms_list.push('Donkey Kong Jr. Math (U).nes');
-roms_list.push('Double Dare (U).nes');
-roms_list.push('Double Dragon (U).nes');
-roms_list.push('Double Dragon II - The Revenge (U).nes');
-roms_list.push('Double Dragon III - The Sacred Stones (U).nes');
-roms_list.push('Double Dribble (U) (PRG1) [!].nes');
-roms_list.push('Double Strike (U) (V1.1).nes');
-roms_list.push('Dr. Chaos (U).nes');
-roms_list.push('Dr. Jekyll and Mr. Hyde (U).nes');
-roms_list.push('Dr. Mario (JU).nes');
-roms_list.push('Dragon Fighter (U).nes');
-roms_list.push('Dragon Power (U).nes');
-roms_list.push('Dragon Spirit - The New Legend (U).nes');
-roms_list.push('Dragon Warrior (U) (PRG1).nes');
-roms_list.push('Dragon Warrior II (U).nes');
-roms_list.push('Dragon Warrior III (U).nes');
-roms_list.push('Dragon Warrior IV (U).nes');
-roms_list.push('Dragon\'s Lair (U).nes');
-roms_list.push('Duck Hunt (JUE) [!].nes');
-roms_list.push('Duck Tales (U).nes');
-roms_list.push('Duck Tales 2 (U).nes');
-roms_list.push('Dudes With Attitude (U).nes');
-roms_list.push('Dungeon Magic - Sword of the Elements (U).nes');
-roms_list.push('Dusty Diamond\'s All-Star Softball (U).nes');
-roms_list.push('Dynowarz - Destruction of Spondylus (U).nes');
-roms_list.push('Elevator Action (U).nes');
-roms_list.push('Eliminator Boat Duel (U).nes');
-roms_list.push('Excitebike (JU) [!].nes');
-roms_list.push('Exodus (U) (V4.0) [!].nes');
-roms_list.push('F-117A Stealth Fighter (U) [!].nes');
-roms_list.push('F-15 City War (U).nes');
-roms_list.push('F-15 Strike Eagle (U).nes');
-roms_list.push('Family Feud (U).nes');
-roms_list.push('Fantastic Adventures of Dizzy, The (U).nes');
-roms_list.push('Fantasy Zone (U).nes');
-roms_list.push('Faria - A World of Mystery and Danger! (U).nes');
-roms_list.push('Faxanadu (U).nes');
-roms_list.push('Felix the Cat (U).nes');
-roms_list.push('Ferrari - Grand Prix Challenge (U) [!].nes');
-roms_list.push('Fester\'s Quest (U) [!].nes');
-roms_list.push('Final Fantasy (U) [!].nes');
-roms_list.push('Fire \'n Ice (U).nes');
-roms_list.push('Fire Hawk (Unl).nes');
-roms_list.push('Firehouse Rescue (U).nes');
-roms_list.push('Fist of the North Star (U).nes');
-roms_list.push('Flight of the Intruder (U).nes');
-roms_list.push('Flintstones, The - The Rescue of Dino & Hoppy (U).nes');
-roms_list.push('Flintstones, The - The Surprise at Dinosaur Peak! (U).nes');
-roms_list.push('Flying Dragon - The Secret Scroll (U).nes');
-roms_list.push('Flying Warriors (U).nes');
-roms_list.push('Formula One - Built To Win (U) [o1].nes');
-roms_list.push('Frankenstein - The Monster Returns (U).nes');
-roms_list.push('Freedom Force (U) [!].nes');
-roms_list.push('Friday the 13th (U).nes');
-roms_list.push('Fun House (U).nes');
-roms_list.push('G.I. Joe (U).nes');
-roms_list.push('G.I. Joe - The Atlantis Factor (U).nes');
-roms_list.push('Galaga (U).nes');
-roms_list.push('Galaxy 5000 (U).nes');
-roms_list.push('Gargoyle\'s Quest II - The Demon Darkness (U).nes');
-roms_list.push('Gauntlet (U) [!].nes');
-roms_list.push('Gauntlet II (U).nes');
-roms_list.push('Gemfire (U).nes');
-roms_list.push('Genghis Khan (U).nes');
-roms_list.push('George Foreman\'s KO Boxing (U).nes');
-roms_list.push('Ghostbusters (U).nes');
-roms_list.push('Ghostbusters 2 (U).nes');
-roms_list.push('Ghosts\'n Goblins (U) [!].nes');
-roms_list.push('Ghoul School (U).nes');
-roms_list.push('Gilligan\'s Island (U).nes');
-roms_list.push('Goal! (U).nes');
-roms_list.push('Goal! Two (U).nes');
-roms_list.push('Godzilla - Monster of Monsters! (U).nes');
-roms_list.push('Godzilla 2 - War of the Monsters (U).nes');
-roms_list.push('Gold Medal Challenge \'92 (U).nes');
-roms_list.push('Golf (JU).nes');
-roms_list.push('Golf Grand Slam (U).nes');
-roms_list.push('Golgo 13 - Top Secret Episode (U).nes');
-roms_list.push('Goonies II, The (U).nes');
-roms_list.push('Gotcha! - The Sport! (U).nes');
-roms_list.push('Gradius (U).nes');
-roms_list.push('Great Waldo Search, The (U).nes');
-roms_list.push('Greg Norman\'s Golf Power (U).nes');
-roms_list.push('Gremlins 2 - The New Batch (U).nes');
-roms_list.push('Guardian Legend, The (U).nes');
-roms_list.push('Guerrilla War (U).nes');
-roms_list.push('Gumshoe (UE).nes');
-roms_list.push('Gun Nac (U).nes');
-roms_list.push('Gun.Smoke (U).nes');
-roms_list.push('Gyromite (JUE).nes');
-roms_list.push('Gyruss (U).nes');
-roms_list.push('Harlem Globetrotters (U).nes');
-roms_list.push('Hatris (U).nes');
-roms_list.push('Heavy Barrel (U).nes');
-roms_list.push('Heavy Shreddin\' (U).nes');
-roms_list.push('High Speed (U).nes');
-roms_list.push('Hogan\'s Alley (JU) [!].nes');
-roms_list.push('Hollywood Squares (U).nes');
-roms_list.push('Home Alone (U) [!].nes');
-roms_list.push('Home Alone 2 - Lost in New York (U).nes');
-roms_list.push('Hook (U).nes');
-roms_list.push('Hoops (U).nes');
-roms_list.push('Hot Slot (UE).nes');
-roms_list.push('Hudson Hawk (U).nes');
-roms_list.push('Hudson\'s Adventure Island (U).nes');
-roms_list.push('Hudson\'s Adventure Island II (U).nes');
-roms_list.push('Hudson\'s Adventure Island III (U).nes');
-roms_list.push('Hunt for Red October, The (U).nes');
-roms_list.push('Hydlide (U).nes');
-roms_list.push('I Can Remember (U).nes');
-roms_list.push('Ice Climber (U) [!].nes');
-roms_list.push('Ice Hockey (U) [!].nes');
-roms_list.push('Ikari III - The Rescue (U).nes');
-roms_list.push('Ikari Warriors (U) (PRG1) [!].nes');
-roms_list.push('Ikari Warriors II - Victory Road (U).nes');
-roms_list.push('Image Fight (U).nes');
-roms_list.push('Immortal, The (U).nes');
-roms_list.push('Impossible Mission II (U).nes');
-roms_list.push('Incredible Crash Dummies, The (U).nes');
-roms_list.push('Indiana Jones and the Last Crusade (U) (Taito).nes');
-roms_list.push('Indiana Jones and the Temple of Doom (U) (Tengen).nes');
-roms_list.push('Infiltrator (U).nes');
-roms_list.push('Iron Tank (U).nes');
-roms_list.push('Ironsword - Wizards & Warriors II (U).nes');
-roms_list.push('Isolated Warrior (U).nes');
-roms_list.push('Ivan Ironman Stewart\'s Super Off-Road (U).nes');
-roms_list.push('Jack Nicklaus\' Greatest 18 Holes of Major Championship Golf (U).nes');
-roms_list.push('Jackal (U).nes');
-roms_list.push('Jackie Chan\'s Action Kung Fu (U).nes');
-roms_list.push('James Bond Jr (U).nes');
-roms_list.push('Jaws (U) [!].nes');
-roms_list.push('Jeopardy! (U).nes');
-roms_list.push('Jeopardy! 25th Anniversary Edition (U).nes');
-roms_list.push('Jeopardy! Junior Edition (U).nes');
-roms_list.push('Jetsons, The - Cogswell\'s Caper! (U).nes');
-roms_list.push('Jimmy Connor\'s Tennis (U).nes');
-roms_list.push('Joe & Mac (U).nes');
-roms_list.push('John Elway\'s Quarterback (U).nes');
-roms_list.push('Joshua (U) (V6.0) [!].nes');
-roms_list.push('Journey to Silius (U).nes');
-roms_list.push('Joust (U).nes');
-roms_list.push('Jungle Book, The (U).nes');
-roms_list.push('Jurassic Park (U).nes');
-roms_list.push('Kabuki - Quantum Fighter (U).nes');
-roms_list.push('Karate Champ (U).nes');
-roms_list.push('Karate Kid, The (U).nes');
-roms_list.push('Karnov (U).nes');
-roms_list.push('Kick Master (U).nes');
-roms_list.push('Kickle Cubicle (U).nes');
-roms_list.push('Kid Icarus (UE).nes');
-roms_list.push('Kid Klown (U).nes');
-roms_list.push('Kid Kool (U).nes');
-roms_list.push('Kid Niki - Radical Ninja (U) (PRG1) [!].nes');
-roms_list.push('King Neptune\'s Adventure (U).nes');
-roms_list.push('King of Kings, The (U) (V1.2) [!].nes');
-roms_list.push('King\'s Knight (U).nes');
-roms_list.push('King\'s Quest V (U).nes');
-roms_list.push('Kings of the Beach (U).nes');
-roms_list.push('Kirby\'s Adventure (U) (PRG1) [!].nes');
-roms_list.push('Kiwi Kraze (U).nes');
-roms_list.push('Klash Ball (U).nes');
-roms_list.push('Klax (U).nes');
-roms_list.push('Knight Rider (U).nes');
-roms_list.push('Krazy Kreatures (U).nes');
-roms_list.push('Krion Conquest, The (U).nes');
-roms_list.push('Krusty\'s Fun House (U).nes');
-roms_list.push('Kung Fu (U) [!].nes');
-roms_list.push('Kung-Fu Heroes (U).nes');
-roms_list.push('L\'Empereur (U).nes');
-roms_list.push('Laser Invasion (U).nes');
-roms_list.push('Last Action Hero (U) [!].nes');
-roms_list.push('Last Ninja, The (U).nes');
-roms_list.push('Last Starfighter, The (U).nes');
-roms_list.push('Lee Trevino\'s Fighting Golf (U).nes');
-roms_list.push('Legacy of the Wizard (U).nes');
-roms_list.push('Legend of Kage, The (U).nes');
-roms_list.push('Legend of the Ghost Lion (U).nes');
-roms_list.push('Legend of Zelda, The (U) (PRG1).nes');
-roms_list.push('Legendary Wings (U).nes');
-roms_list.push('Legends of the Diamond (U).nes');
-roms_list.push('Lemmings (U).nes');
-roms_list.push('Lethal Weapon (U).nes');
-roms_list.push('Lifeforce (U).nes');
-roms_list.push('Linus Spacehead\'s Cosmic Crusade (Aladdin) (U).nes');
-roms_list.push('Little League Baseball - Championship Series (U).nes');
-roms_list.push('Little Mermaid, The (U).nes');
-roms_list.push('Little Nemo - The Dream Master (U).nes');
-roms_list.push('Little Ninja Brothers (U).nes');
-roms_list.push('Little Samson (U).nes');
-roms_list.push('Lode Runner (U).nes');
-roms_list.push('Lone Ranger, The (U).nes');
-roms_list.push('Loopz (U).nes');
-roms_list.push('Low G Man (U) [!].nes');
-roms_list.push('Lunar Pool (U).nes');
-roms_list.push('M.C. Kids (U).nes');
-roms_list.push('M.U.L.E. (U).nes');
-roms_list.push('M.U.S.C.L.E. (U).nes');
-roms_list.push('Mach Rider (JU).nes');
-roms_list.push('Mad Max (U) [!].nes');
-roms_list.push('Mafat Conspiracy - Golgo 13 (U).nes');
-roms_list.push('Magic Darts (U).nes');
-roms_list.push('Magic Johnson\'s Fast Break (U).nes');
-roms_list.push('Magic of Scheherazade, The (U).nes');
-roms_list.push('Magician (U).nes');
-roms_list.push('Magmax (U).nes');
-roms_list.push('Major League Baseball (U).nes');
-roms_list.push('Maniac Mansion (U).nes');
-roms_list.push('Mappy-Land (U).nes');
-roms_list.push('Marble Madness (U).nes');
-roms_list.push('Mario Bros. (JU) [!].nes');
-roms_list.push('Mario is Missing! (U).nes');
-roms_list.push('Mario\'s Time Machine! (U).nes');
-roms_list.push('Marvel\'s X-Men (U).nes');
-roms_list.push('Master Chu & The Drunkard Hu (U).nes');
-roms_list.push('Mechanized Attack (U).nes');
-roms_list.push('Mega Man (U).nes');
-roms_list.push('Mega Man 2 (U).nes');
-roms_list.push('Mega Man 3 (U) [!].nes');
-roms_list.push('Mega Man 4 (U).nes');
-roms_list.push('Mega Man 5 (U).nes');
-roms_list.push('Mega Man 6 (U).nes');
-roms_list.push('Menace Beach (U).nes');
-roms_list.push('Mendel Palace (U).nes');
-roms_list.push('Mermaids of Atlantis (U).nes');
-roms_list.push('Metal Fighter (U).nes');
-roms_list.push('Metal Gear (U).nes');
-roms_list.push('Metal Mech (U).nes');
-roms_list.push('Metal Storm (U).nes');
-roms_list.push('metalgear2.nes');
-roms_list.push('Metroid (U) [!].nes');
-roms_list.push('Michael Andretti\'s World Grand Prix (U).nes');
-roms_list.push('Mickey Mousecapade (U).nes');
-roms_list.push('Mickey\'s Adventures in Numberland (U).nes');
-roms_list.push('Mickey\'s Safari in Letterland (U).nes');
-roms_list.push('Micro Machines (U).nes');
-roms_list.push('MiG 29 - Soviet Fighter (U).nes');
-roms_list.push('Might and Magic (U).nes');
-roms_list.push('Mighty Bomb Jack (U).nes');
-roms_list.push('Mighty Final Fight (U).nes');
-roms_list.push('Mike Tyson\'s Punch-Out!! (U) (PRG1).nes');
-roms_list.push('Millipede (U).nes');
-roms_list.push('Milon\'s Secret Castle (U).nes');
-roms_list.push('Miracle Piano Teaching System, The (U).nes');
-roms_list.push('Mission Cobra (U).nes');
-roms_list.push('Mission Impossible (U).nes');
-roms_list.push('Monopoly (U).nes');
-roms_list.push('Monster In My Pocket (U).nes');
-roms_list.push('Monster Party (U).nes');
-roms_list.push('Monster Truck Rally (U).nes');
-roms_list.push('Moon Ranger (U).nes');
-roms_list.push('Motor City Patrol (U).nes');
-roms_list.push('Ms. Pac-Man (U) (Tengen).nes');
-roms_list.push('Muppet Adventure - Chaos at the Carnival (U).nes');
-roms_list.push('Mutant Virus, The (U).nes');
-roms_list.push('Mystery Quest (U).nes');
-roms_list.push('NARC (U).nes');
-roms_list.push('NES Open Tournament Golf (U).nes');
-roms_list.push('NES Play Action Football (U).nes');
-roms_list.push('NFL Football (U).nes');
-roms_list.push('Nigel Mansell\'s World Championship Challenge (U).nes');
-roms_list.push('Nightmare on Elm Street, A (U).nes');
-roms_list.push('Nightshade (U).nes');
-roms_list.push('Ninja Crusaders (U).nes');
-roms_list.push('Ninja Gaiden (U) [!].nes');
-roms_list.push('Ninja Gaiden 2 - The Dark Sword of Chaos (U).nes');
-roms_list.push('Ninja Gaiden 3 - The Ancient Ship of Doom (U) [!].nes');
-roms_list.push('Ninja Kid (U).nes');
-roms_list.push('Nintendo World Cup (U).nes');
-roms_list.push('Nobunaga\'s Ambition (U).nes');
-roms_list.push('Nobunaga\'s Ambition 2 (U).nes');
-roms_list.push('North & South (U).nes');
-roms_list.push('official.nes');
-roms_list.push('Operation Secret Storm (U).nes');
-roms_list.push('Operation Wolf (U).nes');
-roms_list.push('Orb 3D (U).nes');
-roms_list.push('Othello (U).nes');
-roms_list.push('Overlord (U).nes');
-roms_list.push('P\'radikus Conflict, The (U).nes');
-roms_list.push('Pac-Man (U) [!].nes');
-roms_list.push('Pac-Mania (U).nes');
-roms_list.push('Palamedes (U).nes');
-roms_list.push('Panic Restaurant (U).nes');
-roms_list.push('Paperboy (U).nes');
-roms_list.push('Paperboy 2 (U).nes');
-roms_list.push('Peek-A-Boo Poker (UE) [!].nes');
-roms_list.push('Perfect Fit (U).nes');
-roms_list.push('Pesterminator - The Western Exterminator (U).nes');
-roms_list.push('Peter Pan & The Pirates (U).nes');
-roms_list.push('Phantom Fighter (U).nes');
-roms_list.push('Pictionary (U).nes');
-roms_list.push('Pinball (JU).nes');
-roms_list.push('Pinball Quest (U).nes');
-roms_list.push('Pinbot (U) [!].nes');
-roms_list.push('Pipe Dream (U).nes');
-roms_list.push('Pirates! (U).nes');
-roms_list.push('Platoon (U) (PRG1) [!].nes');
-roms_list.push('Popeye (JU) (PRG1) [!].nes');
-roms_list.push('POW - Prisoners of War (U).nes');
-roms_list.push('Power Blade (U) [!].nes');
-roms_list.push('Power Blade 2 (U).nes');
-roms_list.push('Power Pad Dance Aerobics (U).nes');
-roms_list.push('Power Punch 2 (U).nes');
-roms_list.push('Predator (U).nes');
-roms_list.push('Prince of Persia (U).nes');
-roms_list.push('Princess Tomato in Salad Kingdom (U).nes');
-roms_list.push('Pro Sport Hockey (U).nes');
-roms_list.push('Pro Wrestling (U) (PRG1) [!].nes');
-roms_list.push('Punch-Out!! (U).nes');
-roms_list.push('Punisher, The (U).nes');
-roms_list.push('Puss \'n Boots - Pero\'s Great Adventure (U).nes');
-roms_list.push('Puzznic (U).nes');
-roms_list.push('Q-bert (U).nes');
-roms_list.push('Qix (U).nes');
-roms_list.push('Quattro Adventure (U).nes');
-roms_list.push('Quattro Arcade (U).nes');
-roms_list.push('Quattro Sports (U).nes');
-roms_list.push('R.B.I. Baseball (U).nes');
-roms_list.push('R.B.I. Baseball 2 (U).nes');
-roms_list.push('R.B.I. Baseball 3 (U).nes');
-roms_list.push('R.C. Pro-Am (U) (PRG1).nes');
-roms_list.push('R.C. Pro-Am 2 (U).nes');
-roms_list.push('Race America (U).nes');
-roms_list.push('Racket Attack (U).nes');
-roms_list.push('Rad Racer (U).nes');
-roms_list.push('Rad Racer 2 (U) [!].nes');
-roms_list.push('Rad Racket - Deluxe Tennis II (U) [!].nes');
-roms_list.push('Raid 2020 (U) [!].nes');
-roms_list.push('Raid on Bungeling Bay (U).nes');
-roms_list.push('Rainbow Islands - The Story of Bubble Bobble 2 (U).nes');
-roms_list.push('Rally Bike (U).nes');
-roms_list.push('Rambo (U).nes');
-roms_list.push('Rampage (U).nes');
-roms_list.push('Rampart (U).nes');
-roms_list.push('Remote Control (U).nes');
-roms_list.push('Ren & Stimpy Show, The (U).nes');
-roms_list.push('Renegade (U).nes');
-roms_list.push('Rescue - The Embassy Mission (U).nes');
-roms_list.push('Ring King (U).nes');
-roms_list.push('River City Ransom (U).nes');
-roms_list.push('Road Runner (U).nes');
-roms_list.push('RoadBlasters (U).nes');
-roms_list.push('Robin Hood - Prince of Thieves (U).nes');
-roms_list.push('Robo Warrior (U).nes');
-roms_list.push('Robocop (U).nes');
-roms_list.push('Robocop 2 (U).nes');
-roms_list.push('Robocop 3 (U).nes');
-roms_list.push('Robodemons (U).nes');
-roms_list.push('Rock \'n\' Ball (U).nes');
-roms_list.push('Rocket Ranger (U) [!].nes');
-roms_list.push('Rocketeer, The (U).nes');
-roms_list.push('Rockin\' Kats (U) [!].nes');
-roms_list.push('Roger Clemens MVP Baseball (U).nes');
-roms_list.push('Rollerball (U).nes');
-roms_list.push('Rollerblade Racer (U).nes');
-roms_list.push('Rollergames (U) [!].nes');
-roms_list.push('Rolling Thunder (U).nes');
-roms_list.push('Romance of the Three Kingdoms (U).nes');
-roms_list.push('Romance of the Three Kingdoms II (U) [!].nes');
-roms_list.push('Roundball - 2-on-2 Challenge (U).nes');
-roms_list.push('Rush\'n Attack (U).nes');
-roms_list.push('Rygar (U).nes');
-roms_list.push('SCAT - Special Cybernetic Attack Team (U).nes');
-roms_list.push('Secret Scout (Unl).nes');
-roms_list.push('Section Z (U).nes');
-roms_list.push('Seicross (U).nes');
-roms_list.push('Sesame Street 123 (U).nes');
-roms_list.push('Sesame Street ABC (U).nes');
-roms_list.push('Sesame Street ABC - 123 (U).nes');
-roms_list.push('Sesame Street Countdown (U).nes');
-roms_list.push('Shadow of the Ninja (U).nes');
-roms_list.push('Shadowgate (U).nes');
-roms_list.push('Shatterhand (U).nes');
-roms_list.push('Shingen The Ruler (U).nes');
-roms_list.push('Shinobi (U).nes');
-roms_list.push('Shockwave (U).nes');
-roms_list.push('Shooting Range (U).nes');
-roms_list.push('Short Order - Eggsplode (U) [!].nes');
-roms_list.push('Side Pocket (U).nes');
-roms_list.push('Silent Assault (U).nes');
-roms_list.push('Silent Service (U).nes');
-roms_list.push('Silk Worm (U).nes');
-roms_list.push('Silver Surfer (U).nes');
-roms_list.push('Simpsons, The - Bart Vs. the Space Mutants (U).nes');
-roms_list.push('Simpsons, The - Bart Vs. the World (U).nes');
-roms_list.push('Simpsons, The - Bartman Meets Radioactive Man (U).nes');
-roms_list.push('Skate or Die 2 - The Search for Double Trouble (U).nes');
-roms_list.push('Skate or Die! (U).nes');
-roms_list.push('Ski or Die (U).nes');
-roms_list.push('Skull & Crossbones (U).nes');
-roms_list.push('Sky Kid (U).nes');
-roms_list.push('Sky Shark (U).nes');
-roms_list.push('Slalom (U).nes');
-roms_list.push('Smash T.V. (U) [!].nes');
-roms_list.push('Snake Rattle\'n Roll (U).nes');
-roms_list.push('Snake\'s Revenge (U).nes');
-roms_list.push('Snoopy\'s Silly Sports Spectacular (U).nes');
-roms_list.push('Snow Bros (U).nes');
-roms_list.push('Soccer (JU).nes');
-roms_list.push('Solar Jetman - Hunt for the Golden Warpship (U).nes');
-roms_list.push('Solitaire (U).nes');
-roms_list.push('Solomon\'s Key (U) [!].nes');
-roms_list.push('Solstice (U).nes');
-roms_list.push('Space Shuttle Project (U).nes');
-roms_list.push('Spelunker (U) [!].nes');
-roms_list.push('Spider-Man - Return of the Sinister Six (U) [!].nes');
-roms_list.push('Spiritual Warfare (U) (V6.1).nes');
-roms_list.push('Spot (U).nes');
-roms_list.push('Spy Hunter (U).nes');
-roms_list.push('Spy Vs Spy (U).nes');
-roms_list.push('Sqoon (U).nes');
-roms_list.push('Stack Up (Robot Block) (JU).nes');
-roms_list.push('Stadium Events (U) [!].nes');
-roms_list.push('Stanley - The Search for Dr. Livingston (U).nes');
-roms_list.push('Star Force (U).nes');
-roms_list.push('Star Soldier (U).nes');
-roms_list.push('Star Trek - 25th Anniversary (U).nes');
-roms_list.push('Star Trek - The Next Generation (U).nes');
-roms_list.push('Star Voyager (U).nes');
-roms_list.push('Star Wars (U).nes');
-roms_list.push('Star Wars - The Empire Strikes Back (U).nes');
-roms_list.push('Starship Hector (U).nes');
-roms_list.push('Startropics (U).nes');
-roms_list.push('Startropics 2 - Zoda\'s Revenge (U).nes');
-roms_list.push('Stealth ATF (U).nes');
-roms_list.push('Stinger (U).nes');
-roms_list.push('Stinger.nes');
-roms_list.push('Street Cop (U).nes');
-roms_list.push('Street Fighter 2010 (U).nes');
-roms_list.push('Strider (U).nes');
-roms_list.push('Stunt Kids (U).nes');
-roms_list.push('Sunday Funday (U).nes');
-roms_list.push('Super C (U) [!].nes');
-roms_list.push('Super Cars (U).nes');
-roms_list.push('Super Dodge Ball (U).nes');
-roms_list.push('Super Glove Ball (U).nes');
-roms_list.push('Super Jeopardy! (U).nes');
-roms_list.push('Super Mario Bros. (JU) (PRG0) [!].nes');
-roms_list.push('Super Mario Bros. + Duck Hunt (U).nes');
-roms_list.push('Super Mario Bros. + Duck Hunt + World Class Track Meet (U).nes');
-roms_list.push('Super Mario Bros. 2 (U) (PRG0) [!].nes');
-roms_list.push('Super Mario Bros. 3 (U) (PRG1) [!].nes');
-roms_list.push('Super Pitfall (U).nes');
-roms_list.push('Super Spike V\'Ball (U).nes');
-roms_list.push('Super Spike V\'Ball + Nintendo World Cup (U) [!].nes');
-roms_list.push('Super Sprint (U).nes');
-roms_list.push('Super Spy Hunter (U).nes');
-roms_list.push('Super Team Games (U).nes');
-roms_list.push('Superman (U).nes');
-roms_list.push('Swamp Thing (U) [!].nes');
-roms_list.push('Sword Master (U).nes');
-roms_list.push('Swords and Serpents (U).nes');
-roms_list.push('T&C 2 - Thrilla\'s Surfari (U).nes');
-roms_list.push('T&C Surf Design (U).nes');
-roms_list.push('Taboo - The Sixth Sense (U).nes');
-roms_list.push('Tag Team Wrestling (U).nes');
-roms_list.push('Tagin\' Dragon (U).nes');
-roms_list.push('TaleSpin (U).nes');
-roms_list.push('Target Renegade (U).nes');
-roms_list.push('Tecmo Baseball (U).nes');
-roms_list.push('Tecmo Bowl (U) (PRG1).nes');
-roms_list.push('Tecmo Cup - Soccer Game (U).nes');
-roms_list.push('Tecmo NBA Basketball (U).nes');
-roms_list.push('Tecmo Super Bowl (U).nes');
-roms_list.push('Tecmo World Wrestling (U).nes');
-roms_list.push('Teenage Mutant Ninja Turtles (U) [!].nes');
-roms_list.push('Teenage Mutant Ninja Turtles - Tournament Fighters (U).nes');
-roms_list.push('Teenage Mutant Ninja Turtles II - The Arcade Game (U) [!].nes');
-roms_list.push('Teenage Mutant Ninja Turtles III - The Manhattan Project (U).nes');
-roms_list.push('Tennis (JU) [!].nes');
-roms_list.push('Terminator 2 - Judgment Day (U).nes');
-roms_list.push('Terminator, The (U).nes');
-roms_list.push('Terra Cresta (U).nes');
-roms_list.push('Tetris (U) [!].nes');
-roms_list.push('Tetris 2 (U) [!].nes');
-roms_list.push('Three Stooges (U).nes');
-roms_list.push('Thunder & Lightning (U).nes');
-roms_list.push('Thunderbirds (U).nes');
-roms_list.push('Thundercade (U).nes');
-roms_list.push('Tiger-Heli (U).nes');
-roms_list.push('Tiles of Fate (U).nes');
-roms_list.push('Time Lord (U).nes');
-roms_list.push('Times of Lore (U).nes');
-roms_list.push('Tiny Toon Adventures (U).nes');
-roms_list.push('Tiny Toon Adventures 2 - Trouble in Wackyland (U).nes');
-roms_list.push('Tiny Toon Adventures Cartoon Workshop (U).nes');
-roms_list.push('To The Earth (U).nes');
-roms_list.push('Toki (U).nes');
-roms_list.push('Tom & Jerry and Tuffy (U).nes');
-roms_list.push('Tombs and Treasure (U).nes');
-roms_list.push('Toobin\' (U).nes');
-roms_list.push('Top Gun (U) (PRG1).nes');
-roms_list.push('Top Gun - The Second Mission (U).nes');
-roms_list.push('Top Players\' Tennis - Featuring Chris Evert & Ivan Lendl (U).nes');
-roms_list.push('Total Recall (U).nes');
-roms_list.push('Totally Rad (U).nes');
-roms_list.push('Touch Down Fever (U).nes');
-roms_list.push('Toxic Crusaders (U).nes');
-roms_list.push('Track & Field (U).nes');
-roms_list.push('Track & Field 2 (U).nes');
-roms_list.push('Transformers.nes');
-roms_list.push('Treasure Master (U).nes');
-roms_list.push('Trog (U).nes');
-roms_list.push('Trojan (U).nes');
-roms_list.push('Trolls on Treasure Island (U).nes');
-roms_list.push('Twin Cobra (U).nes');
-roms_list.push('Twin Eagle (U).nes');
-roms_list.push('Ultima - Exodus (U).nes');
-roms_list.push('Ultima - Quest of the Avatar (U).nes');
-roms_list.push('Ultima - Warriors of Destiny (U).nes');
-roms_list.push('Ultimate Air Combat (U).nes');
-roms_list.push('Ultimate Basketball (U).nes');
-roms_list.push('Ultimate League Soccer (U).nes');
-roms_list.push('Ultimate Stuntman (U).nes');
-roms_list.push('Uncharted Waters (U).nes');
-roms_list.push('Uninvited (U).nes');
-roms_list.push('Untouchables, The (U).nes');
-roms_list.push('Urban Champion (JU).nes');
-roms_list.push('Vegas Dream (U).nes');
-roms_list.push('Venice Beach Volleyball (U).nes');
-roms_list.push('Vice - Project Doom (U).nes');
-roms_list.push('Videomation (U).nes');
-roms_list.push('Vindicators (U).nes');
-roms_list.push('Volleyball (U).nes');
-roms_list.push('Wacky Races (U).nes');
-roms_list.push('Wall Street Kid (U).nes');
-roms_list.push('Wally Bear and the No Gang (U).nes');
-roms_list.push('Wario\'s Woods (U) [!].nes');
-roms_list.push('Wayne Gretzky Hockey (U).nes');
-roms_list.push('Wayne\'s World (U).nes');
-roms_list.push('WCW World Championship Wrestling (U).nes');
-roms_list.push('Werewolf - The Last Warrior (U).nes');
-roms_list.push('Wheel of Fortune (U) (PRG1) [!].nes');
-roms_list.push('Wheel of Fortune - Starring Vanna White (U).nes');
-roms_list.push('Wheel of Fortune Family Edition (U).nes');
-roms_list.push('Wheel of Fortune Junior Edition (U).nes');
-roms_list.push('Where in Time is Carmen Sandiego (U).nes');
-roms_list.push('Where\'s Waldo (U).nes');
-roms_list.push('Who Framed Roger Rabbit (U).nes');
-roms_list.push('Whomp\'Em (U).nes');
-roms_list.push('Widget (U).nes');
-roms_list.push('Wild Gunman (U) (PRG1) [!].nes');
-roms_list.push('Willow (U).nes');
-roms_list.push('Win, Lose or Draw (U).nes');
-roms_list.push('Winter Games (U).nes');
-roms_list.push('Wizardry - Proving Grounds of the Mad Overlord (U).nes');
-roms_list.push('Wizardry - The Knight of Diamonds (U).nes');
-roms_list.push('Wizards & Warriors (U).nes');
-roms_list.push('Wizards & Warriors 3 (U).nes');
-roms_list.push('Wolverine (U).nes');
-roms_list.push('World Champ (U) [!].nes');
-roms_list.push('World Games (U).nes');
-roms_list.push('Wrath of the Black Manta (U).nes');
-roms_list.push('Wrecking Crew (JUE) [t1].nes');
-roms_list.push('Wurm (U).nes');
-roms_list.push('WWF King of the Ring (U).nes');
-roms_list.push('WWF Steel Cage Challenge (U).nes');
-roms_list.push('WWF Wrestlemania (U).nes');
-roms_list.push('WWF Wrestlemania Challenge (U).nes');
-roms_list.push('Xenophobe (U).nes');
-roms_list.push('Xevious (U).nes');
-roms_list.push('Xexyz (U).nes');
-roms_list.push('Yo! Noid (U).nes');
-roms_list.push('Yo!Noid.nes');
-roms_list.push('Yoshi (U).nes');
-roms_list.push('Yoshi\'s Cookie (U).nes');
-roms_list.push('Young Indiana Jones Chronicles, The (U).nes');
-roms_list.push('Zanac (U).nes');
-roms_list.push('Zelda II - The Adventure of Link (U).nes');
-roms_list.push('Zen Intergalactic Ninja (U).nes');
-roms_list.push('Zombie Nation (U).nes');
+var roms_list = {
+    "Tested": new Array(
+        'Pac-Man (U) [!].nes',
+        'Super Mario Bros. (JU) (PRG0) [!].nes'
+    ),
+    
+    "Nearly Working": new Array(
+        'Lemmings (U).nes'
+    ),
+    
+    "Broken": new Array(
+    ),
+    
+    "Untested": new Array(
+        '10-Yard Fight (U).nes',
+        '1942 (JU) [!].nes',
+        '1943 - The Battle of Midway (U).nes',
+        '3-D Battles of World Runner, The (U).nes',
+        '720 (U).nes',
+        '8 Eyes (U).nes',
+        'Abadox (U).nes',
+        'Action 52 (U) [!].nes',
+        'Addams Family, The (U).nes',
+        'Addams Family, The - Pugsley\'s Scavenger Hunt (U).nes',
+        'Advanced Dungeons & Dragons - Dragon Strike (U).nes',
+        'Advanced Dungeons & Dragons - Heroes of the Lance (U).nes',
+        'Advanced Dungeons & Dragons - Hillsfar (U) [!].nes',
+        'Advanced Dungeons & Dragons - Pool of Radiance (U).nes',
+        'Adventures in the Magic Kingdom (U).nes',
+        'Adventures of Bayou Billy, The (U).nes',
+        'Adventures of Captain Comic, The (U).nes',
+        'Adventures of Dino Riki, The (U).nes',
+        'Adventures of Lolo (U) [!].nes',
+        'Adventures of Lolo 2 (U).nes',
+        'Adventures of Lolo 3 (U).nes',
+        'Adventures of Rad Gravity, The (U).nes',
+        'Adventures of Rocky and Bullwinkle and Friends, The (U).nes',
+        'Adventures of Tom Sawyer (U).nes',
+        'After Burner (U).nes',
+        'Air Fortress (U).nes',
+        'Airwolf (U).nes',
+        'Al Unser Jr. Turbo Racing (U).nes',
+        'Aladdin (Unl).nes',
+        'Alfred Chicken (U).nes',
+        'Alien 3 (U).nes',
+        'Alien Syndrome (U).nes',
+        'All-Pro Basketball (U).nes',
+        'Alpha Mission (U).nes',
+        'Amagon (U).nes',
+        'American Gladiators (U).nes',
+        'Anticipation (U).nes',
+        'Arch Rivals - A Basket Brawl! (U).nes',
+        'Archon (U).nes',
+        'Arkanoid (U).nes',
+        'Arkista\'s Ring (U) [!].nes',
+        'Astyanax (U).nes',
+        'Athena (U).nes',
+        'Athletic World (U).nes',
+        'Attack of the Killer Tomatoes (U).nes',
+        'Baby Boomer (U).nes',
+        'Back to the Future (U).nes',
+        'Back to the Future II & III (U).nes',
+        'Bad Dudes (U).nes',
+        'Bad News Baseball (U).nes',
+        'Bad Street Brawler (U).nes',
+        'Balloon Fight (JU) [!].nes',
+        'Bandai Golf - Challenge Pebble Beach (U).nes',
+        'Bandit Kings of Ancient China (U).nes',
+        'Barbie (U) (Rev 3).nes',
+        'Bard\'s Tale, The - Tales of the Unknown (U) [!].nes',
+        'Barker Bill\'s Trick Shooting (U).nes',
+        'Base Wars (U).nes',
+        'Baseball (UE) [!].nes',
+        'Baseball Simulator 1.000 (U).nes',
+        'Baseball Stars (U).nes',
+        'Baseball Stars II (U).nes',
+        'Bases Loaded (U).nes',
+        'Bases Loaded 3 (U).nes',
+        'Bases Loaded 4 (U).nes',
+        'Bases Loaded II (U).nes',
+        'Batman (U).nes',
+        'Batman - Return of the Joker (U).nes',
+        'Batman Returns (U).nes',
+        'Battle Chess (U).nes',
+        'Battle of Olympus, The (U).nes',
+        'Battle Tank (U).nes',
+        'Battleship (U).nes',
+        'Battletoads & Double Dragon - The Ultimate Team (U).nes',
+        'Battletoads (U).nes',
+        'Bee 52 (U).nes',
+        'Beetlejuice (U) [!].nes',
+        'Best of the Best - Championship Karate (U).nes',
+        'Bible Adventures (U) (V1.3).nes',
+        'Bible Buffet (U).nes',
+        'Big Bird\'s Hide & Speak (U).nes',
+        'Big Nose Freaks Out (U).nes',
+        'Big Nose the Caveman (U).nes',
+        'Bigfoot (U).nes',
+        'Bill & Ted\'s Excellent Video Game Adventure (U).nes',
+        'Bill Elliott\'s NASCAR Challenge (U).nes',
+        'Bionic Commando (U) [!].nes',
+        'Black Bass USA, The (U).nes',
+        'Blackjack (U).nes',
+        'Blades of Steel (U).nes',
+        'Blaster Master (U).nes',
+        'Blue Marlin, The (U).nes',
+        'Blues Brothers, The (U).nes',
+        'Bo Jackson Baseball (U).nes',
+        'Bomberman (U).nes',
+        'Bomberman II (U).nes',
+        'Bonk\'s Adventure (U).nes',
+        'Boulder Dash (U).nes',
+        'Boy and His Blob, A - Trouble on Blobolonia (U).nes',
+        'Bram Stoker\'s Dracula (U).nes',
+        'Break Time - The National Pool Tour (U).nes',
+        'BreakThru (U).nes',
+        'Bubble Bath Babes (UE) [!].nes',
+        'Bubble Bobble (U).nes',
+        'Bubble Bobble Part 2 (U).nes',
+        'Bucky O\'Hare (U) [!].nes',
+        'Bugs Bunny Birthday Blowout, The (U).nes',
+        'Bugs Bunny Crazy Castle, The (U).nes',
+        'Bugs Bunny Fun House (U) (Prototype).nes',
+        'Bump\'n\'Jump (U).nes',
+        'Burai Fighter (U).nes',
+        'Burger Time (U) [!].nes',
+        'Cabal (U).nes',
+        'Caesars Palace (U).nes',
+        'California Games (U).nes',
+        'California Raisins - The Grape Escape (U).nes',
+        'Caltron 6-in-1 (U).nes',
+        'Captain America and The Avengers (U).nes',
+        'Captain Planet and The Planeteers (U).nes',
+        'Captain Skyhawk (U).nes',
+        'Casino Kid (U).nes',
+        'Casino Kid 2 (U).nes',
+        'Castelian (U).nes',
+        'Castle of Deceit (U).nes',
+        'Castle of Dragon (U).nes',
+        'Castlequest (U).nes',
+        'Castlevania (U) (PRG1).nes',
+        'Castlevania II - Simon\'s Quest (U).nes',
+        'Castlevania III - Dracula\'s Curse (U) [!].nes',
+        'Caveman Games (U).nes',
+        'Challenge of the Dragon (U).nes',
+        'Championship Bowling (U) [!].nes',
+        'Championship Pool (U).nes',
+        'Cheetah Men II (U).nes',
+        'Chessmaster, The (U).nes',
+        'Chiller (U) [!].nes',
+        'Chip \'n Dale Rescue Rangers (U) [!].nes',
+        'Chip \'n Dale Rescue Rangers 2 (U).nes',
+        'Chubby Cherub (U).nes',
+        'Circus Caper (U).nes',
+        'City Connection (U).nes',
+        'Clash at Demonhead (U).nes',
+        'Classic Concentration (U).nes',
+        'Cliffhanger (U).nes',
+        'Clu Clu Land (JU).nes',
+        'Cobra Command (U).nes',
+        'Cobra Triangle (U).nes',
+        'Code Name - Viper (U).nes',
+        'Color A Dinosaur (U).nes',
+        'Commando (U).nes',
+        'Conan (U).nes',
+        'Conflict (U) [!].nes',
+        'Conquest of the Crystal Palace (U).nes',
+        'Contra (U) [!].nes',
+        'Contra Force (U).nes',
+        'Cool World (U).nes',
+        'Cowboy Kid (U).nes',
+        'Crash \'n the Boys - Street Challenge (U).nes',
+        'Crystal Mines (U).nes',
+        'Crystalis (U).nes',
+        'Cyberball (U).nes',
+        'Cybernoid - The Fighting Machine (U).nes',
+        'Danny Sullivan\'s Indy Heat (U).nes',
+        'Darkman (U).nes',
+        'Darkwing Duck (U).nes',
+        'Dash Galaxy in the Alien Asylum (U).nes',
+        'Day Dreamin\' Davey (U).nes',
+        'Days of Thunder (U).nes',
+        'Deadly Towers (U).nes',
+        'Death Race (U).nes',
+        'Deathbots (U).nes',
+        'Defender II (U).nes',
+        'Defender of the Crown (U).nes',
+        'Defenders of Dynatron City (U).nes',
+        'Deja Vu (U).nes',
+        'Demon Sword (U).nes',
+        'Desert Commander (U).nes',
+        'Destination Earthstar (U).nes',
+        'Destiny of an Emperor (U).nes',
+        'Dick Tracy (U).nes',
+        'Die Hard (U).nes',
+        'Dig Dug II (U) [!].nes',
+        'Digger - The Legend of the Lost City (U).nes',
+        'Dirty Harry (U).nes',
+        'Dizzy The Adventurer (U).nes',
+        'Donkey Kong (JU).nes',
+        'Donkey Kong 3 (JUE).nes',
+        'Donkey Kong Classics (U) [!].nes',
+        'Donkey Kong Jr. (JU).nes',
+        'Donkey Kong Jr. Math (U).nes',
+        'Double Dare (U).nes',
+        'Double Dragon (U).nes',
+        'Double Dragon II - The Revenge (U).nes',
+        'Double Dragon III - The Sacred Stones (U).nes',
+        'Double Dribble (U) (PRG1) [!].nes',
+        'Double Strike (U) (V1.1).nes',
+        'Dr. Chaos (U).nes',
+        'Dr. Jekyll and Mr. Hyde (U).nes',
+        'Dr. Mario (JU).nes',
+        'Dragon Fighter (U).nes',
+        'Dragon Power (U).nes',
+        'Dragon Spirit - The New Legend (U).nes',
+        'Dragon Warrior (U) (PRG1).nes',
+        'Dragon Warrior II (U).nes',
+        'Dragon Warrior III (U).nes',
+        'Dragon Warrior IV (U).nes',
+        'Dragon\'s Lair (U).nes',
+        'Duck Hunt (JUE) [!].nes',
+        'Duck Tales (U).nes',
+        'Duck Tales 2 (U).nes',
+        'Dudes With Attitude (U).nes',
+        'Dungeon Magic - Sword of the Elements (U).nes',
+        'Dusty Diamond\'s All-Star Softball (U).nes',
+        'Dynowarz - Destruction of Spondylus (U).nes',
+        'Elevator Action (U).nes',
+        'Eliminator Boat Duel (U).nes',
+        'Excitebike (JU) [!].nes',
+        'Exodus (U) (V4.0) [!].nes',
+        'F-117A Stealth Fighter (U) [!].nes',
+        'F-15 City War (U).nes',
+        'F-15 Strike Eagle (U).nes',
+        'Family Feud (U).nes',
+        'Fantastic Adventures of Dizzy, The (U).nes',
+        'Fantasy Zone (U).nes',
+        'Faria - A World of Mystery and Danger! (U).nes',
+        'Faxanadu (U).nes',
+        'Felix the Cat (U).nes',
+        'Ferrari - Grand Prix Challenge (U) [!].nes',
+        'Fester\'s Quest (U) [!].nes',
+        'Final Fantasy (U) [!].nes',
+        'Fire \'n Ice (U).nes',
+        'Fire Hawk (Unl).nes',
+        'Firehouse Rescue (U).nes',
+        'Fist of the North Star (U).nes',
+        'Flight of the Intruder (U).nes',
+        'Flintstones, The - The Rescue of Dino & Hoppy (U).nes',
+        'Flintstones, The - The Surprise at Dinosaur Peak! (U).nes',
+        'Flying Dragon - The Secret Scroll (U).nes',
+        'Flying Warriors (U).nes',
+        'Formula One - Built To Win (U) [o1].nes',
+        'Frankenstein - The Monster Returns (U).nes',
+        'Freedom Force (U) [!].nes',
+        'Friday the 13th (U).nes',
+        'Fun House (U).nes',
+        'G.I. Joe (U).nes',
+        'G.I. Joe - The Atlantis Factor (U).nes',
+        'Galaga (U).nes',
+        'Galaxy 5000 (U).nes',
+        'Gargoyle\'s Quest II - The Demon Darkness (U).nes',
+        'Gauntlet (U) [!].nes',
+        'Gauntlet II (U).nes',
+        'Gemfire (U).nes',
+        'Genghis Khan (U).nes',
+        'George Foreman\'s KO Boxing (U).nes',
+        'Ghostbusters (U).nes',
+        'Ghostbusters 2 (U).nes',
+        'Ghosts\'n Goblins (U) [!].nes',
+        'Ghoul School (U).nes',
+        'Gilligan\'s Island (U).nes',
+        'Goal! (U).nes',
+        'Goal! Two (U).nes',
+        'Godzilla - Monster of Monsters! (U).nes',
+        'Godzilla 2 - War of the Monsters (U).nes',
+        'Gold Medal Challenge \'92 (U).nes',
+        'Golf (JU).nes',
+        'Golf Grand Slam (U).nes',
+        'Golgo 13 - Top Secret Episode (U).nes',
+        'Goonies II, The (U).nes',
+        'Gotcha! - The Sport! (U).nes',
+        'Gradius (U).nes',
+        'Great Waldo Search, The (U).nes',
+        'Greg Norman\'s Golf Power (U).nes',
+        'Gremlins 2 - The New Batch (U).nes',
+        'Guardian Legend, The (U).nes',
+        'Guerrilla War (U).nes',
+        'Gumshoe (UE).nes',
+        'Gun Nac (U).nes',
+        'Gun.Smoke (U).nes',
+        'Gyromite (JUE).nes',
+        'Gyruss (U).nes',
+        'Harlem Globetrotters (U).nes',
+        'Hatris (U).nes',
+        'Heavy Barrel (U).nes',
+        'Heavy Shreddin\' (U).nes',
+        'High Speed (U).nes',
+        'Hogan\'s Alley (JU) [!].nes',
+        'Hollywood Squares (U).nes',
+        'Home Alone (U) [!].nes',
+        'Home Alone 2 - Lost in New York (U).nes',
+        'Hook (U).nes',
+        'Hoops (U).nes',
+        'Hot Slot (UE).nes',
+        'Hudson Hawk (U).nes',
+        'Hudson\'s Adventure Island (U).nes',
+        'Hudson\'s Adventure Island II (U).nes',
+        'Hudson\'s Adventure Island III (U).nes',
+        'Hunt for Red October, The (U).nes',
+        'Hydlide (U).nes',
+        'I Can Remember (U).nes',
+        'Ice Climber (U) [!].nes',
+        'Ice Hockey (U) [!].nes',
+        'Ikari III - The Rescue (U).nes',
+        'Ikari Warriors (U) (PRG1) [!].nes',
+        'Ikari Warriors II - Victory Road (U).nes',
+        'Image Fight (U).nes',
+        'Immortal, The (U).nes',
+        'Impossible Mission II (U).nes',
+        'Incredible Crash Dummies, The (U).nes',
+        'Indiana Jones and the Last Crusade (U) (Taito).nes',
+        'Indiana Jones and the Temple of Doom (U) (Tengen).nes',
+        'Infiltrator (U).nes',
+        'Iron Tank (U).nes',
+        'Ironsword - Wizards & Warriors II (U).nes',
+        'Isolated Warrior (U).nes',
+        'Ivan Ironman Stewart\'s Super Off-Road (U).nes',
+        'Jack Nicklaus\' Greatest 18 Holes of Major Championship Golf (U).nes',
+        'Jackal (U).nes',
+        'Jackie Chan\'s Action Kung Fu (U).nes',
+        'James Bond Jr (U).nes',
+        'Jaws (U) [!].nes',
+        'Jeopardy! (U).nes',
+        'Jeopardy! 25th Anniversary Edition (U).nes',
+        'Jeopardy! Junior Edition (U).nes',
+        'Jetsons, The - Cogswell\'s Caper! (U).nes',
+        'Jimmy Connor\'s Tennis (U).nes',
+        'Joe & Mac (U).nes',
+        'John Elway\'s Quarterback (U).nes',
+        'Joshua (U) (V6.0) [!].nes',
+        'Journey to Silius (U).nes',
+        'Joust (U).nes',
+        'Jungle Book, The (U).nes',
+        'Jurassic Park (U).nes',
+        'Kabuki - Quantum Fighter (U).nes',
+        'Karate Champ (U).nes',
+        'Karate Kid, The (U).nes',
+        'Karnov (U).nes',
+        'Kick Master (U).nes',
+        'Kickle Cubicle (U).nes',
+        'Kid Icarus (UE).nes',
+        'Kid Klown (U).nes',
+        'Kid Kool (U).nes',
+        'Kid Niki - Radical Ninja (U) (PRG1) [!].nes',
+        'King Neptune\'s Adventure (U).nes',
+        'King of Kings, The (U) (V1.2) [!].nes',
+        'King\'s Knight (U).nes',
+        'King\'s Quest V (U).nes',
+        'Kings of the Beach (U).nes',
+        'Kirby\'s Adventure (U) (PRG1) [!].nes',
+        'Kiwi Kraze (U).nes',
+        'Klash Ball (U).nes',
+        'Klax (U).nes',
+        'Knight Rider (U).nes',
+        'Krazy Kreatures (U).nes',
+        'Krion Conquest, The (U).nes',
+        'Krusty\'s Fun House (U).nes',
+        'Kung Fu (U) [!].nes',
+        'Kung-Fu Heroes (U).nes',
+        'L\'Empereur (U).nes',
+        'Laser Invasion (U).nes',
+        'Last Action Hero (U) [!].nes',
+        'Last Ninja, The (U).nes',
+        'Last Starfighter, The (U).nes',
+        'Lee Trevino\'s Fighting Golf (U).nes',
+        'Legacy of the Wizard (U).nes',
+        'Legend of Kage, The (U).nes',
+        'Legend of the Ghost Lion (U).nes',
+        'Legend of Zelda, The (U) (PRG1).nes',
+        'Legendary Wings (U).nes',
+        'Legends of the Diamond (U).nes',
+        'Lethal Weapon (U).nes',
+        'Lifeforce (U).nes',
+        'Linus Spacehead\'s Cosmic Crusade (Aladdin) (U).nes',
+        'Little League Baseball - Championship Series (U).nes',
+        'Little Mermaid, The (U).nes',
+        'Little Nemo - The Dream Master (U).nes',
+        'Little Ninja Brothers (U).nes',
+        'Little Samson (U).nes',
+        'Lode Runner (U).nes',
+        'Lone Ranger, The (U).nes',
+        'Loopz (U).nes',
+        'Low G Man (U) [!].nes',
+        'Lunar Pool (U).nes',
+        'M.C. Kids (U).nes',
+        'M.U.L.E. (U).nes',
+        'M.U.S.C.L.E. (U).nes',
+        'Mach Rider (JU).nes',
+        'Mad Max (U) [!].nes',
+        'Mafat Conspiracy - Golgo 13 (U).nes',
+        'Magic Darts (U).nes',
+        'Magic Johnson\'s Fast Break (U).nes',
+        'Magic of Scheherazade, The (U).nes',
+        'Magician (U).nes',
+        'Magmax (U).nes',
+        'Major League Baseball (U).nes',
+        'Maniac Mansion (U).nes',
+        'Mappy-Land (U).nes',
+        'Marble Madness (U).nes',
+        'Mario Bros. (JU) [!].nes',
+        'Mario is Missing! (U).nes',
+        'Mario\'s Time Machine! (U).nes',
+        'Marvel\'s X-Men (U).nes',
+        'Master Chu & The Drunkard Hu (U).nes',
+        'Mechanized Attack (U).nes',
+        'Mega Man (U).nes',
+        'Mega Man 2 (U).nes',
+        'Mega Man 3 (U) [!].nes',
+        'Mega Man 4 (U).nes',
+        'Mega Man 5 (U).nes',
+        'Mega Man 6 (U).nes',
+        'Menace Beach (U).nes',
+        'Mendel Palace (U).nes',
+        'Mermaids of Atlantis (U).nes',
+        'Metal Fighter (U).nes',
+        'Metal Gear (U).nes',
+        'Metal Mech (U).nes',
+        'Metal Storm (U).nes',
+        'metalgear2.nes',
+        'Metroid (U) [!].nes',
+        'Michael Andretti\'s World Grand Prix (U).nes',
+        'Mickey Mousecapade (U).nes',
+        'Mickey\'s Adventures in Numberland (U).nes',
+        'Mickey\'s Safari in Letterland (U).nes',
+        'Micro Machines (U).nes',
+        'MiG 29 - Soviet Fighter (U).nes',
+        'Might and Magic (U).nes',
+        'Mighty Bomb Jack (U).nes',
+        'Mighty Final Fight (U).nes',
+        'Mike Tyson\'s Punch-Out!! (U) (PRG1).nes',
+        'Millipede (U).nes',
+        'Milon\'s Secret Castle (U).nes',
+        'Miracle Piano Teaching System, The (U).nes',
+        'Mission Cobra (U).nes',
+        'Mission Impossible (U).nes',
+        'Monopoly (U).nes',
+        'Monster In My Pocket (U).nes',
+        'Monster Party (U).nes',
+        'Monster Truck Rally (U).nes',
+        'Moon Ranger (U).nes',
+        'Motor City Patrol (U).nes',
+        'Ms. Pac-Man (U) (Tengen).nes',
+        'Muppet Adventure - Chaos at the Carnival (U).nes',
+        'Mutant Virus, The (U).nes',
+        'Mystery Quest (U).nes',
+        'NARC (U).nes',
+        'NES Open Tournament Golf (U).nes',
+        'NES Play Action Football (U).nes',
+        'NFL Football (U).nes',
+        'Nigel Mansell\'s World Championship Challenge (U).nes',
+        'Nightmare on Elm Street, A (U).nes',
+        'Nightshade (U).nes',
+        'Ninja Crusaders (U).nes',
+        'Ninja Gaiden (U) [!].nes',
+        'Ninja Gaiden 2 - The Dark Sword of Chaos (U).nes',
+        'Ninja Gaiden 3 - The Ancient Ship of Doom (U) [!].nes',
+        'Ninja Kid (U).nes',
+        'Nintendo World Cup (U).nes',
+        'Nobunaga\'s Ambition (U).nes',
+        'Nobunaga\'s Ambition 2 (U).nes',
+        'North & South (U).nes',
+        'official.nes',
+        'Operation Secret Storm (U).nes',
+        'Operation Wolf (U).nes',
+        'Orb 3D (U).nes',
+        'Othello (U).nes',
+        'Overlord (U).nes',
+        'P\'radikus Conflict, The (U).nes',
+        'Pac-Mania (U).nes',
+        'Palamedes (U).nes',
+        'Panic Restaurant (U).nes',
+        'Paperboy (U).nes',
+        'Paperboy 2 (U).nes',
+        'Peek-A-Boo Poker (UE) [!].nes',
+        'Perfect Fit (U).nes',
+        'Pesterminator - The Western Exterminator (U).nes',
+        'Peter Pan & The Pirates (U).nes',
+        'Phantom Fighter (U).nes',
+        'Pictionary (U).nes',
+        'Pinball (JU).nes',
+        'Pinball Quest (U).nes',
+        'Pinbot (U) [!].nes',
+        'Pipe Dream (U).nes',
+        'Pirates! (U).nes',
+        'Platoon (U) (PRG1) [!].nes',
+        'Popeye (JU) (PRG1) [!].nes',
+        'POW - Prisoners of War (U).nes',
+        'Power Blade (U) [!].nes',
+        'Power Blade 2 (U).nes',
+        'Power Pad Dance Aerobics (U).nes',
+        'Power Punch 2 (U).nes',
+        'Predator (U).nes',
+        'Prince of Persia (U).nes',
+        'Princess Tomato in Salad Kingdom (U).nes',
+        'Pro Sport Hockey (U).nes',
+        'Pro Wrestling (U) (PRG1) [!].nes',
+        'Punch-Out!! (U).nes',
+        'Punisher, The (U).nes',
+        'Puss \'n Boots - Pero\'s Great Adventure (U).nes',
+        'Puzznic (U).nes',
+        'Q-bert (U).nes',
+        'Qix (U).nes',
+        'Quattro Adventure (U).nes',
+        'Quattro Arcade (U).nes',
+        'Quattro Sports (U).nes',
+        'R.B.I. Baseball (U).nes',
+        'R.B.I. Baseball 2 (U).nes',
+        'R.B.I. Baseball 3 (U).nes',
+        'R.C. Pro-Am (U) (PRG1).nes',
+        'R.C. Pro-Am 2 (U).nes',
+        'Race America (U).nes',
+        'Racket Attack (U).nes',
+        'Rad Racer (U).nes',
+        'Rad Racer 2 (U) [!].nes',
+        'Rad Racket - Deluxe Tennis II (U) [!].nes',
+        'Raid 2020 (U) [!].nes',
+        'Raid on Bungeling Bay (U).nes',
+        'Rainbow Islands - The Story of Bubble Bobble 2 (U).nes',
+        'Rally Bike (U).nes',
+        'Rambo (U).nes',
+        'Rampage (U).nes',
+        'Rampart (U).nes',
+        'Remote Control (U).nes',
+        'Ren & Stimpy Show, The (U).nes',
+        'Renegade (U).nes',
+        'Rescue - The Embassy Mission (U).nes',
+        'Ring King (U).nes',
+        'River City Ransom (U).nes',
+        'Road Runner (U).nes',
+        'RoadBlasters (U).nes',
+        'Robin Hood - Prince of Thieves (U).nes',
+        'Robo Warrior (U).nes',
+        'Robocop (U).nes',
+        'Robocop 2 (U).nes',
+        'Robocop 3 (U).nes',
+        'Robodemons (U).nes',
+        'Rock \'n\' Ball (U).nes',
+        'Rocket Ranger (U) [!].nes',
+        'Rocketeer, The (U).nes',
+        'Rockin\' Kats (U) [!].nes',
+        'Roger Clemens MVP Baseball (U).nes',
+        'Rollerball (U).nes',
+        'Rollerblade Racer (U).nes',
+        'Rollergames (U) [!].nes',
+        'Rolling Thunder (U).nes',
+        'Romance of the Three Kingdoms (U).nes',
+        'Romance of the Three Kingdoms II (U) [!].nes',
+        'Roundball - 2-on-2 Challenge (U).nes',
+        'Rush\'n Attack (U).nes',
+        'Rygar (U).nes',
+        'SCAT - Special Cybernetic Attack Team (U).nes',
+        'Secret Scout (Unl).nes',
+        'Section Z (U).nes',
+        'Seicross (U).nes',
+        'Sesame Street 123 (U).nes',
+        'Sesame Street ABC (U).nes',
+        'Sesame Street ABC - 123 (U).nes',
+        'Sesame Street Countdown (U).nes',
+        'Shadow of the Ninja (U).nes',
+        'Shadowgate (U).nes',
+        'Shatterhand (U).nes',
+        'Shingen The Ruler (U).nes',
+        'Shinobi (U).nes',
+        'Shockwave (U).nes',
+        'Shooting Range (U).nes',
+        'Short Order - Eggsplode (U) [!].nes',
+        'Side Pocket (U).nes',
+        'Silent Assault (U).nes',
+        'Silent Service (U).nes',
+        'Silk Worm (U).nes',
+        'Silver Surfer (U).nes',
+        'Simpsons, The - Bart Vs. the Space Mutants (U).nes',
+        'Simpsons, The - Bart Vs. the World (U).nes',
+        'Simpsons, The - Bartman Meets Radioactive Man (U).nes',
+        'Skate or Die 2 - The Search for Double Trouble (U).nes',
+        'Skate or Die! (U).nes',
+        'Ski or Die (U).nes',
+        'Skull & Crossbones (U).nes',
+        'Sky Kid (U).nes',
+        'Sky Shark (U).nes',
+        'Slalom (U).nes',
+        'Smash T.V. (U) [!].nes',
+        'Snake Rattle\'n Roll (U).nes',
+        'Snake\'s Revenge (U).nes',
+        'Snoopy\'s Silly Sports Spectacular (U).nes',
+        'Snow Bros (U).nes',
+        'Soccer (JU).nes',
+        'Solar Jetman - Hunt for the Golden Warpship (U).nes',
+        'Solitaire (U).nes',
+        'Solomon\'s Key (U) [!].nes',
+        'Solstice (U).nes',
+        'Space Shuttle Project (U).nes',
+        'Spelunker (U) [!].nes',
+        'Spider-Man - Return of the Sinister Six (U) [!].nes',
+        'Spiritual Warfare (U) (V6.1).nes',
+        'Spot (U).nes',
+        'Spy Hunter (U).nes',
+        'Spy Vs Spy (U).nes',
+        'Sqoon (U).nes',
+        'Stack Up (Robot Block) (JU).nes',
+        'Stadium Events (U) [!].nes',
+        'Stanley - The Search for Dr. Livingston (U).nes',
+        'Star Force (U).nes',
+        'Star Soldier (U).nes',
+        'Star Trek - 25th Anniversary (U).nes',
+        'Star Trek - The Next Generation (U).nes',
+        'Star Voyager (U).nes',
+        'Star Wars (U).nes',
+        'Star Wars - The Empire Strikes Back (U).nes',
+        'Starship Hector (U).nes',
+        'Startropics (U).nes',
+        'Startropics 2 - Zoda\'s Revenge (U).nes',
+        'Stealth ATF (U).nes',
+        'Stinger (U).nes',
+        'Stinger.nes',
+        'Street Cop (U).nes',
+        'Street Fighter 2010 (U).nes',
+        'Strider (U).nes',
+        'Stunt Kids (U).nes',
+        'Sunday Funday (U).nes',
+        'Super C (U) [!].nes',
+        'Super Cars (U).nes',
+        'Super Dodge Ball (U).nes',
+        'Super Glove Ball (U).nes',
+        'Super Jeopardy! (U).nes',
+        'Super Mario Bros. + Duck Hunt (U).nes',
+        'Super Mario Bros. + Duck Hunt + World Class Track Meet (U).nes',
+        'Super Mario Bros. 2 (U) (PRG0) [!].nes',
+        'Super Mario Bros. 3 (U) (PRG1) [!].nes',
+        'Super Pitfall (U).nes',
+        'Super Spike V\'Ball (U).nes',
+        'Super Spike V\'Ball + Nintendo World Cup (U) [!].nes',
+        'Super Sprint (U).nes',
+        'Super Spy Hunter (U).nes',
+        'Super Team Games (U).nes',
+        'Superman (U).nes',
+        'Swamp Thing (U) [!].nes',
+        'Sword Master (U).nes',
+        'Swords and Serpents (U).nes',
+        'T&C 2 - Thrilla\'s Surfari (U).nes',
+        'T&C Surf Design (U).nes',
+        'Taboo - The Sixth Sense (U).nes',
+        'Tag Team Wrestling (U).nes',
+        'Tagin\' Dragon (U).nes',
+        'TaleSpin (U).nes',
+        'Target Renegade (U).nes',
+        'Tecmo Baseball (U).nes',
+        'Tecmo Bowl (U) (PRG1).nes',
+        'Tecmo Cup - Soccer Game (U).nes',
+        'Tecmo NBA Basketball (U).nes',
+        'Tecmo Super Bowl (U).nes',
+        'Tecmo World Wrestling (U).nes',
+        'Teenage Mutant Ninja Turtles (U) [!].nes',
+        'Teenage Mutant Ninja Turtles - Tournament Fighters (U).nes',
+        'Teenage Mutant Ninja Turtles II - The Arcade Game (U) [!].nes',
+        'Teenage Mutant Ninja Turtles III - The Manhattan Project (U).nes',
+        'Tennis (JU) [!].nes',
+        'Terminator 2 - Judgment Day (U).nes',
+        'Terminator, The (U).nes',
+        'Terra Cresta (U).nes',
+        'Tetris (U) [!].nes',
+        'Tetris 2 (U) [!].nes',
+        'Three Stooges (U).nes',
+        'Thunder & Lightning (U).nes',
+        'Thunderbirds (U).nes',
+        'Thundercade (U).nes',
+        'Tiger-Heli (U).nes',
+        'Tiles of Fate (U).nes',
+        'Time Lord (U).nes',
+        'Times of Lore (U).nes',
+        'Tiny Toon Adventures (U).nes',
+        'Tiny Toon Adventures 2 - Trouble in Wackyland (U).nes',
+        'Tiny Toon Adventures Cartoon Workshop (U).nes',
+        'To The Earth (U).nes',
+        'Toki (U).nes',
+        'Tom & Jerry and Tuffy (U).nes',
+        'Tombs and Treasure (U).nes',
+        'Toobin\' (U).nes',
+        'Top Gun (U) (PRG1).nes',
+        'Top Gun - The Second Mission (U).nes',
+        'Top Players\' Tennis - Featuring Chris Evert & Ivan Lendl (U).nes',
+        'Total Recall (U).nes',
+        'Totally Rad (U).nes',
+        'Touch Down Fever (U).nes',
+        'Toxic Crusaders (U).nes',
+        'Track & Field (U).nes',
+        'Track & Field 2 (U).nes',
+        'Transformers.nes',
+        'Treasure Master (U).nes',
+        'Trog (U).nes',
+        'Trojan (U).nes',
+        'Trolls on Treasure Island (U).nes',
+        'Twin Cobra (U).nes',
+        'Twin Eagle (U).nes',
+        'Ultima - Exodus (U).nes',
+        'Ultima - Quest of the Avatar (U).nes',
+        'Ultima - Warriors of Destiny (U).nes',
+        'Ultimate Air Combat (U).nes',
+        'Ultimate Basketball (U).nes',
+        'Ultimate League Soccer (U).nes',
+        'Ultimate Stuntman (U).nes',
+        'Uncharted Waters (U).nes',
+        'Uninvited (U).nes',
+        'Untouchables, The (U).nes',
+        'Urban Champion (JU).nes',
+        'Vegas Dream (U).nes',
+        'Venice Beach Volleyball (U).nes',
+        'Vice - Project Doom (U).nes',
+        'Videomation (U).nes',
+        'Vindicators (U).nes',
+        'Volleyball (U).nes',
+        'Wacky Races (U).nes',
+        'Wall Street Kid (U).nes',
+        'Wally Bear and the No Gang (U).nes',
+        'Wario\'s Woods (U) [!].nes',
+        'Wayne Gretzky Hockey (U).nes',
+        'Wayne\'s World (U).nes',
+        'WCW World Championship Wrestling (U).nes',
+        'Werewolf - The Last Warrior (U).nes',
+        'Wheel of Fortune (U) (PRG1) [!].nes',
+        'Wheel of Fortune - Starring Vanna White (U).nes',
+        'Wheel of Fortune Family Edition (U).nes',
+        'Wheel of Fortune Junior Edition (U).nes',
+        'Where in Time is Carmen Sandiego (U).nes',
+        'Where\'s Waldo (U).nes',
+        'Who Framed Roger Rabbit (U).nes',
+        'Whomp\'Em (U).nes',
+        'Widget (U).nes',
+        'Wild Gunman (U) (PRG1) [!].nes',
+        'Willow (U).nes',
+        'Win, Lose or Draw (U).nes',
+        'Winter Games (U).nes',
+        'Wizardry - Proving Grounds of the Mad Overlord (U).nes',
+        'Wizardry - The Knight of Diamonds (U).nes',
+        'Wizards & Warriors (U).nes',
+        'Wizards & Warriors 3 (U).nes',
+        'Wolverine (U).nes',
+        'World Champ (U) [!].nes',
+        'World Games (U).nes',
+        'Wrath of the Black Manta (U).nes',
+        'Wrecking Crew (JUE) [t1].nes',
+        'Wurm (U).nes',
+        'WWF King of the Ring (U).nes',
+        'WWF Steel Cage Challenge (U).nes',
+        'WWF Wrestlemania (U).nes',
+        'WWF Wrestlemania Challenge (U).nes',
+        'Xenophobe (U).nes',
+        'Xevious (U).nes',
+        'Xexyz (U).nes',
+        'Yo! Noid (U).nes',
+        'Yo!Noid.nes',
+        'Yoshi (U).nes',
+        'Yoshi\'s Cookie (U).nes',
+        'Young Indiana Jones Chronicles, The (U).nes',
+        'Zanac (U).nes',
+        'Zelda II - The Adventure of Link (U).nes',
+        'Zen Intergalactic Ninja (U).nes',
+        'Zombie Nation (U).nes'
+    )
+}
