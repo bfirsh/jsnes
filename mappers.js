@@ -175,7 +175,7 @@ MapperDefault.prototype.regLoad = function(address){
                     // 0x4015:
                     // Sound channel enable, DMC Status
                     //return nes.getPapu().readReg(address);
-                    alert("Accessed sound register")
+                    //alert("Accessed sound register")
                     return 0;
                 
                 }case 1:{
@@ -536,7 +536,7 @@ MapperDefault.prototype.load1kVromBank = function(bank1k, address){
     if(this.nes.rom.vromCount == 0)return;
     this.nes.ppu.triggerRendering();
     
-    var bank4k = parseInt(bank1k/4)%rom.vromCount;
+    var bank4k = parseInt(bank1k/4)%this.nes.rom.vromCount;
     var bankoffset = (bank1k%4)*1024;
     arraycopy(this.nes.rom.vrom[bank4k],0,this.nes.ppuMem,
         bankoffset,1024);
@@ -679,150 +679,148 @@ Mapper001.prototype.setReg = function(reg, value){
     
     var tmp,tmp2;
     
-    if(reg == 0){
-    
-        // Mirroring:
-        tmp = value&3;
-        if(tmp != this.mirroring){
-            // Set mirroring:
-            this.mirroring = tmp;
-            if((this.mirroring & 2)==0){
-                // SingleScreen mirroring overrides the other setting:
-                ////System.out.println("MMC1: Setting Singlescreen Mirroring.");
-                this.nes.ppu.setMirroring(this.nes.rom.SINGLESCREEN_MIRRORING);
-            }else{
-                // Not overridden by SingleScreen mirroring.
-                ////System.out.println("MMC1: Setting Normal Mirroring. value="+mirroring);
-                this.nes.ppu.setMirroring(
-                    (this.mirroring&1)!=0 ?
-                        this.nes.rom.HORIZONTAL_MIRRORING
-                    :
-                        this.nes.rom.VERTICAL_MIRRORING);
+    switch (reg) {
+        case 0:
+            // Mirroring:
+            tmp = value&3;
+            if(tmp != this.mirroring){
+                // Set mirroring:
+                this.mirroring = tmp;
+                if((this.mirroring & 2)==0){
+                    // SingleScreen mirroring overrides the other setting:
+                    this.nes.ppu.setMirroring(
+                        this.nes.rom.SINGLESCREEN_MIRRORING);
+                }else{
+                    // Not overridden by SingleScreen mirroring.
+                    this.nes.ppu.setMirroring(
+                        (this.mirroring&1)!=0 ?
+                            this.nes.rom.HORIZONTAL_MIRRORING
+                        :
+                            this.nes.rom.VERTICAL_MIRRORING);
+                }
             }
-        }
         
-        // PRG Switching Area;
-        this.prgSwitchingArea = (value>>2)&1;
+            // PRG Switching Area;
+            this.prgSwitchingArea = (value>>2)&1;
         
-        // PRG Switching Size:
-        this.prgSwitchingSize = (value>>3)&1;
+            // PRG Switching Size:
+            this.prgSwitchingSize = (value>>3)&1;
         
-        // VROM Switching Size:
-        this.vromSwitchingSize = (value>>4)&1;
-        
-    }else if(reg == 1){
-        
-        // ROM selection:
-        this.romSelectionReg0 = (value>>4)&1;
-        
-        // Check whether the cart has VROM:
-        if(this.nes.vromCount > 0){
+            // VROM Switching Size:
+            this.vromSwitchingSize = (value>>4)&1;
             
-            // Select VROM bank at 0x0000:
-            if(this.vromSwitchingSize == 0){
+            break;
+        
+        case 1:
+            // ROM selection:
+            this.romSelectionReg0 = (value>>4)&1;
+        
+            // Check whether the cart has VROM:
+            if(this.nes.rom.vromCount > 0){
             
-                // Swap 8kB VROM:
-                ////System.out.println("Swapping 8k VROM, bank="+(value&0xF)+" romSelReg="+romSelectionReg0);
-                if(this.romSelectionReg0==0){
-                    this.load8kVromBank((value&0xF), 0x0000);
-                }else{
-                    this.load8kVromBank(
-                        parseInt(this.nes.rom.vromCount/2) + (value&0xF),
-                        0x0000);
-                }
-                
-            }else{
-                
-                // Swap 4kB VROM:
-                ////System.out.println("ROMSELREG0 = "+romSelectionReg0);
-                ////System.out.println("Swapping 4k VROM at 0x0000, bank="+(value&0xF));
-                
-                if(this.romSelectionReg0 == 0){
-                    this.loadVromBank((value&0xF), 0x0000);
-                }else{
-                    this.loadVromBank(
-                        parseInt(this.nes.rom.vromCount/2)+(value&0xF),
-                        0x0000);
-                }
-                
-            }
+                // Select VROM bank at 0x0000:
+                if(this.vromSwitchingSize == 0){
             
-        }
-        
-    }else if(reg == 2){
-        
-        // ROM selection:
-        this.romSelectionReg1 = (value>>4)&1;
-        
-        // Check whether the cart has VROM:
-        if(this.nes.rom.vromCount > 0){
-        
-            // Select VROM bank at 0x1000:
-            if(this.vromSwitchingSize == 1){
+                    // Swap 8kB VROM:
+                    ////System.out.println("Swapping 8k VROM, bank="+(value&0xF)+" romSelReg="+romSelectionReg0);
+                    if(this.romSelectionReg0==0){
+                        this.load8kVromBank((value&0xF), 0x0000);
+                    }else{
+                        this.load8kVromBank(
+                            parseInt(this.nes.rom.vromCount/2) + (value&0xF),
+                            0x0000);
+                    }
                 
-                // Swap 4kB of VROM:
-                ////System.out.println("ROMSELREG1 = "+romSelectionReg1);
-                ////System.out.println("Swapping 4k VROM at 0x1000, bank="+(value&0xF));
-                if(this.romSelectionReg1 == 0){
-                    this.loadVromBank((value&0xF),0x1000);
                 }else{
-                    this.loadVromBank(
-                        parseInt(this.nes.rom.vromCount/2)+(value&0xF),
-                        0x1000);
-                }
                 
+                    // Swap 4kB VROM:
+                    ////System.out.println("ROMSELREG0 = "+romSelectionReg0);
+                    ////System.out.println("Swapping 4k VROM at 0x0000, bank="+(value&0xF));
+                
+                    if(this.romSelectionReg0 == 0){
+                        this.loadVromBank((value&0xF), 0x0000);
+                    }else{
+                        this.loadVromBank(
+                            parseInt(this.nes.rom.vromCount/2)+(value&0xF),
+                            0x0000);
+                    }
+                
+                }
+            
             }
             
-        }
+            break;
         
-    }else{
+        case 2:
+            // ROM selection:
+            this.romSelectionReg1 = (value>>4)&1;
         
-        // Select ROM bank:
-        // -------------------------
-        tmp = value & 0xF;
-        var bank;
-        var baseBank = 0;
+            // Check whether the cart has VROM:
+            if(this.nes.rom.vromCount > 0){
         
-        if(this.nes.rom.romCount >= 32){
+                // Select VROM bank at 0x1000:
+                if(this.vromSwitchingSize == 1){
+                
+                    // Swap 4kB of VROM:
+                    ////System.out.println("ROMSELREG1 = "+romSelectionReg1);
+                    ////System.out.println("Swapping 4k VROM at 0x1000, bank="+(value&0xF));
+                    if(this.romSelectionReg1 == 0){
+                        this.loadVromBank((value&0xF),0x1000);
+                    }else{
+                        this.loadVromBank(
+                            parseInt(this.nes.rom.vromCount/2)+(value&0xF),
+                            0x1000);
+                    }
+                
+                }
             
-            // 1024 kB cart
-            if(this.vromSwitchingSize == 0){
+            }
+        
+        default:
+            // Select ROM bank:
+            // -------------------------
+            tmp = value & 0xF;
+            var bank;
+            var baseBank = 0;
+        
+            if(this.nes.rom.romCount >= 32){
+            
+                // 1024 kB cart
+                if(this.vromSwitchingSize == 0){
+                    if(this.romSelectionReg0 == 1){
+                        baseBank = 16;
+                    }
+                }else{
+                    baseBank = (this.romSelectionReg0 
+                                | (this.romSelectionReg1<<1))<<3;
+                }
+            
+            }else if(this.nes.rom.romCount >= 16){
+            
+                // 512 kB cart
                 if(this.romSelectionReg0 == 1){
-                    baseBank = 16;
+                    baseBank = 8;
                 }
+            
+            }
+        
+            if(this.prgSwitchingSize == 0){
+        
+                // 32kB
+                bank = baseBank+(value&0xF);
+                this.load32kRomBank(bank, 0x8000);
+            
             }else{
-                baseBank = (this.romSelectionReg0 
-                            | (this.romSelectionReg1<<1))<<3;
+            
+                // 16kB
+                bank = baseBank*2+(value&0xF);
+                if(this.prgSwitchingArea == 0){
+                    this.loadRomBank(bank, 0xC000);
+                }else{
+                    this.loadRomBank(bank, 0x8000);
+                }
+            
             }
-            
-        }else if(this.nes.rom.romCount >= 16){
-            
-            // 512 kB cart
-            if(this.romSelectionReg0 == 1){
-                baseBank = 8;
-            }
-            
-        }
-        
-        if(this.prgSwitchingSize == 0){
-        
-            // 32kB
-            bank = baseBank+(value&0xF);
-            this.load32kRomBank(bank, 0x8000);
-            
-        }else{
-            
-            // 16kB
-            bank = baseBank*2+(value&0xF);
-            if(this.prgSwitchingArea == 0){
-                this.loadRomBank(bank, 0xC000);
-            }else{
-                this.loadRomBank(bank, 0x8000);
-            }
-            
-        }
-        
-        // -------------------------
         
     }
     
@@ -863,7 +861,6 @@ Mapper001.prototype.loadROM = function(rom){
     this.loadBatteryRam();
     
     // Do Reset-Interrupt:
-    //nes.getCpu().doResetInterrupt();
     this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
     
 }
@@ -911,4 +908,271 @@ Mapper001.prototype.switch32to16 = function(){
     
 }
 
+function Mapper002(nes) {
+    this.nes = nes
+}
 
+copyPrototype(Mapper002, MapperDefault);
+
+Mapper002.prototype.write = function(address, value){
+    
+    // Writes to addresses other than MMC registers are handled by NoMapper.
+    if(address < 0x8000){
+        MapperDefault.prototype.write.apply(this, arguments);
+        return;
+    }
+    
+    else{
+		
+		// This is a ROM bank select command.
+		// Swap in the given ROM bank at 0x8000:
+		this.loadRomBank(value,0x8000);
+		
+	}
+}
+
+Mapper002.prototype.loadROM = function(rom){
+	
+	if(!this.nes.rom.valid){
+		alert("UNROM: Invalid ROM! Unable to load.");
+		return;
+	}
+	
+	// Load PRG-ROM:
+	this.loadRomBank(0,0x8000);
+	this.loadRomBank(this.nes.rom.romCount-1,0xC000);
+	
+	// Load CHR-ROM:
+	this.loadCHRROM();
+	
+	// Do Reset-Interrupt:
+	this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
+	
+}
+
+function Mapper004(nes) {
+    this.nes = nes
+    
+    this.CMD_SEL_2_1K_VROM_0000 = 0;
+	this.CMD_SEL_2_1K_VROM_0800 = 1;
+	this.CMD_SEL_1K_VROM_1000 = 2;
+	this.CMD_SEL_1K_VROM_1400 = 3;
+	this.CMD_SEL_1K_VROM_1800 = 4;
+	this.CMD_SEL_1K_VROM_1C00 = 5;
+	this.CMD_SEL_ROM_PAGE1 = 6;
+	this.CMD_SEL_ROM_PAGE2 = 7;
+	
+	this.command = null;
+	this.prgAddressSelect = null;
+	this.chrAddressSelect = null;
+	this.pageNumber = null;
+	this.irqCounter = null;
+	this.irqLatchValue = null;
+	this.irqEnable = null;
+	this.prgAddressChanged = false;
+}
+
+copyPrototype(Mapper004, MapperDefault);
+
+Mapper004.prototype.write = function(address, value){
+    
+    // Writes to addresses other than MMC registers are handled by NoMapper.
+    if(address < 0x8000){
+        MapperDefault.prototype.write.apply(this, arguments);
+        return;
+    }
+    
+    switch (address) {
+        case 0x8000:
+    		// Command/Address Select register
+    		this.command = value&7;
+    		var tmp = (value>>6)&1;
+    		if(tmp != this.prgAddressSelect){
+    			this.prgAddressChanged = true;
+    		}
+    		this.prgAddressSelect = tmp;
+    		this.chrAddressSelect = (value>>7)&1;
+    		break;
+        
+		case 0x8001:
+		    // Page number for command
+		    this.executeCommand(this.command,value);
+		    break;
+		
+	    case 0xA000:		
+    		// Mirroring select
+    		if((value&1) != 0){
+    			this.nes.ppu.setMirroring(this.nes.rom.HORIZONTAL_MIRRORING);
+    		}else{
+    			this.nes.ppu.setMirroring(this.nes.rom.VERTICAL_MIRRORING);
+    		}
+		    break;
+		    
+	    case 0xA001:
+    		// SaveRAM Toggle
+    		// TODO
+    		//nes.getRom().setSaveState((value&1)!=0);
+    		break;
+		
+	    case 0xC000:
+		    // IRQ Counter register
+		    this.irqCounter = value;
+		    //nes.ppu.mapperIrqCounter = 0;
+		    break;
+		
+	    case 0xC001:
+		    // IRQ Latch register
+		    this.irqLatchValue = value;
+		    break;
+		
+	    case 0xE000:
+		    // IRQ Control Reg 0 (disable)
+		    //irqCounter = irqLatchValue;
+		    this.irqEnable = 0;
+		    break;
+		
+	    case 0xE001:		
+		    // IRQ Control Reg 1 (enable)
+		    this.irqEnable = 1;
+		    break;
+		
+	    default:
+    		// Not a MMC3 register.
+    		// The game has probably crashed,
+    		// since it tries to write to ROM..
+    		// IGNORE.
+		
+	}
+}
+    
+Mapper004.prototype.executeCommand = function(cmd, arg){
+	switch (cmd) {
+	    case this.CMD_SEL_2_1K_VROM_0000:
+	        // Select 2 1KB VROM pages at 0x0000:
+			if(this.chrAddressSelect == 0){
+				this.load1kVromBank(arg,0x0000);
+				this.load1kVromBank(arg+1,0x0400);
+			}else{
+				this.load1kVromBank(arg,0x1000);
+				this.load1kVromBank(arg+1,0x1400);
+			}
+			break;
+			
+		case this.CMD_SEL_2_1K_VROM_0800:    		
+			// Select 2 1KB VROM pages at 0x0800:
+			if(this.chrAddressSelect == 0){
+				this.load1kVromBank(arg,0x0800);
+				this.load1kVromBank(arg+1,0x0C00);
+			}else{
+				this.load1kVromBank(arg,0x1800);
+				this.load1kVromBank(arg+1,0x1C00);
+			}
+			break;
+		
+	    case this.CMD_SEL_1K_VROM_1000:			
+			// Select 1K VROM Page at 0x1000:
+			if(this.chrAddressSelect == 0){
+				this.load1kVromBank(arg,0x1000);
+			}else{
+				this.load1kVromBank(arg,0x0000);
+			}
+			break;
+		
+	    case this.CMD_SEL_1K_VROM_1400:			
+			// Select 1K VROM Page at 0x1400:
+			if(this.chrAddressSelect == 0){
+				this.load1kVromBank(arg,0x1400);
+			}else{
+				this.load1kVromBank(arg,0x0400);
+			}
+			break;
+		
+	    case this.CMD_SEL_1K_VROM_1800:			
+			// Select 1K VROM Page at 0x1800:
+			if(this.chrAddressSelect == 0){
+				this.load1kVromBank(arg,0x1800);
+			}else{
+				this.load1kVromBank(arg,0x0800);
+			}
+			break;
+		
+	    case this.CMD_SEL_1K_VROM_1C00:			
+			// Select 1K VROM Page at 0x1C00:
+			if(this.chrAddressSelect == 0){
+				this.load1kVromBank(arg,0x1C00);
+			}else{
+				this.load1kVromBank(arg,0x0C00);
+			}
+			break;
+		
+	    case this.CMD_SEL_ROM_PAGE1:
+			if(this.prgAddressChanged){
+				// Load the two hardwired banks:
+				if(this.prgAddressSelect == 0){	
+					this.load8kRomBank(
+					    ((this.nes.rom.romCount-1)*2),
+					    0xC000);
+				} else {
+					this.load8kRomBank(
+					    ((this.nes.rom.romCount-1)*2),
+					    0x8000);
+				}
+				this.prgAddressChanged = false;
+			}
+		
+			// Select first switchable ROM page:
+			if(this.prgAddressSelect == 0){
+				this.load8kRomBank(arg,0x8000);
+			}else{
+				this.load8kRomBank(arg,0xC000);
+			}
+		    break;
+		    
+	    case this.CMD_SEL_ROM_PAGE2:
+		
+    		// Select second switchable ROM page:
+    		this.load8kRomBank(arg,0xA000);
+		
+			// hardwire appropriate bank:
+			if(this.prgAddressChanged){
+				// Load the two hardwired banks:
+				if(this.prgAddressSelect == 0){	
+					this.load8kRomBank(
+					    ((this.nes.rom.romCount-1)*2),
+					    0xC000);
+				}else{				
+					this.load8kRomBank(
+					    ((this.nes.rom.romCount-1)*2),
+					    0x8000);
+				}
+				this.prgAddressChanged = false;
+			}
+	}
+	
+}
+	
+Mapper004.prototype.loadROM = function(rom){
+	
+	if(!this.nes.rom.valid){
+		alert("MMC3: Invalid ROM! Unable to load.");
+		return;
+	}
+	
+	// Load hardwired PRG banks (0xC000 and 0xE000):
+	this.load8kRomBank(((this.nes.rom.romCount-1)*2)  ,0xC000);
+	this.load8kRomBank(((this.nes.rom.romCount-1)*2)+1,0xE000);
+	
+	// Load swappable PRG banks (0x8000 and 0xA000):
+	this.load8kRomBank(0,0x8000);
+	this.load8kRomBank(1,0xA000);
+	
+	// Load CHR-ROM:
+	this.loadCHRROM();
+	
+	// Load Battery RAM (if present):
+	this.loadBatteryRam();
+	
+	// Do Reset-Interrupt:
+	this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
+	
+}

@@ -78,10 +78,10 @@ function ROM(nes) {
 	// The mappers supported:
 	this.supportedMappers[0] = true; // No Mapper
 	this.supportedMappers[1] = true; // MMC1
-	/*this.supportedMappers[2] = true; // UNROM
-	this.supportedMappers[3] = true; // CNROM
+	this.supportedMappers[2] = true; // UNROM
+	/*this.supportedMappers[3] = true; // CNROM*/
 	this.supportedMappers[4] = true; // MMC3
-	this.supportedMappers[7] = true; // AOROM
+	/*this.supportedMappers[7] = true; // AOROM
 	this.supportedMappers[9] = true; // MMC2
 	this.supportedMappers[10] = true; // MMC4
 	this.supportedMappers[11] = true; // ColorDreams
@@ -211,8 +211,12 @@ function ROM(nes) {
 	        switch(this.mapperType) {
 	            case 0: // No mapper
 	                return new MapperDefault(this.nes);
-	            case 1: // MMC 1
+	            case 1: // MMC1
 	                return new Mapper001(this.nes);
+	            case 2: // UNROM
+	                return new Mapper002(this.nes);
+	            case 4: // MMC3
+	                return new Mapper004(this.nes);
 	        }
 	    }
 	    else {

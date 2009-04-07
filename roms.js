@@ -1,14 +1,25 @@
 var roms_list = {
-    "Tested": new Array(
+    "Working": new Array(
+        'Contra (U) [!].nes',
+        'Donkey Kong (JU).nes',
+        'Dr. Mario (JU).nes',
+        'Golf (JU).nes',
+        'Legend of Zelda, The (U) (PRG1).nes',
+        'Lemmings (U).nes',
+        'Mario Bros. (JU) [!].nes',
         'Pac-Man (U) [!].nes',
-        'Super Mario Bros. (JU) (PRG0) [!].nes'
+        'Super Mario Bros. (JU) (PRG0) [!].nes',
+        'Tennis (JU) [!].nes',
+        'Tetris (U) [!].nes',
+        'Tetris 2 (U) [!].nes',
+        'Zelda II - The Adventure of Link (U).nes'
     ),
     
     "Nearly Working": new Array(
-        'Lemmings (U).nes'
-    ),
+        'Super Mario Bros. 3 (U) (PRG1) [!].nes'
+    )
     
-    "Broken": new Array(
+    /*"Broken": new Array(
     ),
     
     "Untested": new Array(
@@ -165,7 +176,6 @@ var roms_list = {
         'Conan (U).nes',
         'Conflict (U) [!].nes',
         'Conquest of the Crystal Palace (U).nes',
-        'Contra (U) [!].nes',
         'Contra Force (U).nes',
         'Cool World (U).nes',
         'Cowboy Kid (U).nes',
@@ -197,7 +207,6 @@ var roms_list = {
         'Digger - The Legend of the Lost City (U).nes',
         'Dirty Harry (U).nes',
         'Dizzy The Adventurer (U).nes',
-        'Donkey Kong (JU).nes',
         'Donkey Kong 3 (JUE).nes',
         'Donkey Kong Classics (U) [!].nes',
         'Donkey Kong Jr. (JU).nes',
@@ -210,7 +219,6 @@ var roms_list = {
         'Double Strike (U) (V1.1).nes',
         'Dr. Chaos (U).nes',
         'Dr. Jekyll and Mr. Hyde (U).nes',
-        'Dr. Mario (JU).nes',
         'Dragon Fighter (U).nes',
         'Dragon Power (U).nes',
         'Dragon Spirit - The New Legend (U).nes',
@@ -276,7 +284,6 @@ var roms_list = {
         'Godzilla - Monster of Monsters! (U).nes',
         'Godzilla 2 - War of the Monsters (U).nes',
         'Gold Medal Challenge \'92 (U).nes',
-        'Golf (JU).nes',
         'Golf Grand Slam (U).nes',
         'Golgo 13 - Top Secret Episode (U).nes',
         'Goonies II, The (U).nes',
@@ -378,7 +385,6 @@ var roms_list = {
         'Legacy of the Wizard (U).nes',
         'Legend of Kage, The (U).nes',
         'Legend of the Ghost Lion (U).nes',
-        'Legend of Zelda, The (U) (PRG1).nes',
         'Legendary Wings (U).nes',
         'Legends of the Diamond (U).nes',
         'Lethal Weapon (U).nes',
@@ -409,7 +415,6 @@ var roms_list = {
         'Maniac Mansion (U).nes',
         'Mappy-Land (U).nes',
         'Marble Madness (U).nes',
-        'Mario Bros. (JU) [!].nes',
         'Mario is Missing! (U).nes',
         'Mario\'s Time Machine! (U).nes',
         'Marvel\'s X-Men (U).nes',
@@ -638,7 +643,6 @@ var roms_list = {
         'Super Mario Bros. + Duck Hunt (U).nes',
         'Super Mario Bros. + Duck Hunt + World Class Track Meet (U).nes',
         'Super Mario Bros. 2 (U) (PRG0) [!].nes',
-        'Super Mario Bros. 3 (U) (PRG1) [!].nes',
         'Super Pitfall (U).nes',
         'Super Spike V\'Ball (U).nes',
         'Super Spike V\'Ball + Nintendo World Cup (U) [!].nes',
@@ -666,12 +670,9 @@ var roms_list = {
         'Teenage Mutant Ninja Turtles - Tournament Fighters (U).nes',
         'Teenage Mutant Ninja Turtles II - The Arcade Game (U) [!].nes',
         'Teenage Mutant Ninja Turtles III - The Manhattan Project (U).nes',
-        'Tennis (JU) [!].nes',
         'Terminator 2 - Judgment Day (U).nes',
         'Terminator, The (U).nes',
         'Terra Cresta (U).nes',
-        'Tetris (U) [!].nes',
-        'Tetris 2 (U) [!].nes',
         'Three Stooges (U).nes',
         'Thunder & Lightning (U).nes',
         'Thunderbirds (U).nes',
@@ -765,8 +766,7 @@ var roms_list = {
         'Yoshi\'s Cookie (U).nes',
         'Young Indiana Jones Chronicles, The (U).nes',
         'Zanac (U).nes',
-        'Zelda II - The Adventure of Link (U).nes',
         'Zen Intergalactic Ninja (U).nes',
         'Zombie Nation (U).nes'
-    )
+    )*/
 }
