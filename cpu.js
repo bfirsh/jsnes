@@ -1061,8 +1061,8 @@ function CPU(nes) {
                 // * ??? *
                 // *******
 
-                this.nes.isRunning = false;
-                alert("Game crashed, invalid opcode at address $"+opaddr.toString(16));
+                this.nes.stop();
+                this.nes.crashMessage = "Game crashed, invalid opcode at address $"+opaddr.toString(16);
                 break;
 
             }

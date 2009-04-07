@@ -13,6 +13,7 @@ function NES() {
     
     this.romFile = null;
     this.isRunning = false;
+    this.crashMessage = null;
     
     this.palTable.loadNTSCPalette();
 	//this.palTable.loadDefaultPalette();
@@ -89,7 +90,7 @@ function NES() {
     }
     
     this.stop = function() {
-        $("#status").text("Stopped.");
+        //$("#status").text("Stopped.");
         clearInterval(this.frameInterval)
 		this.isRunning = false;
     }

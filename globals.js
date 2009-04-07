@@ -32,7 +32,7 @@ var Globals = {
 	filterBrightenDepth: 3,
 	filterDarkenDepth  : 3,
 	
-	nes: null,
+	nes: null
 	/*public static void println(String s){
 		nes.getGui().println(s);
 	}*/
