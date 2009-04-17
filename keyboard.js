@@ -36,9 +36,11 @@ function setKey(key, value) {
 
 function keyDown(evt) {
 	setKey(evt.keyCode, 0x41);
+	if (evt.preventDefault) evt.preventDefault();
 }
 function keyUp(evt) {
 	setKey(evt.keyCode, 0x40);
+	if (evt.preventDefault) evt.preventDefault();
 }
 
 
