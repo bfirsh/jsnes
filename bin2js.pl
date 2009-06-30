@@ -1,4 +1,5 @@
 #!/usr/bin/perl -w
+# By Matt Westcott, part of JSSpeccy: http://matt.west.co.tt/spectrum/jsspeccy/
 
 $dir = $ARGV[0];
 
