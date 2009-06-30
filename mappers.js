@@ -326,28 +326,14 @@ MapperDefault.prototype.joy1Read = function(){
     
     switch(this.joy1StrobeState){
         case 0:
-            ret = keyStates1[KEY_A];
-            break;
         case 1:
-            ret = keyStates1[KEY_B];
-            break;
         case 2:
-            ret = keyStates1[KEY_SELECT];
-            break;
         case 3:
-            ret = keyStates1[KEY_START];
-            break;
         case 4:
-            ret = keyStates1[KEY_UP];
-            break;
         case 5:
-            ret = keyStates1[KEY_DOWN];
-            break;
         case 6:
-            ret = keyStates1[KEY_LEFT];
-            break;
         case 7:
-            ret = keyStates1[KEY_RIGHT];
+            ret = keyboard.state1[this.joy1StrobeState];
             break;
         case 8:
         case 9:
@@ -388,28 +374,14 @@ MapperDefault.prototype.joy2Read = function(){
     
     switch(this.joy2StrobeState){
         case 0:
-            ret = keyStates2[KEY_A];
-            break;
         case 1:
-            ret = keyStates2[KEY_B];
-            break;
         case 2:
-            ret = keyStates2[KEY_SELECT];
-            break;
         case 3:
-            ret = keyStates2[KEY_START];
-            break;
         case 4:
-            ret = keyStates2[KEY_UP];
-            break;
         case 5:
-            ret = keyStates2[KEY_DOWN];
-            break;
         case 6:
-            ret = keyStates2[KEY_LEFT];
-            break;
         case 7:
-            ret = keyStates2[KEY_RIGHT];
+            ret = keyboard.state2[this.joy2StrobeState];
             break;
         case 8:
         case 9:
