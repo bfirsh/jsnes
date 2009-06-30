@@ -33,8 +33,8 @@ NameTable.prototype.writeAttrib = function(index, value){
 				for(var x=0;x<2;x++){
 					tx = basex+sqx*2+x;
 					ty = basey+sqy*2+y;
-					attindex = ty*width+tx;
-					this.attrib[ty*width+tx] = (add<<2)&12;
+					attindex = ty*this.width+tx;
+					this.attrib[ty*this.width+tx] = (add<<2)&12;
 					////System.out.println("x="+tx+" y="+ty+" value="+attrib[ty*width+tx]+" index="+attindex);
 				}
 			}
