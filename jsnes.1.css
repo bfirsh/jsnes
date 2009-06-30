@@ -2,6 +2,10 @@
     text-align: center;
 }
 
+#controls {
+    margin-bottom: 1em;
+}
+
 #status {
     font-size: 0.8em;
     color: #999;
