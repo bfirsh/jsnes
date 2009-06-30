@@ -13,6 +13,8 @@ function NES() {
     
     this.romFile = null;
     this.isRunning = false;
+    this.lastFpsTime = null;
+    this.fpsFrameCount = 0;
     this.crashMessage = null;
     
     this.palTable.loadNTSCPalette();
@@ -33,13 +35,17 @@ function NES() {
     this.start = function() {
         if(this.rom != null && this.rom.valid) {
             if (!this.isRunning) {
-                $("#status").text("Running "+this.romFile)
+                //$("#status").text("Running "+this.romFile)
                 this.isRunning = true;
                 this.frameInterval = setInterval(runFrame, Globals.frameTime);
+                this.resetFps();
+                this.printFps();
+                this.fpsInterval = setInterval(runPrintFps, Globals.fpsInterval);
             }
         }
-        else
-            alert("There is no ROM loaded, or it is invalid.")
+        else {
+            alert("There is no ROM loaded, or it is invalid.");
+        }
     }
     
     this.frame = function() {
@@ -87,11 +93,25 @@ function NES() {
             }
         }
         this.ctx.putImageData(this.imageData, 0, 0);
+        this.fpsFrameCount++;
+        
+    }
+    
+    this.printFps = function() {
+        var now = (new Date()).getTime();
+        var s = 'Running';
+        if (this.lastFpsTime) {
+            s += ': '+(this.fpsFrameCount/((now-this.lastFpsTime)/1000)).toFixed(2)+' FPS';
+        }
+        $("#status").text(s);
+        this.fpsFrameCount = 0;
+        this.lastFpsTime = now;
     }
     
     this.stop = function() {
         //$("#status").text("Stopped.");
-        clearInterval(this.frameInterval)
+        clearInterval(this.frameInterval);
+        clearInterval(this.fpsInterval);
 		this.isRunning = false;
     }
     
@@ -163,8 +183,11 @@ function NES() {
 		this.cpu.init();
 		this.ppu.reset();
 		this.palTable.reset();
-		
-        
+	}
+	
+	this.resetFps = function() {
+	    this.lastFpsTime = null;
+        this.fpsFrameCount = 0;
 	}
 	
 	this.setFramerate = function(rate){
@@ -182,3 +205,4 @@ function NES() {
 }
 
 function runFrame() { Globals.nes.frame(); }
+function runPrintFps() { Globals.nes.printFps(); }

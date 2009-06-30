@@ -53,12 +53,12 @@ charset="utf-8" />
     <p class="summary">A Javascript <a href="http://en.wikipedia.org/wiki/Nintendo_Entertainment_System">NES</a> emulator.</p>
     <div id="emulator">
         <canvas id="screen" width="256" height="240"></canvas>
-        <!--<p><strong>Status:</strong> <span id="status">Loading...</span></p>-->
         <div id="controls">
             <select id="roms"></select>
             <input type="button" value="pause" id="pause" disabled="disabled" />
             <input type="button" value="restart" id="restart" disabled="disabled" />
         </div>
+        <p id="status">Loading...</p>
     </div>
     <h2>Controls</h2>
     <table id="controls">
@@ -151,6 +151,7 @@ charset="utf-8" />
         b = $("#pause");
         if (b.attr("value") == "pause") {
             nes.stop();
+            $("#status").text("Paused")
             b.attr("value", "resume");
         }
         else {
