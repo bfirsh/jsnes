@@ -48,9 +48,9 @@ charset="utf-8" />
 </head>
 
 <body><div id="wrapper">
-    <p class="home"><a href="/">Back home</a></p>
     <h1>JSNES</h1>
     <p class="summary">A Javascript <a href="http://en.wikipedia.org/wiki/Nintendo_Entertainment_System">NES</a> emulator.</p>
+    <p><small>By <a href="/">Ben Firshman</a> (<a href="http://twitter.com/bfirsh">@bfirsh</a>)</small></p>
     <div id="emulator">
         <canvas id="screen" width="256" height="240"></canvas>
         <div id="controls">
@@ -113,7 +113,6 @@ charset="utf-8" />
     <p>I got underway shamelessly porting <a href="http://www.virtualnes.com/">vNES</a> into Javascript. Although not the most efficient, it didn't have any of the pointer memory mapping magic associated with emulators written in lower level languages. As such, it was more or less a direct port, bar a few tweaks to compensate for the lack of static typing, and obviously a rewrite of all the I/O.</p>
     <p>Thanks to some meticulous performance analysis made beforehand (it might work?!), JSNES is actually quite playable on modern Javascript engines with a reasonably fast CPU. I'd suggest you use <strong>Firefox 3.5</strong>, <strong>Safari 4</strong> or some recent Google Chrome build that supports canvas, otherwise it's far too slow.</p>
     <p>The source is available on <a href="http://github.com/bfirsh/jsnes/">Github</a>, contributions welcome!</p>
-
 <script type="text/javascript" charset="utf-8">
     // Mouse events
     $("#screen").mousedown(function(e){
