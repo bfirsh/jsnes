@@ -27,16 +27,18 @@ Keyboard.prototype.setKey = function(key, value) {
 	    case 98: this.state2[this.keys.KEY_DOWN] = value; break;   // Num-2
 	    case 100: this.state2[this.keys.KEY_LEFT] = value; break;  // Num-4
 	    case 102: this.state2[this.keys.KEY_RIGHT] = value; break; // Num-6
+	    default: return true;
 	}
+	return false; // preventDefault
 }
 
 Keyboard.prototype.keyDown = function(evt) {
-	this.setKey(evt.keyCode, 0x41);
-	if (evt.preventDefault) evt.preventDefault();
+	if (!this.setKey(evt.keyCode, 0x41) && evt.preventDefault)
+	    evt.preventDefault();
 }
 Keyboard.prototype.keyUp = function(evt) {
-	this.setKey(evt.keyCode, 0x40);
-	if (evt.preventDefault) evt.preventDefault();
+	if (!this.setKey(evt.keyCode, 0x40) && evt.preventDefault)
+	    evt.preventDefault();
 }
 
 var keyboard = new Keyboard();
