@@ -35,7 +35,7 @@ function NES() {
             if (!this.isRunning) {
                 $("#status").text("Running "+this.romFile)
                 this.isRunning = true;
-                this.frameInterval = setInterval('Globals.nes.frame()', Globals.frameTime);
+                this.frameInterval = setInterval(runFrame, Globals.frameTime);
             }
         }
         else
@@ -181,3 +181,4 @@ function NES() {
     
 }
 
+function runFrame() { Globals.nes.frame(); }
