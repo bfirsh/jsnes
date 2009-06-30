@@ -102,9 +102,8 @@ function NES() {
 	}
 	
 	this.clearCPUMemory = function() {
-		var flushval = Globals.memoryFlushValue;
 		for(var i=0;i<0x2000;i++) {
-			this.cpuMem[i] = flushval;
+			this.cpuMem[i] = Globals.memoryFlushValue;
 		}
 		for(var p=0;p<4;p++){
 			var i = p*0x800;

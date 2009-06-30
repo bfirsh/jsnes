@@ -40,8 +40,6 @@ function CPU(nes) {
 
     // Misc vars:
     this.cyclesToHalt = null;
-    this.nsfCycles = null;
-    this.nsfInit = null;
     this.crash = null;
     
     this.palCnt = null;
@@ -88,7 +86,6 @@ function CPU(nes) {
         this.F_BRK_NEW = 1;
 
         this.cyclesToHalt = 0;
-        this.nsfCycles = 0;
         
         this.palCnt = 0;
     }
@@ -257,14 +254,6 @@ function CPU(nes) {
         }
         // Wrap around for addresses above 0xFFFF:
         addr&=0xFFFF;
-
-        /*if(nsfInit){
-            String iaddr = Misc.hex16(opaddr);
-            String daddr = Misc.hex16(addr);
-            String inst = CpuInfo.getInstName(opinf&0xFF);
-            String amode = CpuInfo.getAddressModeName(addrMode);
-            //System.out.println("$"+iaddr+" "+inst+" "+amode+" $"+daddr);
-        }*/
 
         // ----------------------------------------------------------------------------------------------------
         // Decode & execute instruction:
