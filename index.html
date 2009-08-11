@@ -1,15 +1,13 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
-    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 
     <title>JSNES: A Javascript NES emulator</title>
     <link rel="stylesheet" href="/style.3.css" type="text/css" media="screen"
-charset="utf-8" />
+charset="utf-8">
     <link rel="stylesheet" href="jsnes.1.css" type="text/css" media="screen"
-charset="utf-8" />
+charset="utf-8">
     
     <script src="jquery-1.2.6.min.js" type="text/javascript" charset="utf-8"></script>
     <script src="jquery.dimensions.min.js" type="text/javascript" charset="utf-8"></script>
@@ -54,8 +52,8 @@ charset="utf-8" />
         <canvas id="screen" width="256" height="240"></canvas>
         <div id="controls">
             <select id="roms"></select>
-            <input type="button" value="pause" id="pause" disabled="disabled" />
-            <input type="button" value="restart" id="restart" disabled="disabled" />
+            <input type="button" value="pause" id="pause" disabled="disabled">
+            <input type="button" value="restart" id="restart" disabled="disabled">
         </div>
         <p id="status">Loading...</p>
     </div>
@@ -110,8 +108,9 @@ charset="utf-8" />
     <h2>About</h2>
     <p>A few months ago, I stumbled across Matt Westcott's excellent <a href="http://matt.west.co.tt/spectrum/jsspeccy/">JSSpeccy</a>. I had seen some pretty imaginative <a href="http://en.wikipedia.org/wiki/Canvas_(HTML_element)">canvas</a> creations, but Javascript emulators? What a perfect idea for a daft new project.</p>
     <p>I got underway shamelessly porting <a href="http://www.virtualnes.com/">vNES</a> into Javascript. Although not the most efficient, it didn't have any of the pointer memory mapping magic associated with emulators written in lower level languages. As such, it was more or less a direct port, bar a few tweaks to compensate for the lack of static typing, and obviously a rewrite of all the I/O.</p>
-    <p>Thanks to some meticulous performance analysis made beforehand (it might work?!), JSNES is actually quite playable on modern Javascript engines with a reasonably fast CPU. I'd suggest you use <strong>Firefox 3.5</strong>, <strong>Safari 4</strong> or some recent Google Chrome build that supports canvas, otherwise it's far too slow.</p>
+    <p>I highly recommend you use <a href="http://www.google.com/chrome">Google Chrome</a> to play JSNES. Thanks to its high performance canvas element, and a clever optimisation by Connor Dunn, it runs at full speed on modern computers. <a href="http://build.chromium.org/buildbot/snapshots/chromium-rel-mac/">Mac builds</a> are also available. Otherwise, it just about runs on <a href="http://getfirefox.com/">Firefox 3.5</a> or <a href="http://www.apple.com/safari/">Safari 4</a>, but it's hardly playable.</p>
     <p>The source is available on <a href="http://github.com/bfirsh/jsnes/">Github</a>, contributions welcome!</p>
+    
 <script type="text/javascript" charset="utf-8">
     // Mouse events
     $("#screen").mousedown(function(e){

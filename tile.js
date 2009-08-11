@@ -68,7 +68,7 @@ Tile.prototype.render = function(srcx1, srcy1, srcx2, srcy2, dx, dy, palAdd, pal
 					this.tpri = priTable[this.fbIndex];
 					if(this.palIndex!=0 && pri<=(this.tpri&0xFF)){
 					    //console.log("Rendering upright tile to buffer");
-						Globals.nes.ppu.writePixel(this.fbIndex, palette[this.palIndex+palAdd]);
+						Globals.nes.ppu.buffer[this.fbIndex] = palette[this.palIndex+palAdd];
 						this.tpri = (this.tpri&0xF00)|pri;
 						priTable[this.fbIndex] =this.tpri;
 					}
@@ -90,7 +90,7 @@ Tile.prototype.render = function(srcx1, srcy1, srcx2, srcy2, dx, dy, palAdd, pal
 					this.palIndex = this.pix[this.tIndex];
 					this.tpri = priTable[this.fbIndex];
 					if(this.palIndex!=0 && pri<=(this.tpri&0xFF)){
-						Globals.nes.ppu.writePixel(this.fbIndex, palette[this.palIndex+palAdd]);
+						Globals.nes.ppu.buffer[this.fbIndex] = palette[this.palIndex+palAdd];
 						this.tpri = (this.tpri&0xF00)|pri;
 						priTable[this.fbIndex] =this.tpri;
 					}
@@ -113,7 +113,7 @@ Tile.prototype.render = function(srcx1, srcy1, srcx2, srcy2, dx, dy, palAdd, pal
 					this.palIndex = this.pix[this.tIndex];
 					this.tpri = priTable[this.fbIndex];
 					if(this.palIndex!=0 && pri<=(this.tpri&0xFF)){
-						Globals.nes.ppu.writePixel(this.fbIndex, palette[this.palIndex+palAdd]);
+						Globals.nes.ppu.buffer[this.fbIndex] = palette[this.palIndex+palAdd];
 						this.tpri = (this.tpri&0xF00)|pri;
 						priTable[this.fbIndex] =this.tpri;
 					}
@@ -136,7 +136,7 @@ Tile.prototype.render = function(srcx1, srcy1, srcx2, srcy2, dx, dy, palAdd, pal
 					this.palIndex = this.pix[this.tIndex];
 					this.tpri = priTable[this.fbIndex];
 					if(this.palIndex!=0 && pri<=(this.tpri&0xFF)){
-					    Globals.nes.ppu.writePixel(this.fbIndex, palette[this.palIndex+palAdd]);
+					    Globals.nes.ppu.buffer[this.fbIndex] = palette[this.palIndex+palAdd];
 						this.tpri = (this.tpri&0xF00)|pri;
 						priTable[this.fbIndex] =this.tpri;
 					}

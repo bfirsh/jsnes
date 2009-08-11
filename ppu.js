@@ -114,6 +114,8 @@ function PPU(nes) {
     
     // Variables used when rendering:
     this.attrib = new Array(32);
+    this.buffer = new Array(256*240);
+    this.prevBuffer = new Array(256*240);
     this.bgbuffer = new Array(256*240);
     this.pixrendered = new Array(256*240);
     this.spr0dummybuffer = new Array(256*240);
@@ -480,7 +482,7 @@ function PPU(nes) {
         }
         
         for(var i=0;i<256*240;i++) {
-            this.writePixel(i, bgColor);
+            this.buffer[i] = bgColor;
         }
         for(var i=0;i<this.pixrendered.length;i++) {
             this.pixrendered[i]=65;
@@ -495,19 +497,19 @@ function PPU(nes) {
             // Spr 0 position:
             if(this.sprX[0]>=0 && this.sprX[0]<256 && this.sprY[0]>=0 && this.sprY[0]<240){
                 for(var i=0;i<256;i++){ 
-                    this.writePixel((this.sprY[0]<<8)+i, 0xFF5555);
+                    this.buffer[(this.sprY[0]<<8)+i] = 0xFF5555;
                 }
                 for(var i=0;i<240;i++){
-                    this.writePixel((i<<8)+this.sprX[0], 0xFF5555);
+                    this.buffer[(i<<8)+this.sprX[0]] = 0xFF5555;
                 }
             }
             // Hit position:
             if(this.spr0HitX>=0 && this.spr0HitX<256 && this.spr0HitY>=0 && this.spr0HitY<240){
                 for(var i=0;i<256;i++){ 
-                    this.writePixel((this.spr0HitY<<8)+i, 0x55FF55);
+                    this.buffer[(this.spr0HitY<<8)+i] = 0x55FF55;
                 }
                 for(var i=0;i<240;i++){
-                    this.writePixel((i<<8)+this.spr0HitX, 0x55FF55);
+                    this.buffer[(i<<8)+this.spr0HitX] = 0x55FF55;
                 }
             }
         }
@@ -519,7 +521,7 @@ function PPU(nes) {
             // Clip left 8-pixels column:
             for(var y=0;y<240;y++){
                 for(var x=0;x<8;x++){
-                    this.writePixel((y<<8)+x, 0);
+                    this.buffer[(y<<8)+x] = 0;
                 }
             }
         }
@@ -528,7 +530,7 @@ function PPU(nes) {
             // Clip right 8-pixels column too:
             for(var y=0;y<240;y++){
                 for(var x=0;x<8;x++){
-                    this.writePixel((y<<8)+255-x, 0);
+                    this.buffer[(y<<8)+255-x] = 0;
                 }
             }
         }
@@ -537,12 +539,21 @@ function PPU(nes) {
         if(this.clipToTvSize){
             for(var y=0;y<8;y++){
                 for(var x=0;x<256;x++){
-                    this.writePixel((y<<8)+x, 0);
-                    this.writePixel(((239-y)<<8)+x, 0);
+                    this.buffer[(y<<8)+x] = 0;
+                    this.buffer[((239-y)<<8)+x] = 0;
                 }
             }
         }
         
+        for (var i=0;i<256*240;i++) {
+            if (this.buffer[i] != this.prevBuffer[i]) {
+                var j = i*4;
+                this.nes.imageData.data[j] = this.buffer[i]&0xFF;
+                this.nes.imageData.data[j+1] = (this.buffer[i]>>8)&0xFF;
+                this.nes.imageData.data[j+2] = (this.buffer[i]>>16)&0xFF;
+                this.prevBuffer[i] = this.buffer[i];
+            }
+        }
     }
     
     this.updateControlReg1 = function(value){
@@ -946,8 +957,8 @@ function PPU(nes) {
             for(this.destIndex=this.si;this.destIndex<this.ei;this.destIndex++){
                 if(this.pixrendered[this.destIndex]>0xFF){
                     //console.log("Writing "+this.imgPalette[this.col+this.att].toString(16)+" to buffer at "+this.destIndex.toString(16));
-                    this.writePixel(this.destIndex, 
-                                    this.bgbuffer[this.destIndex]);
+                    this.buffer[this.destIndex] = 
+                        this.bgbuffer[this.destIndex];
                 }
             }
         }
@@ -1031,7 +1042,7 @@ function PPU(nes) {
                                     this.bgbuffer[this.destIndex] = pix;
                                 }
                                 else {
-                                    this.writePixel(this.destIndex, pix);
+                                    this.buffer[this.destIndex] = pix;
                                 }
                                 this.pixrendered[this.destIndex] |= 256;
                                 this.destIndex++;
@@ -1047,7 +1058,7 @@ function PPU(nes) {
                                         this.bgbuffer[this.destIndex] = pix;
                                     }
                                     else {
-                                        this.writePixel(this.destIndex, pix);
+                                        this.buffer[this.destIndex] = pix;
                                     }
                                     this.pixrendered[this.destIndex] |= 256;
                                 }
@@ -1490,13 +1501,6 @@ function PPU(nes) {
         //nes.getCpu().doNonMaskableInterrupt();
         this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NMI);
         
-    }
-    
-    this.writePixel = function(index, value){
-        var j = index*4;
-        this.nes.imageData.data[j] = value&0xFF;
-        this.nes.imageData.data[j+1] = (value>>8)&0xFF;
-        this.nes.imageData.data[j+2] = (value>>16)&0xFF;
     }
     
     this.reset = function() {
