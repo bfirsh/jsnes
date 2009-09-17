@@ -7,6 +7,7 @@ var roms_list = {
         'Legend of Zelda, The (U) (PRG1).nes',
         'Lemmings (U).nes',
         'Mario Bros. (JU) [!].nes',
+        'Mega Man (U).nes',
         'Pac-Man (U) [!].nes',
         'Super Mario Bros. (JU) (PRG0) [!].nes',
         'Tennis (JU) [!].nes',
@@ -19,9 +20,11 @@ var roms_list = {
         'Super Mario Bros. 3 (U) (PRG1) [!].nes'
     )
     
-    /*"Broken": new Array(
-    ),
-    
+    /*
+    "Broken": new Array(
+        'Mega Man 2 (U).nes',
+        'Metroid (U) [!].nes'
+    )
     "Untested": new Array(
         '10-Yard Fight (U).nes',
         '1942 (JU) [!].nes',
