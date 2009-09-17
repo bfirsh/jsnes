@@ -1,11 +1,13 @@
 var roms_list = {
     "Working": new Array(
+        'Bubble Bobble (U).nes',
         'Contra (U) [!].nes',
         'Donkey Kong (JU).nes',
         'Dr. Mario (JU).nes',
         'Golf (JU).nes',
         'Legend of Zelda, The (U) (PRG1).nes',
         'Lemmings (U).nes',
+        'Lifeforce (U).nes',
         'Mario Bros. (JU) [!].nes',
         'Mega Man (U).nes',
         'Pac-Man (U) [!].nes',
