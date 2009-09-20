@@ -491,25 +491,27 @@ function PPU(nes) {
     }
     
     this.endFrame = function(){
+
+        var buffer = this.buffer;
         
         // Draw spr#0 hit coordinates:
         if(this.showSpr0Hit){
             // Spr 0 position:
             if(this.sprX[0]>=0 && this.sprX[0]<256 && this.sprY[0]>=0 && this.sprY[0]<240){
                 for(var i=0;i<256;i++){ 
-                    this.buffer[(this.sprY[0]<<8)+i] = 0xFF5555;
+                    buffer[(this.sprY[0]<<8)+i] = 0xFF5555;
                 }
                 for(var i=0;i<240;i++){
-                    this.buffer[(i<<8)+this.sprX[0]] = 0xFF5555;
+                    buffer[(i<<8)+this.sprX[0]] = 0xFF5555;
                 }
             }
             // Hit position:
             if(this.spr0HitX>=0 && this.spr0HitX<256 && this.spr0HitY>=0 && this.spr0HitY<240){
                 for(var i=0;i<256;i++){ 
-                    this.buffer[(this.spr0HitY<<8)+i] = 0x55FF55;
+                    buffer[(this.spr0HitY<<8)+i] = 0x55FF55;
                 }
                 for(var i=0;i<240;i++){
-                    this.buffer[(i<<8)+this.spr0HitX] = 0x55FF55;
+                    buffer[(i<<8)+this.spr0HitX] = 0x55FF55;
                 }
             }
         }
@@ -521,7 +523,7 @@ function PPU(nes) {
             // Clip left 8-pixels column:
             for(var y=0;y<240;y++){
                 for(var x=0;x<8;x++){
-                    this.buffer[(y<<8)+x] = 0;
+                    buffer[(y<<8)+x] = 0;
                 }
             }
         }
@@ -530,7 +532,7 @@ function PPU(nes) {
             // Clip right 8-pixels column too:
             for(var y=0;y<240;y++){
                 for(var x=0;x<8;x++){
-                    this.buffer[(y<<8)+255-x] = 0;
+                    buffer[(y<<8)+255-x] = 0;
                 }
             }
         }
@@ -539,19 +541,23 @@ function PPU(nes) {
         if(this.clipToTvSize){
             for(var y=0;y<8;y++){
                 for(var x=0;x<256;x++){
-                    this.buffer[(y<<8)+x] = 0;
-                    this.buffer[((239-y)<<8)+x] = 0;
+                    buffer[(y<<8)+x] = 0;
+                    buffer[((239-y)<<8)+x] = 0;
                 }
             }
         }
+
+        var imageData = this.nes.imageData.data, prevBuffer = this.prevBuffer;
         
         for (var i=0;i<256*240;i++) {
-            if (this.buffer[i] != this.prevBuffer[i]) {
+            var pixel = buffer[i];
+            
+            if (pixel != prevBuffer[i]) {
                 var j = i*4;
-                this.nes.imageData.data[j] = this.buffer[i]&0xFF;
-                this.nes.imageData.data[j+1] = (this.buffer[i]>>8)&0xFF;
-                this.nes.imageData.data[j+2] = (this.buffer[i]>>16)&0xFF;
-                this.prevBuffer[i] = this.buffer[i];
+                imageData[j] = pixel&0xFF;
+                imageData[j+1] = (pixel>>8)&0xFF;
+                imageData[j+2] = (pixel>>16)&0xFF;
+                prevBuffer[i] = pixel;
             }
         }
     }
