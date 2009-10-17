@@ -481,35 +481,39 @@ function PPU(nes) {
             
         }
         
+        var buffer = this.buffer;
         for(var i=0;i<256*240;i++) {
-            this.buffer[i] = bgColor;
+            buffer[i] = bgColor;
         }
-        for(var i=0;i<this.pixrendered.length;i++) {
-            this.pixrendered[i]=65;
+        var pixrendered = this.pixrendered;
+        for(var i=0;i<pixrendered.length;i++) {
+            pixrendered[i]=65;
         }
         
     }
     
     this.endFrame = function(){
+
+        var buffer = this.buffer;
         
         // Draw spr#0 hit coordinates:
         if(this.showSpr0Hit){
             // Spr 0 position:
             if(this.sprX[0]>=0 && this.sprX[0]<256 && this.sprY[0]>=0 && this.sprY[0]<240){
                 for(var i=0;i<256;i++){ 
-                    this.buffer[(this.sprY[0]<<8)+i] = 0xFF5555;
+                    buffer[(this.sprY[0]<<8)+i] = 0xFF5555;
                 }
                 for(var i=0;i<240;i++){
-                    this.buffer[(i<<8)+this.sprX[0]] = 0xFF5555;
+                    buffer[(i<<8)+this.sprX[0]] = 0xFF5555;
                 }
             }
             // Hit position:
             if(this.spr0HitX>=0 && this.spr0HitX<256 && this.spr0HitY>=0 && this.spr0HitY<240){
                 for(var i=0;i<256;i++){ 
-                    this.buffer[(this.spr0HitY<<8)+i] = 0x55FF55;
+                    buffer[(this.spr0HitY<<8)+i] = 0x55FF55;
                 }
                 for(var i=0;i<240;i++){
-                    this.buffer[(i<<8)+this.spr0HitX] = 0x55FF55;
+                    buffer[(i<<8)+this.spr0HitX] = 0x55FF55;
                 }
             }
         }
@@ -521,7 +525,7 @@ function PPU(nes) {
             // Clip left 8-pixels column:
             for(var y=0;y<240;y++){
                 for(var x=0;x<8;x++){
-                    this.buffer[(y<<8)+x] = 0;
+                    buffer[(y<<8)+x] = 0;
                 }
             }
         }
@@ -530,7 +534,7 @@ function PPU(nes) {
             // Clip right 8-pixels column too:
             for(var y=0;y<240;y++){
                 for(var x=0;x<8;x++){
-                    this.buffer[(y<<8)+255-x] = 0;
+                    buffer[(y<<8)+255-x] = 0;
                 }
             }
         }
@@ -539,19 +543,23 @@ function PPU(nes) {
         if(this.clipToTvSize){
             for(var y=0;y<8;y++){
                 for(var x=0;x<256;x++){
-                    this.buffer[(y<<8)+x] = 0;
-                    this.buffer[((239-y)<<8)+x] = 0;
+                    buffer[(y<<8)+x] = 0;
+                    buffer[((239-y)<<8)+x] = 0;
                 }
             }
         }
+
+        var imageData = this.nes.imageData.data, prevBuffer = this.prevBuffer;
         
         for (var i=0;i<256*240;i++) {
-            if (this.buffer[i] != this.prevBuffer[i]) {
+            var pixel = buffer[i];
+            
+            if (pixel != prevBuffer[i]) {
                 var j = i*4;
-                this.nes.imageData.data[j] = this.buffer[i]&0xFF;
-                this.nes.imageData.data[j+1] = (this.buffer[i]>>8)&0xFF;
-                this.nes.imageData.data[j+2] = (this.buffer[i]>>16)&0xFF;
-                this.prevBuffer[i] = this.buffer[i];
+                imageData[j] = pixel&0xFF;
+                imageData[j+1] = (pixel>>8)&0xFF;
+                imageData[j+2] = (pixel>>16)&0xFF;
+                prevBuffer[i] = pixel;
             }
         }
     }
@@ -951,14 +959,16 @@ function PPU(nes) {
         }
         
         if(this.f_bgVisibility == 1){
-            this.si = startScan<<8;
-            this.ei = (startScan+scanCount)<<8;
-            if(this.ei>0xF000) this.ei=0xF000;
-            for(this.destIndex=this.si;this.destIndex<this.ei;this.destIndex++){
-                if(this.pixrendered[this.destIndex]>0xFF){
+            var si = startScan<<8;
+            var ei = (startScan+scanCount)<<8;
+            if(ei>0xF000) ei=0xF000;
+            var buffer = this.buffer;
+            var bgbuffer = this.bgbuffer;
+            var pixrendered = this.pixrendered;
+            for(var destIndex=si;destIndex<ei;destIndex++){
+                if(pixrendered[destIndex]>0xFF){
                     //console.log("Writing "+this.imgPalette[this.col+this.att].toString(16)+" to buffer at "+this.destIndex.toString(16));
-                    this.buffer[this.destIndex] = 
-                        this.bgbuffer[this.destIndex];
+                    buffer[destIndex] = bgbuffer[destIndex];
                 }
             }
         }
@@ -996,8 +1006,9 @@ function PPU(nes) {
     
     this.renderBgScanline = function(bgbuffer, scan){
 
-        this.baseTile = (this.regS==0?0:256);
-        this.destIndex = (scan<<8)-this.regFH;
+        var baseTile = (this.regS==0?0:256);
+        var destIndex = (scan<<8)-this.regFH;
+
         this.curNt = this.ntable1[this.cntV+this.cntV+this.cntH];
         
         this.cntHT = this.regHT;
@@ -1006,63 +1017,62 @@ function PPU(nes) {
         
         if(scan<240 && (scan-this.cntFV)>=0){
             
-            this.tscanoffset = this.cntFV<<3;
-            this.y = scan-this.cntFV;
-            for(this.tile=0;this.tile<32;this.tile++){
+            var tscanoffset = this.cntFV<<3;
+            var scantile = this.scantile;
+            var attrib = this.attrib;
+            var ptTile = this.ptTile;
+            var nameTable = this.nameTable;
+            var imgPalette = this.imgPalette;
+            var pixrendered = this.pixrendered;
+            var targetBuffer = bgbuffer ? this.bgbuffer : this.buffer;
+
+            var t, tpix, att, col;
+
+            for(var tile=0;tile<32;tile++){
                 
                 if(scan>=0){
                 
                     // Fetch tile & attrib data:
                     if(this.validTileData){
                         // Get data from array:
-                        this.t = this.scantile[this.tile];
-                        this.tpix = this.t.pix;
-                        this.att = this.attrib[this.tile];
+                        t = scantile[tile];
+                        tpix = t.pix;
+                        att = attrib[tile];
                     }else{
                         // Fetch data:
-                        this.t = this.ptTile[this.baseTile+this.nameTable[this.curNt].getTileIndex(this.cntHT,this.cntVT)];
-                        this.tpix = this.t.pix;
-                        this.att = this.nameTable[this.curNt].getAttrib(this.cntHT,this.cntVT);
-                        this.scantile[this.tile] = this.t;
-                        this.attrib[this.tile] = this.att;
+                        t = ptTile[baseTile+nameTable[this.curNt].getTileIndex(this.cntHT,this.cntVT)];
+                        tpix = t.pix;
+                        att = nameTable[this.curNt].getAttrib(this.cntHT,this.cntVT);
+                        scantile[tile] = t;
+                        attrib[tile] = att;
                     }
                     
                     // Render tile scanline:
-                    this.sx = 0;
-                    this.x = (this.tile<<3)-this.regFH;
-                    if(this.x>-8){
-                        if(this.x<0){
-                            this.destIndex-=this.x;
-                            this.sx = -this.x;
+                    var sx = 0;
+                    var x = (tile<<3)-this.regFH;
+
+                    if(x>-8){
+                        if(x<0){
+                            destIndex-=x;
+                            sx = -x;
                         }
-                        if(this.t.opaque[this.cntFV]){
-                            for(;this.sx<8;this.sx++){
-                                var pix = this.imgPalette[this.tpix[this.tscanoffset+this.sx]+this.att];
-                                if (bgbuffer) {
-                                    this.bgbuffer[this.destIndex] = pix;
-                                }
-                                else {
-                                    this.buffer[this.destIndex] = pix;
-                                }
-                                this.pixrendered[this.destIndex] |= 256;
-                                this.destIndex++;
+                        if(t.opaque[this.cntFV]){
+                            for(;sx<8;sx++){
+                                var pix = imgPalette[tpix[tscanoffset+sx]+att];
+                                targetBuffer[destIndex] = pix;
+                                pixrendered[destIndex] |= 256;
+                                destIndex++;
                             }
                         }else{
-                            for(;this.sx<8;this.sx++){
-                                this.col = this.tpix[this.tscanoffset+this.sx];
-                                if(this.col != 0){
+                            for(;sx<8;sx++){
+                                col = tpix[tscanoffset+sx];
+                                if(col != 0){
                                     //console.log("Writing "+this.imgPalette[this.col+this.att].toString(16)+" to buffer at "+this.destIndex.toString(16));
-                                    var pix = 
-                                        this.imgPalette[this.col+this.att];
-                                    if (bgbuffer) {
-                                        this.bgbuffer[this.destIndex] = pix;
-                                    }
-                                    else {
-                                        this.buffer[this.destIndex] = pix;
-                                    }
-                                    this.pixrendered[this.destIndex] |= 256;
+                                    var pix = imgPalette[col+att];
+                                    targetBuffer[destIndex] = pix;
+                                    pixrendered[destIndex] |= 256;
                                 }
-                                this.destIndex++;
+                                destIndex++;
                             }
                         }
                     }
@@ -1070,8 +1080,7 @@ function PPU(nes) {
                 }
                     
                 // Increase Horizontal Tile Counter:
-                this.cntHT++;
-                if(this.cntHT==32){
+                if(++this.cntHT==32){
                     this.cntHT=0;
                     this.cntH++;
                     this.cntH%=2;
