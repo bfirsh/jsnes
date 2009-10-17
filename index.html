@@ -20,6 +20,7 @@ charset="utf-8">
     <script src="nametable.js" type="text/javascript" charset="utf-8"></script>
     <script src="nes.js" type="text/javascript" charset="utf-8"></script>
     <script src="palettetable.js" type="text/javascript" charset="utf-8"></script>
+    <script src="papu.js" type="text/javascript" charset="utf-8"></script>
     <script src="ppu.js" type="text/javascript" charset="utf-8"></script>
     <script src="rom.js" type="text/javascript" charset="utf-8"></script>
     <script src="roms.js" type="text/javascript" charset="utf-8"></script>
@@ -117,6 +118,11 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
     <p>I got underway shamelessly porting <a href="http://www.virtualnes.com/">vNES</a> into Javascript. Although not the most efficient, it didn't have any of the pointer memory mapping magic associated with emulators written in lower level languages. As such, it was more or less a direct port, bar a few tweaks to compensate for the lack of static typing, and obviously a rewrite of all the I/O.</p>
     <p>JSNES runs at full speed on <a href="http://www.google.com/chrome">Google Chrome</a> with a modern computer, so it is highly recommended you use that to play. <a href="http://build.chromium.org/buildbot/snapshots/chromium-rel-mac/">Mac builds</a> are also available. Otherwise, it just about runs on <a href="http://getfirefox.com/">Firefox 3.5</a> or <a href="http://www.apple.com/safari/">Safari 4</a>, but it's hardly playable.</p>
     <p>The source is available on <a href="http://github.com/bfirsh/jsnes/">Github</a>, contributions welcome!</p>
+	<object classid="clsid:d27cdb6e-ae6d-11cf-96b8-444553540000" codebase="http://download.macromedia.com/pub/shockwave/cabs/flash/swflash.cab#version=10,0,0,0" width="1" height="1" id="jssound" align="middle">
+	<param name="allowScriptAccess" value="sameDomain" />
+	<param name="allowFullScreen" value="false" />
+	<param name="movie" value="jssound.swf?callback=readJSSoundBuffer" /><param name="quality" value="high" /><param name="bgcolor" value="#ffffff" />	<embed src="jssound.swf?callback=readJSSoundBuffer" quality="high" bgcolor="#ffffff" width="1" height="1" name="jssound" align="middle" allowScriptAccess="always" allowFullScreen="false" type="application/x-shockwave-flash" pluginspage="http://www.adobe.com/go/getflashplayer" />
+	</object>
 <script type="text/javascript" charset="utf-8">
     // Mouse events
     $("#screen").mousedown(function(e){
@@ -167,6 +173,10 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
         nes.reloadRom();
         nes.start();
     });
+    
+    function readJSSoundBuffer() {
+        return nes.papu.readBuffer();
+    }
     
     var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
     document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));

@@ -7,6 +7,7 @@ function NES() {
 
     this.cpu = new CPU(this);
     this.ppu = new PPU(this);
+    this.papu = new PAPU(this);
     this.memMapper = null;
     this.palTable = new PaletteTable();
     this.rom = null;
@@ -16,6 +17,7 @@ function NES() {
     this.lastFpsTime = null;
     this.fpsFrameCount = 0;
     this.crashMessage = null;
+    this.limitFrames = true;
     
     this.palTable.loadNTSCPalette();
 	//this.palTable.loadDefaultPalette();
@@ -31,13 +33,25 @@ function NES() {
         this.imageData.data[i] = 0xFF;
     }
 	
+    // Init sound registers:
+	for(var i=0;i<0x14;i++){
+		if(i==0x10){
+			this.papu.writeReg(0x4010, 0x10);
+		}else{
+			this.papu.writeReg(0x4000+i, 0);
+		}
+	}
     
     this.start = function() {
         if(this.rom != null && this.rom.valid) {
             if (!this.isRunning) {
                 //$("#status").text("Running "+this.romFile)
                 this.isRunning = true;
-                this.frameInterval = setInterval(runFrame, Globals.frameTime);
+                var frameTime = 0;
+                if (this.limitFrames) {
+                    frameTime = Globals.frameTime;
+                }
+                this.frameInterval = setInterval(runFrame, frameTime);
                 this.resetFps();
                 this.printFps();
                 this.fpsInterval = setInterval(runPrintFps, Globals.fpsInterval);
@@ -51,17 +65,29 @@ function NES() {
     this.frame = function() {
         this.ppu.startFrame();
         var cycles = 0;
+        var emulateSound = Globals.emulateSound;
         FRAMELOOP: for (;;) {
-            if (this.cpu.cyclesToHalt == 0)
+            if (this.cpu.cyclesToHalt == 0) {
                 // Execute a CPU instruction
-                cycles = this.cpu.emulate()*3;
+                cycles = this.cpu.emulate();
+                if(emulateSound) {
+    				this.papu.clockFrameCounter(cycles);
+    			}
+                cycles *= 3;
+            }
             else {
                 if (this.cpu.cyclesToHalt > 8) {
                     cycles = 24;
+                    if (emulateSound) {
+                        this.papu.clockFrameCounter(8);
+                    }
                     this.cpu.cyclesToHalt -= 8;
                 }
                 else {
                     cycles = this.cpu.cyclesToHalt * 3;
+                    if (emulateSound) {
+                        this.papu.clockFrameCounter(this.cpu.cyclesToHalt);
+                    }
                     this.cpu.cyclesToHalt = 0;
                 }
             }
@@ -183,6 +209,8 @@ function NES() {
 		this.cpu.init();
 		this.ppu.reset();
 		this.palTable.reset();
+		
+		this.papu.reset();
 	}
 	
 	this.resetFps = function() {
@@ -193,6 +221,7 @@ function NES() {
 	this.setFramerate = function(rate){
 		Globals.preferredFrameRate = rate;
 		Globals.frameTime = 1000/rate;
+		papu.setSampleRate(Globals.sampleRate, false);
 	}
 	
 	this.cpu.init();

@@ -174,9 +174,7 @@ MapperDefault.prototype.regLoad = function(address){
                 
                     // 0x4015:
                     // Sound channel enable, DMC Status
-                    //return nes.getPapu().readReg(address);
-                    //alert("Accessed sound register")
-                    return 0;
+                    return this.nes.papu.readReg(address);
                 
                 }case 1:{
                 
@@ -285,7 +283,7 @@ MapperDefault.prototype.regWrite = function(address, value){
         }case 0x4015:{
             
             // Sound Channel Switch, DMC Status
-            //this.nes.getPapu().writeReg(address,value);
+            this.nes.papu.writeReg(address,value);
             break;
             
         }case 0x4016:{
@@ -304,16 +302,16 @@ MapperDefault.prototype.regWrite = function(address, value){
         }case 0x4017:{
             
             // Sound channel frame sequencer:
-            //nes.papu.writeReg(address,value);
+            this.nes.papu.writeReg(address,value);
             break;
             
         }default:{
             
             // Sound registers
             ////System.out.println("write to sound reg");
-            /*if(address >= 0x4000 && address <= 0x4017){
-                nes.getPapu().writeReg(address,value);
-            }*/
+            if(address >= 0x4000 && address <= 0x4017){
+                this.nes.papu.writeReg(address,value);
+            }
             break;
             
         }
