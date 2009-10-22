@@ -12,6 +12,7 @@ charset="utf-8">
     <script src="jquery-1.2.6.min.js" type="text/javascript" charset="utf-8"></script>
     <script src="jquery.dimensions.min.js" type="text/javascript" charset="utf-8"></script>
     <script src="utils.js" type="text/javascript" charset="utf-8"></script>
+    <script src="channels.js" type="text/javascript" charset="utf-8"></script>
     <script src="cpu.js" type="text/javascript" charset="utf-8"></script>
     <script src="cpuinfo.js" type="text/javascript" charset="utf-8"></script>
     <script src="globals.js" type="text/javascript" charset="utf-8"></script>
@@ -55,6 +56,7 @@ charset="utf-8">
             <select id="roms"></select>
             <input type="button" value="pause" id="pause" disabled="disabled">
             <input type="button" value="restart" id="restart" disabled="disabled">
+            <input type="button" value="enable sound" id="enablesound" disabled="disabled">
         </div>
         <p id="status">Loading...</p>
 <script type="text/javascript">
@@ -144,6 +146,13 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
     function resetButtons() {
         $("#pause").attr("disabled", null).attr("value", "pause");
         $("#restart").attr("disabled", null);
+        $("#enablesound").attr("disabled", null);
+        if (Globals.emulateSound) {
+            $("#enablesound").attr("value", "disable sound");
+        }
+        else {
+            $("#enablesound").attr("value", "enable sound");
+        }
     }
     
     $("#roms").change(function() {
@@ -169,13 +178,25 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
         }
     });
     
+    $("#enablesound").click(function() {
+        b = $("#enablesound");
+        if (b.attr("value") == "enable sound") {
+            Globals.emulateSound = true;
+            b.attr("value", "disable sound");
+        }
+        else {
+            Globals.emulateSound = false;
+            b.attr("value", "enable sound");
+        }
+    });
+    
     $("#restart").click(function() {
         nes.reloadRom();
         nes.start();
     });
     
     function readJSSoundBuffer() {
-        return nes.papu.readBuffer();
+        return JSON.stringify(nes.papu.readBuffer());
     }
     
     var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");

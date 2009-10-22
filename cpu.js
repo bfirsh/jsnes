@@ -100,7 +100,7 @@ function CPU(nes) {
         if(this.irqRequested){
             temp =
                 (this.F_CARRY)|
-                ((this.F_ZERO==0?1:0)<<1)|
+                ((this.F_ZERO===0?1:0)<<1)|
                 (this.F_INTERRUPT<<2)|
                 (this.F_DECIMAL<<3)|
                 (this.F_BRK<<4)|

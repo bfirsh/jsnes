@@ -8,7 +8,7 @@ var Globals = {
 	nes: null,
 	fpsInterval: 500, // Time between updating FPS in ms
 	
-	emulateSound: true,
+	emulateSound: false,
 	sampleRate: 44100, // Sound sample rate in hz
 }
 Globals.frameTime = 1000/Globals.preferredFrameRate;

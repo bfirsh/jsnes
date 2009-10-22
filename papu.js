@@ -1,691 +1,6 @@
 
-function ChannelDM(papu) {
-	this.papu = papu;
-	
-	this.MODE_NORMAL = 0;
-	this.MODE_LOOP = 1;
-	this.MODE_IRQ = 2;
-	
-	this.isEnabled = null;
-	this.hasSample = null;
-	this.irqGenerated=false;
-	
-	this.playMode = null;
-	this.dmaFrequency = null;
-	this.dmaCounter = null;
-	this.deltaCounter = null;
-	this.playStartAddress = null;
-	this.playAddress = null;
-	this.playLength = null;
-	this.playLengthCounter = null;
-	this.shiftCounter = null;
-	this.reg4012,reg4013 = null;
-	this.status = null;
-	this.sample = null;
-	this.dacLsb = null;
-	this.data = null;
-	
-	this.reset();
-}	
-	
-ChannelDM.prototype.clockDmc = function(){
-	
-	// Only alter DAC value if the sample buffer has data:
-	if(this.hasSample){
-		
-		if((this.data&1)==0){
-			
-			// Decrement delta:
-			if(this.deltaCounter>0) this.deltaCounter--;
-			
-		}else{
-			
-			// Increment delta:
-			if(this.deltaCounter<63) this.deltaCounter++;
-			
-		}
-		
-		// Update sample value:
-		this.sample = this.isEnabled ? (this.deltaCounter<<1)+this.dacLsb : 0;
-		
-		// Update shift register:
-		this.data>>=1;
-		
-	}
-	
-	this.dmaCounter--;
-	if(this.dmaCounter <= 0){
-		
-		// No more sample bits.
-		this.hasSample = false;
-		this.endOfSample();
-		this.dmaCounter = 8;
-		
-	}
-	
-	if(this.irqGenerated){
-		this.papu.nes.cpu.requestIrq(this.papu.nes.cpu.IRQ_NORMAL);
-	}
-	
-}
-
-ChannelDM.prototype.endOfSample = function(){
-	
-	
-	if(this.playLengthCounter==0 && this.playMode==this.MODE_LOOP){
-		
-		// Start from beginning of sample:
-		this.playAddress = this.playStartAddress;
-		this.playLengthCounter = this.playLength;
-		
-	}
-	
-	if(this.playLengthCounter > 0){
-		
-		// Fetch next sample:
-		this.nextSample();
-		
-		if(this.playLengthCounter == 0){
-		
-			// Last byte of sample fetched, generate IRQ:
-			if(this.playMode == this.MODE_IRQ){
-				
-				// Generate IRQ:
-				this.irqGenerated = true;
-				
-			}
-			
-		}
-		
-	}
-	
-}
-
-ChannelDM.prototype.nextSample = function(){
-	
-	// Fetch byte:
-	this.data = this.papu.nes.memMapper.load(this.playAddress);
-	this.papu.nes.cpu.haltCycles(4);
-	
-	this.playLengthCounter--;
-	this.playAddress++;
-	if(this.playAddress>0xFFFF){
-		this.playAddress = 0x8000;
-	}
-	
-	this.hasSample = true;
-	
-}
-
-ChannelDM.prototype.writeReg = function(address, value){
-	
-	if(address == 0x4010){
-		
-		// Play mode, DMA Frequency
-		if((value>>6)==0){
-			this.playMode = this.MODE_NORMAL;
-		}else if(((value>>6)&1)==1){
-			this.playMode = this.MODE_LOOP;
-		}else if((value>>6)==2){
-			this.playMode = this.MODE_IRQ;
-		}
-		
-		if((value&0x80)==0){
-			this.irqGenerated = false;
-		}
-		
-		this.dmaFrequency = this.papu.getDmcFrequency(value&0xF);
-		
-	}else if(address == 0x4011){
-		
-		// Delta counter load register:
-		this.deltaCounter = (value>>1)&63;
-		this.dacLsb = value&1;
-		this.sample = ((this.deltaCounter<<1)+this.dacLsb); // update sample value
-		
-	}else if(address == 0x4012){
-		
-		// DMA address load register
-		this.playStartAddress = (value<<6)|0x0C000;
-		this.playAddress = this.playStartAddress;
-		this.reg4012 = value;
-		
-	}else if(address == 0x4013){
-		
-		// Length of play code
-		this.playLength = (value<<4)+1;
-		this.playLengthCounter = this.playLength;
-		this.reg4013 = value;
-		
-	}else if(address == 0x4015){
-		
-		// DMC/IRQ Status
-		if(((value>>4)&1)==0){
-			// Disable:
-			this.playLengthCounter = 0;
-		}else{
-			// Restart:
-			this.playAddress = this.playStartAddress;
-			this.playLengthCounter = this.playLength;
-		}
-		this.irqGenerated = false;
-	}
-	
-}
-
-ChannelDM.prototype.setEnabled = function(value){
-	
-	if((!this.isEnabled) && value){
-		this.playLengthCounter = this.playLength;
-	}
-	this.isEnabled = value;
-	
-}
-
-ChannelDM.prototype.getLengthStatus = function(){
-	return ((this.playLengthCounter==0 || !this.isEnabled)?0:1);
-}
-
-ChannelDM.prototype.getIrqStatus = function(){
-	return (this.irqGenerated?1:0);
-}
-
-ChannelDM.prototype.reset = function(){
-
-	this.isEnabled = false;
-	this.irqGenerated = false;
-	this.playMode = this.MODE_NORMAL;
-	this.dmaFrequency = 0;
-	this.dmaCounter = 0;
-	this.deltaCounter = 0;
-	this.playStartAddress = 0;
-	this.playAddress = 0;
-	this.playLength = 0;
-	this.playLengthCounter = 0;
-	this.status = 0;
-	this.sample = 0;
-	this.dacLsb = 0;
-	this.shiftCounter = 0;
-	this.reg4012 = 0;
-	this.reg4013 = 0;
-	this.data = 0;
-	
-}
-
-
-function ChannelNoise(papu) {
-	this.papu = papu;
-	
-	this.isEnabled = null;
-	this.envDecayDisable = null;
-	this.envDecayLoopEnable = null;
-	this.lengthCounterEnable = null;
-	this.envReset = null;
-	this.shiftNow = null;
-	
-	this.lengthCounter = null;
-	this.progTimerCount = null;
-	this.progTimerMax = null;
-	this.envDecayRate = null;
-	this.envDecayCounter = null;
-	this.envVolume = null;
-	this.masterVolume = null;
-	this.shiftReg = 1<<14;
-	this.randomBit = null;
-	this.randomMode = null;
-	this.sampleValue = null;
-	this.accValue=0;
-	this.accCount=1;
-	this.tmp = null;
-	
-	this.reset();
-}
-
-ChannelNoise.prototype.reset = function(){
-	this.progTimerCount = 0;
-	this.progTimerMax = 0;
-	this.isEnabled = false;
-	this.lengthCounter = 0;
-	this.lengthCounterEnable = false;
-	this.envDecayDisable = false;
-	this.envDecayLoopEnable = false;
-	this.shiftNow = false;
-	this.envDecayRate = 0;
-	this.envDecayCounter = 0;
-	this.envVolume = 0;
-	this.masterVolume = 0;
-	this.shiftReg = 1;
-	this.randomBit = 0;
-	this.randomMode = 0;
-	this.sampleValue = 0;
-	this.tmp = 0;
-}
-
-ChannelNoise.prototype.clockLengthCounter = function(){
-	if(this.lengthCounterEnable && this.lengthCounter>0){
-		this.lengthCounter--;
-		if(this.lengthCounter == 0) this.updateSampleValue();
-	}
-}
-
-ChannelNoise.prototype.clockEnvDecay = function(){
-	
-	if(this.envReset){
-	    
-		// Reset envelope:
-		this.envReset = false;
-		this.envDecayCounter = this.envDecayRate + 1;
-		this.envVolume = 0xF;
-	}else if(--this.envDecayCounter <= 0){
-		
-		// Normal handling:
-		this.envDecayCounter = this.envDecayRate + 1;
-		if(this.envVolume>0){
-			this.envVolume--;
-		}else{
-			this.envVolume = this.envDecayLoopEnable ? 0xF : 0;
-		}	
-	}
-	this.masterVolume = this.envDecayDisable ? this.envDecayRate : this.envVolume;
-	this.updateSampleValue();
-}
-
-ChannelNoise.prototype.updateSampleValue = function(){
-	if(this.isEnabled && this.lengthCounter>0){
-		this.sampleValue = this.randomBit * this.masterVolume;
-	}
-}
-
-ChannelNoise.prototype.writeReg = function(address, value){
-	
-	if(address == 0x400C){
-		
-		// Volume/Envelope decay:
-		this.envDecayDisable = ((value&0x10)!=0);
-		this.envDecayRate = value&0xF;
-		this.envDecayLoopEnable = ((value&0x20)!=0);
-		this.lengthCounterEnable = ((value&0x20)==0);
-		this.masterVolume = this.envDecayDisable?this.envDecayRate:this.envVolume;
-		
-	}else if(address == 0x400E){
-		
-		// Programmable timer:
-		this.progTimerMax = this.papu.getNoiseWaveLength(value&0xF);
-		this.randomMode = value>>7;
-		
-	}else if(address == 0x400F){
-		
-		// Length counter
-		this.lengthCounter = this.papu.getLengthMax(value&248);
-		this.envReset = true;
-		
-	}
-	
-	// Update:
-	//updateSampleValue();
-	
-}
-
-ChannelNoise.prototype.setEnabled = function(value){
-	this.isEnabled = value;
-	if(!value) this.lengthCounter = 0;
-	this.updateSampleValue();
-}
-
-ChannelNoise.prototype.getLengthStatus = function(){
-	return ((this.lengthCounter==0 || !this.isEnabled)?0:1);
-}
-
-
-function ChannelSquare(papu, square1){
-	this.papu = papu;
-	
-	this.dutyLookup = new Array(
-		 0, 1, 0, 0, 0, 0, 0, 0,
-		 0, 1, 1, 0, 0, 0, 0, 0,
-		 0, 1, 1, 1, 1, 0, 0, 0,
-		 1, 0, 0, 1, 1, 1, 1, 1
-	);
-	this.impLookup = new Array(
-		 1,-1, 0, 0, 0, 0, 0, 0,
-		 1, 0,-1, 0, 0, 0, 0, 0,
-		 1, 0, 0, 0,-1, 0, 0, 0,
-		-1, 0, 1, 0, 0, 0, 0, 0
-	);
-	
-	this.sqr1 = square1;
-	this.isEnabled = null;
-	this.lengthCounterEnable = null;
-	this.sweepActive = null;
-	this.envDecayDisable = null;
-	this.envDecayLoopEnable = null;
-	this.envReset = null;
-	this.sweepCarry = null;
-	this.updateSweepPeriod = null;
-	
-	this.progTimerCount = null;
-	this.progTimerMax = null;
-	this.lengthCounter = null;
-	this.squareCounter = null;
-	this.sweepCounter = null;
-	this.sweepCounterMax = null;
-	this.sweepMode = null;
-	this.sweepShiftAmount = null;
-	this.envDecayRate = null;
-	this.envDecayCounter = null;
-	this.envVolume = null;
-	this.masterVolume = null;
-	this.dutyMode = null;
-	this.sweepResult = null;
-	this.sampleValue = null;
-	this.vol = null;
-	
-	this.reset();
-}
-
-
-ChannelSquare.prototype.reset = function() {
-	this.progTimerCount = 0;
-	this.progTimerMax = 0;
-	this.lengthCounter = 0;
-	this.squareCounter = 0;
-	this.sweepCounter = 0;
-	this.sweepCounterMax = 0;
-	this.sweepMode = 0;
-	this.sweepShiftAmount = 0;
-	this.envDecayRate = 0;
-	this.envDecayCounter = 0;
-	this.envVolume = 0;
-	this.masterVolume = 0;
-	this.dutyMode = 0;
-	this.vol = 0;
-	
-	this.isEnabled = false;
-	this.lengthCounterEnable = false;
-	this.sweepActive = false;
-	this.sweepCarry = false;
-	this.envDecayDisable = false;
-	this.envDecayLoopEnable = false;
-}
-
-ChannelSquare.prototype.clockLengthCounter = function(){
-	
-	if(this.lengthCounterEnable && this.lengthCounter>0){
-		this.lengthCounter--;
-		if(this.lengthCounter==0) this.updateSampleValue();
-	}
-	
-}
-
-ChannelSquare.prototype.clockEnvDecay = function() {
-	
-	if(this.envReset){
-		
-		// Reset envelope:
-		this.envReset = false;
-		this.envDecayCounter = this.envDecayRate + 1;
-		this.envVolume = 0xF;
-		
-	}else if((--this.envDecayCounter) <= 0){
-		
-		// Normal handling:
-		this.envDecayCounter = this.envDecayRate + 1;
-		if(this.envVolume>0){
-			this.envVolume--;
-		}else{
-			this.envVolume = this.envDecayLoopEnable ? 0xF : 0;
-		}
-		
-	}
-	
-	this.masterVolume = this.envDecayDisable ? this.envDecayRate : this.envVolume;
-	this.updateSampleValue();
-
-}
-
-ChannelSquare.prototype.clockSweep = function() {
-	
-	if(--this.sweepCounter<=0){
-		
-		this.sweepCounter = this.sweepCounterMax + 1;
-		if(this.sweepActive && this.sweepShiftAmount>0 && this.progTimerMax>7){
-			
-			// Calculate result from shifter:
-			this.sweepCarry = false;
-			if(this.sweepMode==0){
-				this.progTimerMax += (this.progTimerMax>>this.sweepShiftAmount);
-				if(this.progTimerMax > 4095){
-					this.progTimerMax = 4095;
-					this.sweepCarry = true;
-				}
-			}else{
-				this.progTimerMax = this.progTimerMax - ((this.progTimerMax>>this.sweepShiftAmount)-(this.sqr1?1:0));
-			}
-			
-		}
-			
-	}
-	
-	if(this.updateSweepPeriod){
-		this.updateSweepPeriod = false;
-		this.sweepCounter = this.sweepCounterMax + 1;
-	}
-	
-}
-
-ChannelSquare.prototype.updateSampleValue = function() {
-	
-	if(this.isEnabled && this.lengthCounter>0 && this.progTimerMax>7){
-		
-		if(this.sweepMode==0 && (this.progTimerMax + (this.progTimerMax>>this.sweepShiftAmount)) > 4095){
-		//if(this.sweepCarry){
-			this.sampleValue = 0;
-		}else{
-			this.sampleValue = this.masterVolume*this.dutyLookup[(this.dutyMode<<3)+this.squareCounter];	
-		}
-	}else{
-		this.sampleValue = 0;
-	}
-	
-}
-
-ChannelSquare.prototype.writeReg = function(address, value){
-	
-	var addrAdd = (this.sqr1?0:4);
-	if(address == 0x4000+addrAdd){
-		
-		// Volume/Envelope decay:
-		this.envDecayDisable = ((value&0x10)!=0);
-		this.envDecayRate = value & 0xF;
-		this.envDecayLoopEnable = ((value&0x20)!=0);
-		this.dutyMode = (value>>6)&0x3;
-		this.lengthCounterEnable = ((value&0x20)==0);
-		this.masterVolume = this.envDecayDisable?this.envDecayRate:this.envVolume;
-		this.updateSampleValue();
-		
-	}else if(address == 0x4001+addrAdd){
-		
-		// Sweep:
-		this.sweepActive = ((value&0x80)!=0);
-		this.sweepCounterMax = ((value>>4)&7);
-		this.sweepMode = (value>>3)&1;
-		this.sweepShiftAmount = value&7;
-		this.updateSweepPeriod = true;
-		
-	}else if(address == 0x4002+addrAdd){
-		
-		// Programmable timer:
-		this.progTimerMax &= 0x700;
-		this.progTimerMax |= value;
-		
-	}else if(address == 0x4003+addrAdd){
-		
-		// Programmable timer, length counter
-		this.progTimerMax &= 0xFF;
-		this.progTimerMax |= ((value&0x7)<<8);
-		
-		if(this.isEnabled){
-			this.lengthCounter = this.papu.getLengthMax(value&0xF8);
-		}
-		
-		this.envReset  = true;
-		
-	}
-	
-}
-
-ChannelSquare.prototype.setEnabled = function(value){
-	this.isEnabled = value;
-	if(!value) this.lengthCounter = 0;
-	this.updateSampleValue();
-}
-
-ChannelSquare.prototype.getLengthStatus = function() {
-	return ((this.lengthCounter==0 || !this.isEnabled)?0:1);
-}
-
-
-function ChannelTriangle(papu) {
-	this.papu = papu;
-	
-	this.isEnabled = null;
-	this.sampleCondition = null;
-	this.lengthCounterEnable = null;
-	this.lcHalt = null;
-	this.lcControl = null;
-	
-	this.progTimerCount = null;
-	this.progTimerMax = null;
-	this.triangleCounter = null;
-	this.lengthCounter = null;
-	this.linearCounter = null;
-	this.lcLoadValue = null;
-	this.sampleValue = null;
-	this.tmp = null;
-    
-    this.reset();
-}
-
-ChannelTriangle.prototype.reset = function(){
-	this.progTimerCount = 0;
-	this.progTimerMax = 0;
-	this.triangleCounter = 0;
-	this.isEnabled = false;
-	this.sampleCondition = false;
-	this.lengthCounter = 0;
-	this.lengthCounterEnable = false;
-	this.linearCounter = 0;
-	this.lcLoadValue = 0;
-	this.lcHalt = true;
-	this.lcControl = false;
-	this.tmp = 0;
-	this.sampleValue = 0xF;
-}
-
-ChannelTriangle.prototype.clockLengthCounter = function(){
-	if(this.lengthCounterEnable && this.lengthCounter>0){
-		this.lengthCounter--;
-		if(this.lengthCounter==0){
-			this.updateSampleCondition();
-		}
-	}
-}
-
-ChannelTriangle.prototype.clockLinearCounter = function(){
-	if(this.lcHalt){
-		// Load:
-		this.linearCounter = this.lcLoadValue;
-		this.updateSampleCondition();
-	}else if(this.linearCounter > 0){
-		// Decrement:
-		this.linearCounter--;
-		this.updateSampleCondition();
-	}
-	if(!this.lcControl){
-		// Clear halt flag:
-		this.lcHalt = false;
-	}
-}
-
-ChannelTriangle.prototype.getLengthStatus = function(){
-	return ((this.lengthCounter==0 || !this.isEnabled)?0:1);
-}
-
-ChannelTriangle.prototype.readReg = function(address){
-	return 0;
-}
-
-ChannelTriangle.prototype.writeReg = function(address, value){
-	
-	if(address == 0x4008){
-		
-		// New values for linear counter:
-		this.lcControl 	= (value&0x80)!=0;
-		this.lcLoadValue =  value&0x7F;
-		
-		// Length counter enable:
-		this.lengthCounterEnable = !this.lcControl;
-		
-	}else if(address == 0x400A){
-		
-		// Programmable timer:
-		this.progTimerMax &= 0x700;
-		this.progTimerMax |= value;
-		
-	}else if(address == 0x400B){
-		
-		// Programmable timer, length counter
-		this.progTimerMax &= 0xFF;
-		this.progTimerMax |= ((value&0x07)<<8);
-		this.lengthCounter = this.papu.getLengthMax(value&0xF8);
-		this.lcHalt = true;
-		
-	}
-	
-	this.updateSampleCondition();
-	
-}
-
-ChannelTriangle.prototype.clockProgrammableTimer = function(nCycles){
-	
-	if(this.progTimerMax>0){
-		this.progTimerCount += nCycles;
-		while(this.progTimerMax > 0 && this.progTimerCount >= this.progTimerMax){
-			this.progTimerCount-=this.progTimerMax;
-			if(this.isEnabled && this.lengthCounter>0 && this.linearCounter>0){
-				this.clockTriangleGenerator();
-			}
-		}
-	}
-	
-}
-
-ChannelTriangle.prototype.clockTriangleGenerator = function(){
-	this.triangleCounter++;
-	this.triangleCounter &= 0x1F;
-}
-
-ChannelTriangle.prototype.setEnabled = function(value){
-	this.isEnabled = value;
-	if(!value) this.lengthCounter = 0;
-	this.updateSampleCondition();
-}
-
-ChannelTriangle.prototype.updateSampleCondition = function(){
-	this.sampleCondition = 
-		this.isEnabled 		&& 
-		this.progTimerMax>7 	&&
-		this.linearCounter>0 && 
-		this.lengthCounter>0
-	;
-}
-
-
-
 function PAPU(nes) {
 	this.nes = nes;
-
-    this.buffer = nes;
 	
 	this.square1 = new ChannelSquare(this,true);
 	this.square2 = new ChannelSquare(this,false);
@@ -698,7 +13,7 @@ function PAPU(nes) {
 	this.initCounter = 2048;
 	this.channelEnableValue = null;
 
-	this.bufferSize = 4096;
+	this.bufferSize = 8192;
 	this.bufferIndex = 0;
 	this.sampleRate = 44100;
 
@@ -707,7 +22,7 @@ function PAPU(nes) {
 	this.noiseWavelengthLookup = null;
 	this.square_table = null;
 	this.tnd_table = null;
-	this.sampleBuffer = new Array(this.bufferSize*4);
+	this.sampleBuffer = new Array(this.bufferSize*2);
 
 	this.frameIrqEnabled = false;
 	this.frameIrqActive;
@@ -723,7 +38,6 @@ function PAPU(nes) {
 	this.frameTime = null;
 	this.sampleTimerMax = null;
 	this.sampleCount = null;
-	this.triValue = 0;
 
 	this.smpSquare1 = null;
 	this.smpSquare2 = null;
@@ -758,7 +72,6 @@ function PAPU(nes) {
 	this.stereoPosRDMC = null;
 
 	this.extraCycles = null;
-	this.maxCycles = null;
     
     // Panning:
 	this.panning = new Array(
@@ -969,7 +282,7 @@ PAPU.prototype.clockFrameCounter = function(nCycles){
 
 	if(this.initCounter > 0){
 		if(this.initingHardware){
-			this.initCounter-=nCycles;
+			this.initCounter -= nCycles;
 			if(this.initCounter<=0) this.initingHardware = false;
 			return;
 		}
@@ -977,10 +290,10 @@ PAPU.prototype.clockFrameCounter = function(nCycles){
 
 	// Don't process ticks beyond next sampling:
 	nCycles += this.extraCycles;
-	this.maxCycles = this.sampleTimerMax-this.sampleTimer;
-	if((nCycles<<10) > this.maxCycles){
+	var maxCycles = this.sampleTimerMax-this.sampleTimer;
+	if((nCycles<<10) > maxCycles){
 
-		this.extraCycles = ((nCycles<<10) - this.maxCycles)>>10;
+		this.extraCycles = ((nCycles<<10) - maxCycles)>>10;
 		nCycles -= this.extraCycles;
 
 	}else{
@@ -989,38 +302,44 @@ PAPU.prototype.clockFrameCounter = function(nCycles){
 		
 	}
 	
+	var dmc = this.dmc;
+	var triangle = this.triangle;
+	var square1 = this.square1;
+	var square2 = this.square2;
+	var noise = this.noise;
+	
 	// Clock DMC:
-	if(this.dmc.isEnabled){
+	if(dmc.isEnabled){
 		
-		this.dmc.shiftCounter-=(nCycles<<3);
-		while(this.dmc.shiftCounter<=0 && this.dmc.dmaFrequency>0){
-			this.dmc.shiftCounter += this.dmc.dmaFrequency;
-			this.dmc.clockDmc();
+		dmc.shiftCounter-=(nCycles<<3);
+		while(dmc.shiftCounter<=0 && dmc.dmaFrequency>0){
+			dmc.shiftCounter += dmc.dmaFrequency;
+			dmc.clockDmc();
 		}
 
 	}
 
 	// Clock Triangle channel Prog timer:
-	if(this.triangle.progTimerMax>0){
+	if(triangle.progTimerMax>0){
 		
-		this.triangle.progTimerCount -= nCycles;
-		while(this.triangle.progTimerCount <= 0){
+		triangle.progTimerCount -= nCycles;
+		while(triangle.progTimerCount <= 0){
 			
-			this.triangle.progTimerCount += this.triangle.progTimerMax+1;
-			if(this.triangle.linearCounter>0 && this.triangle.lengthCounter>0){
+			triangle.progTimerCount += triangle.progTimerMax+1;
+			if(triangle.linearCounter>0 && triangle.lengthCounter>0){
 
-				this.triangle.triangleCounter++;
-				this.triangle.triangleCounter &= 0x1F;
+				triangle.triangleCounter++;
+				triangle.triangleCounter &= 0x1F;
 
-				if(this.triangle.isEnabled){
-					if(this.triangle.triangleCounter>=0x10){
+				if(triangle.isEnabled){
+					if(triangle.triangleCounter>=0x10){
 						// Normal value.
-						this.triangle.sampleValue = (this.triangle.triangleCounter&0xF);
+						triangle.sampleValue = (triangle.triangleCounter&0xF);
 					}else{
 						// Inverted value.
-						this.triangle.sampleValue = (0xF - (this.triangle.triangleCounter&0xF));
+						triangle.sampleValue = (0xF - (triangle.triangleCounter&0xF));
 					}
-					this.triangle.sampleValue <<= 4;
+					triangle.sampleValue <<= 4;
 				}
 
 			}
@@ -1029,124 +348,117 @@ PAPU.prototype.clockFrameCounter = function(nCycles){
 	}
 
 	// Clock Square channel 1 Prog timer:
-	this.square1.progTimerCount -= nCycles;
-	if(this.square1.progTimerCount <= 0){
+	square1.progTimerCount -= nCycles;
+	if(square1.progTimerCount <= 0){
 
-		this.square1.progTimerCount += (this.square1.progTimerMax+1)<<1;
+		square1.progTimerCount += (square1.progTimerMax+1)<<1;
 
-		this.square1.squareCounter++;
-		this.square1.squareCounter&=0x7;
-		this.square1.updateSampleValue();
+		square1.squareCounter++;
+		square1.squareCounter&=0x7;
+		square1.updateSampleValue();
 			
 	}
 
 	// Clock Square channel 2 Prog timer:
-	this.square2.progTimerCount -= nCycles;
-	if(this.square2.progTimerCount <= 0){
+	square2.progTimerCount -= nCycles;
+	if(square2.progTimerCount <= 0){
 
-		this.square2.progTimerCount += (this.square2.progTimerMax+1)<<1;
+		square2.progTimerCount += (square2.progTimerMax+1)<<1;
 
-		this.square2.squareCounter++;
-		this.square2.squareCounter&=0x7;
-		this.square2.updateSampleValue();
+		square2.squareCounter++;
+		square2.squareCounter&=0x7;
+		square2.updateSampleValue();
 		
 	}
 
 	// Clock noise channel Prog timer:
 	var acc_c = nCycles;
-	if(this.noise.progTimerCount-acc_c > 0){
+	if(noise.progTimerCount-acc_c > 0){
 		
 		// Do all cycles at once:
-		this.noise.progTimerCount -= acc_c;
-		this.noise.accCount       += acc_c;
-		this.noise.accValue       += acc_c * this.noise.sampleValue;
+		noise.progTimerCount -= acc_c;
+		noise.accCount       += acc_c;
+		noise.accValue       += acc_c * noise.sampleValue;
 		
 	}else{
 		
 		// Slow-step:
 		while((acc_c--) > 0){
 			
-			if(--this.noise.progTimerCount <= 0 && this.noise.progTimerMax>0){
+			if(--noise.progTimerCount <= 0 && noise.progTimerMax>0){
 	
 				// Update noise shift register:
-				this.noise.shiftReg <<= 1;
-				this.noise.tmp = (((this.noise.shiftReg << (this.noise.randomMode==0?1:6)) ^ this.noise.shiftReg) & 0x8000 );
-				if(this.noise.tmp!=0){
+				noise.shiftReg <<= 1;
+				noise.tmp = (((noise.shiftReg << (noise.randomMode==0?1:6)) ^ noise.shiftReg) & 0x8000 );
+				if(noise.tmp!=0){
 					
 					// Sample value must be 0.
-					this.noise.shiftReg |= 0x01;
-					this.noise.randomBit = 0;
-					this.noise.sampleValue = 0;
+					noise.shiftReg |= 0x01;
+					noise.randomBit = 0;
+					noise.sampleValue = 0;
 					
 				}else{
 					
 					// Find sample value:
-					this.noise.randomBit = 1;
-					if(this.noise.isEnabled && this.noise.lengthCounter>0){
-						this.noise.sampleValue = this.noise.masterVolume;
+					noise.randomBit = 1;
+					if(noise.isEnabled && noise.lengthCounter>0){
+						noise.sampleValue = noise.masterVolume;
 					}else{
-						this.noise.sampleValue = 0;
+						noise.sampleValue = 0;
 					}
 					
 				}
 				
-				this.noise.progTimerCount += this.noise.progTimerMax;
+				noise.progTimerCount += noise.progTimerMax;
 					
 			}
 		
-			this.noise.accValue += this.noise.sampleValue;
-			this.noise.accCount++;
+			noise.accValue += noise.sampleValue;
+			noise.accCount++;
 		
 		}
 	}
 	
 
 	// Frame IRQ handling:
-	if(this.frameIrqEnabled && this.frameIrqActive){
+	if (this.frameIrqEnabled && this.frameIrqActive){
 		this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NORMAL);
 	}
 
 	// Clock frame counter at double CPU speed:
-	this.masterFrameCounter+=(nCycles<<1);
-	if(this.masterFrameCounter>=this.frameTime){
-
+	this.masterFrameCounter += (nCycles<<1);
+	if (this.masterFrameCounter >= this.frameTime) {
 		// 240Hz tick:
 		this.masterFrameCounter -= this.frameTime;
 		this.frameCounterTick();
-		
-
 	}
-	
 	
 	// Accumulate sample value:
 	this.accSample(nCycles);
 
-
 	// Clock sample timer:
 	this.sampleTimer += nCycles<<10;
 	if(this.sampleTimer>=this.sampleTimerMax){
-
 		// Sample channels:
 		this.sample();
 		this.sampleTimer -= this.sampleTimerMax;
-
 	}
-
 }
 
 PAPU.prototype.accSample = function(cycles){
+	var triangle = this.triangle;
 	
 	// Special treatment for triangle channel - need to interpolate.
-	if(this.triangle.sampleCondition){
+	if(triangle.sampleCondition){
 
-		this.triValue = parseInt((this.triangle.progTimerCount<<4) / (this.triangle.progTimerMax+1));
-		if(this.triValue>16) this.triValue = 16;
-		if(this.triangle.triangleCounter >= 16){
-			this.triValue = 16-this.triValue;
+		var triValue = parseInt((triangle.progTimerCount<<4) / (triangle.progTimerMax+1));
+		if(triValue>16) triValue = 16;
+		if(triangle.triangleCounter >= 16){
+			triValue = 16-triValue;
 		}
 		
 		// Add non-interpolated sample value:
-		this.triValue += this.triangle.sampleValue;
+		triValue += triangle.sampleValue;
 		
 	}
 	
@@ -1154,7 +466,7 @@ PAPU.prototype.accSample = function(cycles){
 	// Now sample normally:
 	if(cycles == 2){
 		
-		this.smpTriangle += this.triValue				<< 1;
+		this.smpTriangle += triValue				<< 1;
 		this.smpDmc      += this.dmc.sample			<< 1;
 		this.smpSquare1  += this.square1.sampleValue	<< 1;
 		this.smpSquare2  += this.square2.sampleValue	<< 1;
@@ -1162,7 +474,7 @@ PAPU.prototype.accSample = function(cycles){
 		
 	}else if(cycles == 4){
 		
-		this.smpTriangle += this.triValue				<< 2;
+		this.smpTriangle += triValue				<< 2;
 		this.smpDmc      += this.dmc.sample			<< 2;
 		this.smpSquare1  += this.square1.sampleValue	<< 2;
 		this.smpSquare2  += this.square2.sampleValue	<< 2;
@@ -1170,7 +482,7 @@ PAPU.prototype.accSample = function(cycles){
 		
 	}else{
 		
-		this.smpTriangle += cycles * this.triValue;
+		this.smpTriangle += cycles * triValue;
 		this.smpDmc      += cycles * this.dmc.sample;
 		this.smpSquare1  += cycles * this.square1.sampleValue;
 		this.smpSquare2  += cycles * this.square2.sampleValue;
@@ -1284,7 +596,7 @@ PAPU.prototype.sample = function(){
 	sampleValueR = this.smpAccumR;
 
 	// Write:
-	if(this.bufferIndex+4 < this.sampleBuffer.length){
+	if(this.bufferIndex+2 < this.sampleBuffer.length){
 	    if (sampleValueL > this.maxSample) this.maxSample = sampleValueL;
 	    if (sampleValueL < this.minSample) this.minSample = sampleValueL;
 		this.sampleBuffer[this.bufferIndex++] = (sampleValueL );
@@ -1301,11 +613,14 @@ PAPU.prototype.sample = function(){
 
 PAPU.prototype.readBuffer = function() {
     //console.debug(this.bufferIndex);
-    if (this.bufferIndex+4 >= this.sampleBuffer.length) {
+    if (this.bufferIndex >= 2048) {
         var b = this.sampleBuffer;
-        this.sampleBuffer = new Array(this.bufferSize*4);
+        this.sampleBuffer = new Array(this.bufferSize*2);
         this.bufferIndex = 0;
         return b
+    }
+    else {
+        console.debug("Insufficient buffer: "+this.bufferIndex);
     }
 }
 

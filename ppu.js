@@ -43,7 +43,6 @@ function PPU(nes) {
     
     
     this.vramMirrorTable = null;            // Mirroring Lookup Table.
-    this.i = null;
     
     // SPR-RAM I/O:
     this.sramAddress = null; // 8-bit only.
@@ -89,12 +88,11 @@ function PPU(nes) {
     // Name table data:
     this.ntable1 = new Array(4);
     this.nameTable = null;
-    this.currentMirroring=-1;
+    this.currentMirroring = -1;
     
     // Palette data:
     this.sprPalette = new Array(16);
     this.imgPalette = new Array(16);
-    
     
     // Misc:
     this.scanlineAlreadyRendered = null;
@@ -104,14 +102,6 @@ function PPU(nes) {
     this.tmp = null;
     this.dummyCycleToggle = null;
     
-    // Vars used when updating regs/address:
-    this.address = null;
-    this.b1 = null;
-    this.b2 = null;
-    
-    
-    
-    
     // Variables used when rendering:
     this.attrib = new Array(32);
     this.buffer = new Array(256*240);
@@ -120,38 +110,15 @@ function PPU(nes) {
     this.pixrendered = new Array(256*240);
     this.spr0dummybuffer = new Array(256*240);
     this.dummyPixPriTable = new Array(256*240);
-    this.oldFrame = new Array(256*240);
-    this.tpix = null;
     
-    this.scanlineChanged = Array(240);
-    this.requestRenderAll=false;
     this.validTileData = null;
-    this.att = null;
     
     this.scantile = new Array(32);
-    this.t = null;
-    
-    
-    
     
     // These are temporary variables used in rendering and sound procedures.
     // Their states outside of those procedures can be ignored.
+    // TODO: the use of this is a bit weird, investigate
     this.curNt = null;
-    this.destIndex = null;
-    this.x = null;
-    this.y = null;
-    this.sx = null;
-    this.si = null;
-    this.ei = null;
-    this.tile = null;
-    this.col = null;
-    this.baseTile = null;
-    this.tscanoffset = null;
-    this.srcy1 = null;
-    this.srcy2 = null;
-    this.bufferSize = null;
-    this.available = null;
-    this.scale = null;
     
     this.init = function() {
         // Get the memory:
@@ -196,10 +163,6 @@ function PPU(nes) {
         this.lastRenderedScanline = -1;
         this.curX = 0;
         
-        // Initialize old frame buffer:
-        for(var i=0;i<this.oldFrame.length;i++){
-            this.oldFrame[i]=-1;
-        }
     }
     
     
@@ -813,59 +776,59 @@ function PPU(nes) {
     // Updates the scroll registers from a new VRAM address.
     this.regsFromAddress = function(){
         
-        this.address = (this.vramTmpAddress>>8)&0xFF;
-        this.regFV = (this.address>>4)&7;
-        this.regV = (this.address>>3)&1;
-        this.regH = (this.address>>2)&1;
-        this.regVT = (this.regVT&7) | ((this.address&3)<<3);
+        var address = (this.vramTmpAddress>>8)&0xFF;
+        this.regFV = (address>>4)&7;
+        this.regV = (address>>3)&1;
+        this.regH = (address>>2)&1;
+        this.regVT = (this.regVT&7) | ((address&3)<<3);
         
-        this.address = this.vramTmpAddress&0xFF;
-        this.regVT = (this.regVT&24) | ((this.address>>5)&7);
-        this.regHT = this.address&31;
+        address = this.vramTmpAddress&0xFF;
+        this.regVT = (this.regVT&24) | ((address>>5)&7);
+        this.regHT = address&31;
     }
     
     // Updates the scroll registers from a new VRAM address.
     this.cntsFromAddress = function(){
         
-        this.address = (this.vramAddress>>8)&0xFF;
-        this.cntFV = (this.address>>4)&3;
-        this.cntV = (this.address>>3)&1;
-        this.cntH = (this.address>>2)&1;
-        this.cntVT = (this.cntVT&7) | ((this.address&3)<<3);        
+        var address = (this.vramAddress>>8)&0xFF;
+        this.cntFV = (address>>4)&3;
+        this.cntV = (address>>3)&1;
+        this.cntH = (address>>2)&1;
+        this.cntVT = (this.cntVT&7) | ((address&3)<<3);        
         
-        this.address = this.vramAddress&0xFF;
-        this.cntVT = (this.cntVT&24) | ((this.address>>5)&7);
-        this.cntHT = this.address&31;
+        address = this.vramAddress&0xFF;
+        this.cntVT = (this.cntVT&24) | ((address>>5)&7);
+        this.cntHT = address&31;
         
     }
     
     this.regsToAddress = function(){
-        this.b1  = (this.regFV&7)<<4;
-        this.b1 |= (this.regV&1)<<3;
-        this.b1 |= (this.regH&1)<<2;
-        this.b1 |= (this.regVT>>3)&3;
+        var b1  = (this.regFV&7)<<4;
+        b1 |= (this.regV&1)<<3;
+        b1 |= (this.regH&1)<<2;
+        b1 |= (this.regVT>>3)&3;
         
-        this.b2  = (this.regVT&7)<<5;
-        this.b2 |= this.regHT&31;
+        var b2  = (this.regVT&7)<<5;
+        b2 |= this.regHT&31;
         
-        this.vramTmpAddress = ((this.b1<<8) | this.b2)&0x7FFF;
+        this.vramTmpAddress = ((b1<<8) | b2)&0x7FFF;
     }
     
     this.cntsToAddress = function(){
-        this.b1  = (this.cntFV&7)<<4;
-        this.b1 |= (this.cntV&1)<<3;
-        this.b1 |= (this.cntH&1)<<2;
-        this.b1 |= (this.cntVT>>3)&3;
+        var b1  = (this.cntFV&7)<<4;
+        b1 |= (this.cntV&1)<<3;
+        b1 |= (this.cntH&1)<<2;
+        b1 |= (this.cntVT>>3)&3;
         
-        this.b2  = (this.cntVT&7)<<5;
-        this.b2 |= this.cntHT&31;
+        var b2  = (this.cntVT&7)<<5;
+        b2 |= this.cntHT&31;
         
-        this.vramAddress = ((this.b1<<8) | this.b2)&0x7FFF;
+        this.vramAddress = ((b1<<8) | b2)&0x7FFF;
     }
     
     this.incTileCounter = function(count){
         
-        for(this.i=count;this.i!=0;this.i--){
+        for(var i=count; i!=0; i--){
             this.cntHT++;
             if(this.cntHT==32){
                 this.cntHT=0;
@@ -967,7 +930,6 @@ function PPU(nes) {
             var pixrendered = this.pixrendered;
             for(var destIndex=si;destIndex<ei;destIndex++){
                 if(pixrendered[destIndex]>0xFF){
-                    //console.log("Writing "+this.imgPalette[this.col+this.att].toString(16)+" to buffer at "+this.destIndex.toString(16));
                     buffer[destIndex] = bgbuffer[destIndex];
                 }
             }
@@ -977,28 +939,6 @@ function PPU(nes) {
             this.renderSpritesPartially(startScan,scanCount,false);
         }
         
-        /*BufferView screen = nes.getGui().getScreenView();
-        if(screen.scalingEnabled() && !screen.useHWScaling() && !requestRenderAll){
-            
-            // Check which scanlines have changed, to try to
-            // speed up scaling:
-            int j,jmax;
-            if(startScan+scanCount>240)scanCount=240-startScan;
-            for(int i=startScan;i<startScan+scanCount;i++){
-                scanlineChanged[i]=false;
-                si = i<<8;
-                jmax = si+256;
-                for(j=si;j<jmax;j++){
-                    if(buffer[j]!=oldFrame[j]){
-                        scanlineChanged[i]=true;
-                        break;
-                    }
-                    oldFrame[j]=buffer[j];
-                }
-                System.arraycopy(buffer,j,oldFrame,j,jmax-j);
-            }
-            
-        }*/
         
         this.validTileData = false;
         
@@ -1067,7 +1007,6 @@ function PPU(nes) {
                             for(;sx<8;sx++){
                                 col = tpix[tscanoffset+sx];
                                 if(col != 0){
-                                    //console.log("Writing "+this.imgPalette[this.col+this.att].toString(16)+" to buffer at "+this.destIndex.toString(16));
                                     var pix = imgPalette[col+att];
                                     targetBuffer[destIndex] = pix;
                                     pixrendered[destIndex] |= 256;
@@ -1132,7 +1071,7 @@ function PPU(nes) {
                         this.srcy2 = 8;
                         
                         if(this.sprY[i]<startscan){
-                            srcy1 = startscan - this.sprY[i]-1;
+                            this.srcy1 = startscan - this.sprY[i]-1;
                         }
                         
                         if(this.sprY[i]+8 > startscan+scancount){
@@ -1151,21 +1090,21 @@ function PPU(nes) {
                             top = this.sprTile[i]-1+256;
                         }
                         
-                        this.srcy1 = 0;
-                        this.srcy2 = 8;
+                        var srcy1 = 0;
+                        var srcy2 = 8;
                         
                         if(this.sprY[i]<startscan){
-                            this.srcy1 = startscan - this.sprY[i]-1;
+                            srcy1 = startscan - this.sprY[i]-1;
                         }
                         
                         if(this.sprY[i]+8 > startscan+scancount){
-                            this.srcy2 = startscan+scancount-this.sprY[i];
+                            srcy2 = startscan+scancount-this.sprY[i];
                         }
                         
                         this.ptTile[top+(this.vertFlip[i]?1:0)].render(0,
-                            this.srcy1,
+                            srcy1,
                             8,
-                            this.srcy2,
+                            srcy2,
                             this.sprX[i],
                             this.sprY[i]+1,
                             this.sprCol[i],
@@ -1176,22 +1115,22 @@ function PPU(nes) {
                             this.pixrendered
                         );
                         
-                        this.srcy1 = 0;
-                        this.srcy2 = 8;
+                        var srcy1 = 0;
+                        var srcy2 = 8;
                         
                         if(this.sprY[i]+8<startscan){
-                            this.srcy1 = startscan - (this.sprY[i]+8+1);
+                            srcy1 = startscan - (this.sprY[i]+8+1);
                         }
                         
                         if(this.sprY[i]+16 > startscan+scancount){
-                            this.srcy2 = startscan+scancount-(this.sprY[i]+8);
+                            srcy2 = startscan+scancount-(this.sprY[i]+8);
                         }
                         
                         this.ptTile[top+(this.vertFlip[i]?0:1)].render(
                             0,
-                            this.srcy1,
+                            srcy1,
                             8,
-                            this.srcy2,
+                            srcy2,
                             this.sprX[i],
                             this.sprY[i]+1+8,
                             this.sprCol[i],
@@ -1443,16 +1382,6 @@ function PPU(nes) {
                 leftOver-8, this.ppuMem[address-8], value);
         }
     }
-    
-    this.invalidateFrameCache = function(){
-        
-        // Clear the no-update scanline buffer:
-        for(var i=0;i<240;i++) this.scanlineChanged[i]=true;
-        
-        for(var i=0;i<this.oldFrame.length;i++) this.oldFrame[i]=-1;
-        this.requestRenderAll = true;
-        
-    }
 
     // Updates the internal name table buffers
     // with this new byte.
@@ -1533,8 +1462,6 @@ function PPU(nes) {
         this.validTileData = false;
         this.nmiCounter = 0;
         this.tmp = 0;
-        this.att = 0;
-        this.i = 0;
         
         // Control Flags Register 1:
         this.f_nmiOnVblank = 0;    // NMI on VBlank. 0=disable, 1=enable
@@ -1566,10 +1493,6 @@ function PPU(nes) {
         this.regFH = 0;
         this.regS = 0;
         
-        for (var i=0; i<this.scanlineChanged.length;i++)
-            this.scanlineChanged[i] = true;
-        for (var i=0; i<this.oldFrame.length;i++)
-            this.oldFrame[i] = -1;
         
         // Initialize stuff:
         this.init();
