@@ -14,6 +14,7 @@ function NES() {
     
     this.romFile = null;
     this.isRunning = false;
+    this.lastFrameTime = null;
     this.lastFpsTime = null;
     this.fpsFrameCount = 0;
     this.crashMessage = null;
@@ -47,11 +48,8 @@ function NES() {
             if (!this.isRunning) {
                 //$("#status").text("Running "+this.romFile)
                 this.isRunning = true;
-                var frameTime = 0;
-                if (this.limitFrames) {
-                    frameTime = Globals.frameTime;
-                }
-                this.frameInterval = setInterval(runFrame, frameTime);
+                
+                this.frameInterval = setInterval(runFrame, 0);
                 this.resetFps();
                 this.printFps();
                 this.fpsInterval = setInterval(runPrintFps, Globals.fpsInterval);
@@ -119,6 +117,17 @@ function NES() {
                     ppu.endScanline();
                 }
 
+            }
+        }
+        if (this.limitFrames) {
+            if (this.lastFrameTime) {
+                while ((new Date()).getTime() - this.lastFrameTime < Globals.frameTime) {
+                    // twiddle thumbs
+                }
+                this.lastFrameTime = this.lastFrameTime+Globals.frameTime;
+            }
+            else {
+                this.lastFrameTime = (new Date()).getTime();
             }
         }
         this.ctx.putImageData(this.imageData, 0, 0);
@@ -225,6 +234,11 @@ function NES() {
 		Globals.preferredFrameRate = rate;
 		Globals.frameTime = 1000/rate;
 		papu.setSampleRate(Globals.sampleRate, false);
+	}
+	
+	this.setLimitFrames = function(limit) {
+	    this.limitFrames = limit;
+	    this.lastFrameTime = null;
 	}
 	
 	this.cpu.init();
