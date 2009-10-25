@@ -4,7 +4,7 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 
     <title>JSNES: A Javascript NES emulator</title>
-    <link rel="stylesheet" href="/style.3.css" type="text/css" media="screen"
+    <link rel="stylesheet" href="style.3.css" type="text/css" media="screen"
 charset="utf-8">
     <link rel="stylesheet" href="jsnes.1.css" type="text/css" media="screen"
 charset="utf-8">
@@ -136,11 +136,13 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
     });
     
     $("#screen").mouseup(function(){
-        if (nes && nes.memMapper) {
-            nes.memMapper.mousePressed = false;
-            nes.memMapper.mouseX = 0;
-            nes.memMapper.mouseY = 0;
-        }
+        setTimeout(function(){
+            if (nes && nes.memMapper) {
+                nes.memMapper.mousePressed = false;
+                nes.memMapper.mouseX = 0;
+                nes.memMapper.mouseY = 0;
+            }
+        }, 500);
     });
     
     function resetButtons() {

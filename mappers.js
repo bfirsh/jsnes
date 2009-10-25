@@ -186,34 +186,33 @@ MapperDefault.prototype.regLoad = function(address){
                 
                     // 0x4017:
                     // Joystick 2 + Strobe
-                    /*if(this.mousePressed){
+                    if(this.mousePressed){
                         
                         // Check for white pixel nearby:
-                        // TODO
-                        var sx,sy,ex,ey,w;
-                        sx = Math.max(0,this.mouseX-4);
-                        ex = Math.min(256,this.mouseX+4);
-                        sy = Math.max(0,this.mouseY-4);
-                        ey = Math.min(240,this.mouseY+4);
-                        w = 0x1<<4;
                         
-                        w |= 0x1<<3; // FIXME
+                        var sx = Math.max(0,this.mouseX-4);
+                        var ex = Math.min(256,this.mouseX+4);
+                        var sy = Math.max(0,this.mouseY-4);
+                        var ey = Math.min(240,this.mouseY+4);
+                        var w = 0;
                         
-                        for(var y=sy;y<ey;y++){
-                            for(var x=sx;x<ex;x++){
-                                if((this.nes.ppu.buffer[(y<<8)+x]&0xFFFFFF)==0xFFFFFF){
+                        for(var y=sy; y<ey; y++){
+                            for(var x=sx; x<ex; x++){
+                               
+                                if(this.nes.ppu.buffer[(y<<8)+x] == 0xFFFFFF) {
                                     w |= 0x1<<3;
-                                    alert("Clicked on white!");
+                                    console.debug("Clicked on white!");
                                     break;
                                 }
                             }
                         }
                         
-                        return this.joy2Read()|w;*/
-                        
-                    //}else{
+                        w |= (this.mousePressed?(0x1<<4):0);
+                        return (this.joy2Read()|w) & 0xFFFF;
+                    }
+                    else{
                         return this.joy2Read();
-                    //}
+                    }
                     
                 }
             }
