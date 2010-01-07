@@ -49,7 +49,7 @@ function NES() {
                 //$("#status").text("Running "+this.romFile)
                 this.isRunning = true;
                 
-                this.frameInterval = setInterval(runFrame, 0);
+                this.frameInterval = setInterval(runFrame, Globals.frameTime/2);
                 this.resetFps();
                 this.printFps();
                 this.fpsInterval = setInterval(runPrintFps, Globals.fpsInterval);

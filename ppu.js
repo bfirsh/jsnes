@@ -511,18 +511,20 @@ function PPU(nes) {
                 }
             }
         }
-
-        var imageData = this.nes.imageData.data, prevBuffer = this.prevBuffer;
         
-        for (var i=0;i<256*240;i++) {
-            var pixel = buffer[i];
+        if (Globals.showDisplay) {
+            var imageData = this.nes.imageData.data, prevBuffer = this.prevBuffer;
+        
+            for (var i=0;i<256*240;i++) {
+                var pixel = buffer[i];
             
-            if (pixel != prevBuffer[i]) {
-                var j = i*4;
-                imageData[j] = pixel&0xFF;
-                imageData[j+1] = (pixel>>8)&0xFF;
-                imageData[j+2] = (pixel>>16)&0xFF;
-                prevBuffer[i] = pixel;
+                if (pixel != prevBuffer[i]) {
+                    var j = i*4;
+                    imageData[j] = pixel&0xFF;
+                    imageData[j+1] = (pixel>>8)&0xFF;
+                    imageData[j+2] = (pixel>>16)&0xFF;
+                    prevBuffer[i] = pixel;
+                }
             }
         }
     }

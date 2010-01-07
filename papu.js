@@ -13,7 +13,7 @@ function PAPU(nes) {
 	this.initCounter = 2048;
 	this.channelEnableValue = null;
 
-	this.bufferSize = 4096;
+	this.bufferSize = 8192;
 	this.bufferIndex = 0;
 	this.sampleRate = 44100;
 
@@ -603,7 +603,7 @@ PAPU.prototype.sample = function(){
 		this.sampleBuffer[this.bufferIndex++] = (sampleValueR );
 	}
 	else {
-	    console.debug('Reached end of buffer');
+	    //console.debug('Reached end of buffer');
 	}
 
 	// Reset sampled values:
@@ -623,7 +623,7 @@ PAPU.prototype.readBuffer = function() {
         return b
     }
     else {
-        console.debug("Insufficient buffer: "+this.bufferIndex);
+        //console.debug("Insufficient buffer: "+this.bufferIndex);
     }
 }
 

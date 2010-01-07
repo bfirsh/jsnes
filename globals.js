@@ -7,6 +7,7 @@ var Globals = {
 	memoryFlushValue: 0xFF, // What value to flush memory with on power-up
 	nes: null,
 	fpsInterval: 500, // Time between updating FPS in ms
+	showDisplay: true,
 	
 	emulateSound: false,
 	sampleRate: 44100, // Sound sample rate in hz
