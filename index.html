@@ -3,8 +3,8 @@
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 
-    <title>JSNES: A Javascript NES emulator</title>
-    <link rel="stylesheet" href="../style.3.css" type="text/css" media="screen"
+    <title>JSNES: A JavaScript NES emulator</title>
+    <link rel="stylesheet" href="/style.3.css" type="text/css" media="screen"
 charset="utf-8">
     <link rel="stylesheet" href="jsnes.1.css" type="text/css" media="screen"
 charset="utf-8">
@@ -49,7 +49,7 @@ charset="utf-8">
 
 <body><div id="wrapper">
     <h1>JSNES</h1>
-    <p class="summary">A Javascript <a href="http://en.wikipedia.org/wiki/Nintendo_Entertainment_System">NES</a> emulator. <small>By <a href="/">Ben Firshman</a> <a href="http://twitter.com/bfirsh">@bfirsh</a></small></p>
+    <p class="summary">A JavaScript <a href="http://en.wikipedia.org/wiki/Nintendo_Entertainment_System">NES</a> emulator. <small>By <a href="/">Ben Firshman</a> <a href="http://twitter.com/bfirsh">@bfirsh</a></small></p>
     <div id="emulator">
         <canvas id="screen" width="256" height="240"></canvas>
         <div id="controls">
@@ -116,10 +116,16 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
     </table>
     
     <h2>About</h2>
-    <p>A few months ago, I stumbled across Matt Westcott's excellent <a href="http://matt.west.co.tt/spectrum/jsspeccy/">JSSpeccy</a>. I had seen some pretty imaginative <a href="http://en.wikipedia.org/wiki/Canvas_(HTML_element)">canvas</a> creations, but Javascript emulators? What a perfect idea for a daft new project.</p>
-    <p>I got underway shamelessly porting <a href="http://www.virtualnes.com/">vNES</a> into Javascript. Although not the most efficient, it didn't have any of the pointer memory mapping magic associated with emulators written in lower level languages. As such, it was more or less a direct port, bar a few tweaks to compensate for the lack of static typing, and obviously a rewrite of all the I/O.</p>
-    <p>JSNES runs at full speed on <a href="http://www.google.com/chrome">Google Chrome</a> with a modern computer, so it is highly recommended you use that to play. <a href="http://build.chromium.org/buildbot/snapshots/chromium-rel-mac/">Mac builds</a> are also available. Otherwise, it just about runs on <a href="http://getfirefox.com/">Firefox 3.5</a> or <a href="http://www.apple.com/safari/">Safari 4</a>, but it's hardly playable.</p>
+    <p>A few months ago, I stumbled across Matt Westcott's excellent <a href="http://matt.west.co.tt/spectrum/jsspeccy/">JSSpeccy</a>. I had seen some pretty imaginative <a href="http://en.wikipedia.org/wiki/Canvas_(HTML_element)">canvas</a> creations, but JavaScript emulators? What a perfect idea for a daft new project.</p>
+    <p>I got underway shamelessly porting <a href="http://www.virtualnes.com/">vNES</a> into JavaScript. Although not the most efficient, it didn't have any of the pointer memory mapping magic associated with emulators written in lower level languages. As such, it was more or less a direct port, bar a few tweaks to compensate for the lack of static typing, and obviously a rewrite of all the I/O.</p>
+    <p>JSNES runs at full speed on <a href="http://www.google.com/chrome">Google Chrome</a> with a modern computer, so it is highly recommended you use that to play. On <a href="http://www.apple.com/safari/">Safari 4</a> it runs at almost full speed. Otherwise, it just about works on <a href="http://getfirefox.com/">Firefox 3.5</a>, but it's hardly playable.</p>
     <p>The source is available on <a href="http://github.com/bfirsh/jsnes/">Github</a>, contributions welcome!</p>
+    
+    <h2>News</h2>
+    <h3>7th January 2010</h3>
+    <p>It has been in the pipeline for a while, but JSNES can now play sound! There is no way of playing dynamically generated sound in JavaScript, but I have created a tiny Flash application reads a buffer from JavaScript then writes it to the sound card. I hope to release this as a reusable library for creating, hopefully opening up many possibilities for cool sound applications.</p>
+    <p>Playing sound probably won't run at full speed, but Chrome appears to be fastest.</p>
+    
 	<object classid="clsid:d27cdb6e-ae6d-11cf-96b8-444553540000" codebase="http://download.macromedia.com/pub/shockwave/cabs/flash/swflash.cab#version=10,0,0,0" width="1" height="1" id="jssound" align="middle">
 	<param name="allowScriptAccess" value="sameDomain" />
 	<param name="allowFullScreen" value="false" />
