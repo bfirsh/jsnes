@@ -124,15 +124,11 @@ function NES() {
                 while ((new Date()).getTime() - this.lastFrameTime < Globals.frameTime) {
                     // twiddle thumbs
                 }
-                this.lastFrameTime = this.lastFrameTime+Globals.frameTime;
-            }
-            else {
-                this.lastFrameTime = (new Date()).getTime();
             }
         }
         this.ctx.putImageData(this.imageData, 0, 0);
         this.fpsFrameCount++;
-        
+        this.lastFrameTime = (new Date()).getTime();
     }
     
     this.printFps = function() {
