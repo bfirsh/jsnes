@@ -11,6 +11,7 @@ charset="utf-8">
     
     <script src="js/jquery-1.2.6.min.js" type="text/javascript" charset="utf-8"></script>
     <script src="js/jquery.dimensions.min.js" type="text/javascript" charset="utf-8"></script>
+    <script src="js/dynamicaudio-min.js" type="text/javascript" charset="utf-8"></script>
     <script src="js/utils.js" type="text/javascript" charset="utf-8"></script>
     <script src="js/channels.js" type="text/javascript" charset="utf-8"></script>
     <script src="js/cpu.js" type="text/javascript" charset="utf-8"></script>
@@ -126,11 +127,6 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
     <p>It has been in the pipeline for a while, but JSNES can now play sound! There is no way of playing dynamically generated sound in JavaScript, but I have created a tiny Flash application reads a buffer from JavaScript then writes it to the sound card. I hope to release this as a reusable library, hopefully opening up many possibilities for cool sound applications such as <a href="/projects/jstunes/">jsTunes</a>.</p>
     <p>Playing sound probably won't run at full speed, but Chrome appears to be fastest.</p>
     
-	<object classid="clsid:d27cdb6e-ae6d-11cf-96b8-444553540000" codebase="http://download.macromedia.com/pub/shockwave/cabs/flash/swflash.cab#version=10,0,0,0" width="1" height="1" id="jssound" align="middle">
-	<param name="allowScriptAccess" value="sameDomain" />
-	<param name="allowFullScreen" value="false" />
-	<param name="movie" value="jssound.swf?callback=readJSSoundBuffer" /><param name="quality" value="high" /><param name="bgcolor" value="#ffffff" />	<embed src="jssound.swf?callback=readJSSoundBuffer" quality="high" bgcolor="#ffffff" width="1" height="1" name="jssound" align="middle" allowScriptAccess="always" allowFullScreen="false" type="application/x-shockwave-flash" pluginspage="http://www.adobe.com/go/getflashplayer" />
-	</object>
 <script type="text/javascript" charset="utf-8">
     // Mouse events
     $("#screen").mousedown(function(e){
@@ -167,7 +163,7 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
         resetButtons();
         var romName = $("#roms").val();
         $("#status").text("Downloading "+romName);
-        $.getScript("roms/"+escape(romName)+".js", function(){
+        $.getScript("http://benfirshman.com/projects/jsnes/roms/"+escape(romName)+".js", function(){
             nes.loadRom(romName);
             nes.start();
         });
@@ -203,9 +199,16 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
         nes.start();
     });
     
-    function readJSSoundBuffer() {
-        return JSON.stringify(nes.papu.readBuffer());
-    }
+    var dynamicaudio = new DynamicAudio();
+    
+    setInterval(function writeSoundBuffer() {
+        if (nes) {
+            var b = nes.papu.readBuffer();
+            if (b) {
+                dynamicaudio.writeInt(b);
+            }
+        }
+    }, 100);
     
     var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
     document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
