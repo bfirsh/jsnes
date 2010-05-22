@@ -5,6 +5,16 @@ NES.PPU = function(nes) {
     this.showSpr0Hit = false;
     this.clipToTvSize = true;
     
+    this.canvas = document.getElementById('screen');
+    this.canvasContext = this.canvas.getContext('2d');
+    this.canvasImageData = this.canvasContext.getImageData(0, 0, 256, 240);
+    this.canvasContext.fillStyle = 'black';
+    this.canvasContext.fillRect(0, 0, 256, 240); /* set alpha to opaque */
+    // Set alpha
+    for (var i = 3; i < this.canvasImageData.data.length-3; i+=4) {
+        this.canvasImageData.data[i] = 0xFF;
+    }
+    
     this.reset();
 }
 
@@ -482,7 +492,8 @@ NES.PPU.prototype = {
         }
         
         if (this.nes.opts.showDisplay) {
-            var imageData = this.nes.imageData.data, prevBuffer = this.prevBuffer;
+            var imageData = this.canvasImageData.data;
+            var prevBuffer = this.prevBuffer;
         
             for (var i=0;i<256*240;i++) {
                 var pixel = buffer[i];
@@ -495,6 +506,8 @@ NES.PPU.prototype = {
                     prevBuffer[i] = pixel;
                 }
             }
+            
+            this.canvasContext.putImageData(this.canvasImageData, 0, 0);
         }
     },
     

@@ -17,19 +17,7 @@ function NES() {
     this.ppu = new NES.PPU(this);
     this.papu = new NES.PAPU(this);
     this.mmap = null; // set in loadRom()
-    
     this.keyboard = new NES.Keyboard();
-    
-    // Graphics
-    this.canvas = document.getElementById('screen');
-    this.ctx = this.canvas.getContext('2d');
-    this.imageData = this.ctx.getImageData(0,0,256,240);
-    this.ctx.fillStyle = 'black';
-    this.ctx.fillRect(0,0,256,240); /* set alpha to opaque */
-    // Set alpha
-    for (var i = 3; i < this.imageData.data.length-3; i+=4) {
-        this.imageData.data[i] = 0xFF;
-    }
     
     $("#status").text("Initialised. Ready to load a ROM.");
 }
@@ -140,7 +128,6 @@ NES.prototype = {
                 }
             }
         }
-        this.ctx.putImageData(this.imageData, 0, 0);
         this.fpsFrameCount++;
         this.lastFrameTime = (new Date()).getTime();
     },
