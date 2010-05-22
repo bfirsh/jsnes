@@ -12,21 +12,15 @@ charset="utf-8">
     <script src="js/jquery-1.2.6.min.js" type="text/javascript" charset="utf-8"></script>
     <script src="js/jquery.dimensions.min.js" type="text/javascript" charset="utf-8"></script>
     <script src="js/dynamicaudio-min.js" type="text/javascript" charset="utf-8"></script>
+    <script src="js/nes.js" type="text/javascript" charset="utf-8"></script>
     <script src="js/utils.js" type="text/javascript" charset="utf-8"></script>
-    <script src="js/channels.js" type="text/javascript" charset="utf-8"></script>
     <script src="js/cpu.js" type="text/javascript" charset="utf-8"></script>
-    <script src="js/cpuinfo.js" type="text/javascript" charset="utf-8"></script>
-    <script src="js/globals.js" type="text/javascript" charset="utf-8"></script>
     <script src="js/keyboard.js" type="text/javascript" charset="utf-8"></script>
     <script src="js/mappers.js" type="text/javascript" charset="utf-8"></script>
-    <script src="js/nametable.js" type="text/javascript" charset="utf-8"></script>
-    <script src="js/nes.js" type="text/javascript" charset="utf-8"></script>
-    <script src="js/palettetable.js" type="text/javascript" charset="utf-8"></script>
     <script src="js/papu.js" type="text/javascript" charset="utf-8"></script>
     <script src="js/ppu.js" type="text/javascript" charset="utf-8"></script>
     <script src="js/rom.js" type="text/javascript" charset="utf-8"></script>
     <script src="js/roms.js" type="text/javascript" charset="utf-8"></script>
-    <script src="js/tile.js" type="text/javascript" charset="utf-8"></script>
     <script type="text/javascript" charset="utf-8">
         var nes;
         var roms = {};
@@ -130,19 +124,19 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
 <script type="text/javascript" charset="utf-8">
     // Mouse events
     $("#screen").mousedown(function(e){
-        if (nes && nes.memMapper) {
-            nes.memMapper.mousePressed = true;
-            nes.memMapper.mouseX = e.pageX-$("#screen").offset()["left"];
-            nes.memMapper.mouseY = e.pageY-$("#screen").offset()["top"];
+        if (nes && nes.mmap) {
+            nes.mmap.mousePressed = true;
+            nes.mmap.mouseX = e.pageX-$("#screen").offset()["left"];
+            nes.mmap.mouseY = e.pageY-$("#screen").offset()["top"];
         }
     });
     
     $("#screen").mouseup(function(){
         setTimeout(function(){
-            if (nes && nes.memMapper) {
-                nes.memMapper.mousePressed = false;
-                nes.memMapper.mouseX = 0;
-                nes.memMapper.mouseY = 0;
+            if (nes && nes.mmap) {
+                nes.mmap.mousePressed = false;
+                nes.mmap.mouseX = 0;
+                nes.mmap.mouseY = 0;
             }
         }, 500);
     });
@@ -151,7 +145,7 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
         $("#pause").attr("disabled", null).attr("value", "pause");
         $("#restart").attr("disabled", null);
         $("#enablesound").attr("disabled", null);
-        if (Globals.emulateSound) {
+        if (nes.opts.emulateSound) {
             $("#enablesound").attr("value", "disable sound");
         }
         else {
@@ -163,7 +157,7 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
         resetButtons();
         var romName = $("#roms").val();
         $("#status").text("Downloading "+romName);
-        $.getScript("http://benfirshman.com/projects/jsnes/roms/"+escape(romName)+".js", function(){
+        $.getScript("roms/"+escape(romName)+".js", function(){
             nes.loadRom(romName);
             nes.start();
         });
@@ -185,11 +179,11 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
     $("#enablesound").click(function() {
         b = $("#enablesound");
         if (b.attr("value") == "enable sound") {
-            Globals.emulateSound = true;
+            nes.opts.emulateSound = true;
             b.attr("value", "disable sound");
         }
         else {
-            Globals.emulateSound = false;
+            nes.opts.emulateSound = false;
             b.attr("value", "enable sound");
         }
     });

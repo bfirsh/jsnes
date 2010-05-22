@@ -1,157 +1,128 @@
-function PPU(nes) {
+NES.PPU = function(nes) {
     this.nes = nes;
-    this.timer = null;
-    this.ppuMem = null;
-    this.sprMem = null;
     
     // Rendering Options:
     this.showSpr0Hit = false;
     this.showSoundBuffer = false;
     this.clipToTvSize = true;
     
-    
-    // Control Flags Register 1:
-    this.f_nmiOnVblank = null;    // NMI on VBlank. 0=disable, 1=enable
-    this.f_spriteSize = null;     // Sprite size. 0=8x8, 1=8x16
-    this.f_bgPatternTable = null; // Background Pattern Table address. 0=0x0000,1=0x1000
-    this.f_spPatternTable = null; // Sprite Pattern Table address. 0=0x0000,1=0x1000
-    this.f_addrInc = null;        // PPU Address Increment. 0=1,1=32
-    this.f_nTblAddress = null;    // Name Table Address. 0=0x2000,1=0x2400,2=0x2800,3=0x2C00
-    
-    
-    // Control Flags Register 2:
-    this.f_color = null;             // Background color. 0=black, 1=blue, 2=green, 4=red
-    this.f_spVisibility = null;   // Sprite visibility. 0=not displayed,1=displayed
-    this.f_bgVisibility = null;   // Background visibility. 0=Not Displayed,1=displayed
-    this.f_spClipping = null;     // Sprite clipping. 0=Sprites invisible in left 8-pixel column,1=No clipping
-    this.f_bgClipping = null;     // Background clipping. 0=BG invisible in left 8-pixel column, 1=No clipping
-    this.f_dispType = null;       // Display type. 0=color, 1=monochrome
+    this.reset();
+}
 
-
+NES.PPU.prototype = {
     // Status flags:
-    this.STATUS_VRAMWRITE = 4;
-    this.STATUS_SLSPRITECOUNT = 5;
-    this.STATUS_SPRITE0HIT = 6;
-    this.STATUS_VBLANK = 7;
+    STATUS_VRAMWRITE: 4,
+    STATUS_SLSPRITECOUNT: 5,
+    STATUS_SPRITE0HIT: 6,
+    STATUS_VBLANK: 7,
     
-    
-    // VRAM I/O:
-    this.vramAddress = null;
-    this.vramTmpAddress = null;
-    this.vramBufferedReadValue = null;
-    this.firstWrite=true;       // VRAM/Scroll Hi/Lo latch
-    
-    
-    this.vramMirrorTable = null;            // Mirroring Lookup Table.
-    
-    // SPR-RAM I/O:
-    this.sramAddress = null; // 8-bit only.
-    
-    // Counters:
-    this.cntFV = null;
-    this.cntV = null;
-    this.cntH = null;
-    this.cntVT = null;
-    this.cntHT = null;
-    
-    // Registers:
-    this.regFV = null;
-    this.regV = null;
-    this.regH = null;
-    this.regVT = null;
-    this.regHT = null;
-    this.regFH = null;
-    this.regS = null;
-    
-    this.curX = null;
-    this.scanline = null;
-    this.lastRenderedScanline = null;
-    this.mapperIrqCounter = null;
-    
-    
-    // Sprite data:
-    this.sprX = null;               // X coordinate
-    this.sprY = null;               // Y coordinate
-    this.sprTile = null;            // Tile Index (into pattern table)
-    this.sprCol = null;         // Upper two bits of color
-    this.vertFlip = null;       // Vertical Flip
-    this.horiFlip = null;       // Horizontal Flip
-    this.bgPriority = null; // Background priority
-    this.spr0HitX = null;   // Sprite #0 hit X coordinate
-    this.spr0HitY = null;   // Sprite #0 hit Y coordinate
-    this.hitSpr0 = null;
-    
-    // Tiles:
-    this.ptTile = null;
-    
-    
-    // Name table data:
-    this.ntable1 = new Array(4);
-    this.nameTable = null;
-    this.currentMirroring = -1;
-    
-    // Palette data:
-    this.sprPalette = new Array(16);
-    this.imgPalette = new Array(16);
-    
-    // Misc:
-    this.scanlineAlreadyRendered = null;
-    this.requestEndFrame = null;
-    this.nmiOk = null;
-    this.nmiCounter = null;
-    this.tmp = null;
-    this.dummyCycleToggle = null;
-    
-    // Variables used when rendering:
-    this.attrib = new Array(32);
-    this.buffer = new Array(256*240);
-    this.prevBuffer = new Array(256*240);
-    this.bgbuffer = new Array(256*240);
-    this.pixrendered = new Array(256*240);
-    this.spr0dummybuffer = new Array(256*240);
-    this.dummyPixPriTable = new Array(256*240);
-    
-    this.validTileData = null;
-    
-    this.scantile = new Array(32);
-    
-    // These are temporary variables used in rendering and sound procedures.
-    // Their states outside of those procedures can be ignored.
-    // TODO: the use of this is a bit weird, investigate
-    this.curNt = null;
-    
-    this.init = function() {
+    reset: function() {
+        // VRAM I/O:
+        this.vramAddress = null;
+        this.vramTmpAddress = null;
+        this.vramBufferedReadValue = 0;
+        this.firstWrite = true;       // VRAM/Scroll Hi/Lo latch
+
+        // SPR-RAM I/O:
+        this.sramAddress = 0; // 8-bit only.
+        
+        this.mapperIrqCounter     = 0;
+        this.currentMirroring = -1;
+        this.requestEndFrame = false;
+        this.nmiOk = false;
+        this.dummyCycleToggle = false;
+        this.validTileData = false;
+        this.nmiCounter = 0;
+        this.scanlineAlreadyRendered = null;
+        
+        // Control Flags Register 1:
+        this.f_nmiOnVblank = 0;    // NMI on VBlank. 0=disable, 1=enable
+        this.f_spriteSize = 0;     // Sprite size. 0=8x8, 1=8x16
+        this.f_bgPatternTable = 0; // Background Pattern Table address. 0=0x0000,1=0x1000
+        this.f_spPatternTable = 0; // Sprite Pattern Table address. 0=0x0000,1=0x1000
+        this.f_addrInc = 0;        // PPU Address Increment. 0=1,1=32
+        this.f_nTblAddress = 0;    // Name Table Address. 0=0x2000,1=0x2400,2=0x2800,3=0x2C00
+        
+        // Control Flags Register 2:
+        this.f_color = 0;         // Background color. 0=black, 1=blue, 2=green, 4=red
+        this.f_spVisibility = 0;   // Sprite visibility. 0=not displayed,1=displayed
+        this.f_bgVisibility = 0;   // Background visibility. 0=Not Displayed,1=displayed
+        this.f_spClipping = 0;     // Sprite clipping. 0=Sprites invisible in left 8-pixel column,1=No clipping
+        this.f_bgClipping = 0;     // Background clipping. 0=BG invisible in left 8-pixel column, 1=No clipping
+        this.f_dispType = 0;       // Display type. 0=color, 1=monochrome
+        
+        // Counters:
+        this.cntFV = 0;
+        this.cntV = 0;
+        this.cntH = 0;
+        this.cntVT = 0;
+        this.cntHT = 0;
+        
+        // Registers:
+        this.regFV = 0;
+        this.regV = 0;
+        this.regH = 0;
+        this.regVT = 0;
+        this.regHT = 0;
+        this.regFH = 0;
+        this.regS = 0;
+        
         // Get the memory:
         this.ppuMem = this.nes.ppuMem;
         this.sprMem = this.nes.sprMem;
         
-        this.updateControlReg1(0);
-        this.updateControlReg2(0);
+        // These are temporary variables used in rendering and sound procedures.
+        // Their states outside of those procedures can be ignored.
+        // TODO: the use of this is a bit weird, investigate
+        this.curNt = null;
+        
+        // Variables used when rendering:
+        this.attrib = new Array(32);
+        this.buffer = new Array(256*240);
+        this.prevBuffer = new Array(256*240);
+        this.bgbuffer = new Array(256*240);
+        this.pixrendered = new Array(256*240);
+        this.spr0dummybuffer = new Array(256*240);
+        this.dummyPixPriTable = new Array(256*240);
+
+        this.validTileData = null;
+
+        this.scantile = new Array(32);
         
         // Initialize misc vars:
         this.scanline = 0;
+        this.lastRenderedScanline = -1;
+        this.curX = 0;
         
-        // Create sprite arrays:
-        this.sprX = new Array(64);
-        this.sprY = new Array(64);
-        this.sprTile = new Array(64);
-        this.sprCol = new Array(64);
-        this.vertFlip = new Array(64);
-        this.horiFlip = new Array(64);
-        this.bgPriority = new Array(64);
+        // Sprite data:
+        this.sprX = new Array(64); // X coordinate
+        this.sprY = new Array(64); // Y coordinate
+        this.sprTile = new Array(64); // Tile Index (into pattern table)
+        this.sprCol = new Array(64); // Upper two bits of color
+        this.vertFlip = new Array(64); // Vertical Flip
+        this.horiFlip = new Array(64); // Horizontal Flip
+        this.bgPriority = new Array(64); // Background priority
+        this.spr0HitX = 0; // Sprite #0 hit X coordinate
+        this.spr0HitY = 0; // Sprite #0 hit Y coordinate
+        this.hitSpr0 = false;
+        
+        // Palette data:
+        this.sprPalette = new Array(16);
+        this.imgPalette = new Array(16);
         
         // Create pattern table tile buffers:
-        if(this.ptTile==null){
-            this.ptTile = new Array(512);
-            for(var i=0;i<512;i++){
-                this.ptTile[i] = new Tile();
-            }
+        this.ptTile = new Array(512);
+        for(var i=0;i<512;i++){
+            this.ptTile[i] = new NES.PPU.Tile();
         }
         
         // Create nametable buffers:
+        // Name table data:
+        this.ntable1 = new Array(4);
+        this.currentMirroring = -1;
         this.nameTable = new Array(4);
         for(var i=0;i<4;i++){
-            this.nameTable[i] = new NameTable(32,32,"Nt"+i);
+            this.nameTable[i] = new NES.PPU.NameTable(32, 32, "Nt"+i);
         }
         
         // Initialize mirroring lookup table:
@@ -160,14 +131,16 @@ function PPU(nes) {
             this.vramMirrorTable[i] = i;
         }
         
-        this.lastRenderedScanline = -1;
-        this.curX = 0;
+        this.palTable = new NES.PPU.PaletteTable();
+        this.palTable.loadNTSCPalette();
+        //this.palTable.loadDefaultPalette();
         
-    }
-    
+        this.updateControlReg1(0);
+        this.updateControlReg2(0);
+    },
     
     // Sets Nametable mirroring.
-    this.setMirroring = function(mirroring){
+    setMirroring: function(mirroring){
     
         if(mirroring == this.currentMirroring){
             return;
@@ -195,8 +168,6 @@ function PPU(nes) {
         this.defineMirrorRegion(0x4000,0x0000,0x4000);
     
         if(mirroring == this.nes.rom.HORIZONTAL_MIRRORING){
-            
-            
             // Horizontal mirroring.
             
             this.ntable1[0] = 0;
@@ -208,7 +179,6 @@ function PPU(nes) {
             this.defineMirrorRegion(0x2c00,0x2800,0x400);
             
         }else if(mirroring == this.nes.rom.VERTICAL_MIRRORING){
-            
             // Vertical mirroring.
             
             this.ntable1[0] = 0;
@@ -255,21 +225,19 @@ function PPU(nes) {
             
         }   
         
-    }
+    },
     
     
     // Define a mirrored area in the address lookup table.
     // Assumes the regions don't overlap.
     // The 'to' region is the region that is physically in memory.
-    this.defineMirrorRegion = function(fromStart, toStart, size){
-        
+    defineMirrorRegion: function(fromStart, toStart, size){
         for(var i=0;i<size;i++){
             this.vramMirrorTable[fromStart+i] = toStart+i;
         }
-        
-    }
+    },
     
-    this.startVBlank = function(){
+    startVBlank: function(){
         
         // Do NMI:
         this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NMI);
@@ -286,11 +254,9 @@ function PPU(nes) {
         
         // Reset scanline counter:
         this.lastRenderedScanline = -1;
-        
-        
-    }
+    },
     
-    this.endScanline = function(){
+    endScanline: function(){
         switch (this.scanline) {
             case 19:
                 // Dummy scanline.
@@ -340,7 +306,7 @@ function PPU(nes) {
 
                 if(this.f_bgVisibility==1 || this.f_spVisibility==1){
                     // Clock mapper IRQ Counter:
-                    this.nes.memMapper.clockIrqCounter();
+                    this.nes.mmap.clockIrqCounter();
                 }
                 break;
                 
@@ -386,7 +352,7 @@ function PPU(nes) {
 
                     if(this.f_bgVisibility==1 || this.f_spVisibility==1){
                         // Clock mapper IRQ Counter:
-                        this.nes.memMapper.clockIrqCounter();
+                        this.nes.mmap.clockIrqCounter();
                     }
                 }
         }
@@ -395,11 +361,9 @@ function PPU(nes) {
         this.regsToAddress();
         this.cntsToAddress();
         
-    }
+    },
     
-    
-    this.startFrame = function(){
-        
+    startFrame: function(){    
         // Set background color:
         var bgColor=0;
         
@@ -453,9 +417,9 @@ function PPU(nes) {
             pixrendered[i]=65;
         }
         
-    }
+    },
     
-    this.endFrame = function(){
+    endFrame: function(){
 
         var buffer = this.buffer;
         
@@ -512,7 +476,7 @@ function PPU(nes) {
             }
         }
         
-        if (Globals.showDisplay) {
+        if (this.nes.opts.showDisplay) {
             var imageData = this.nes.imageData.data, prevBuffer = this.prevBuffer;
         
             for (var i=0;i<256*240;i++) {
@@ -527,9 +491,9 @@ function PPU(nes) {
                 }
             }
         }
-    }
+    },
     
-    this.updateControlReg1 = function(value){
+    updateControlReg1: function(value){
         
         this.triggerRendering();
         
@@ -544,11 +508,9 @@ function PPU(nes) {
         this.regH = value&1;
         this.regS = (value>>4)&1;
         
-    }
+    },
     
-    
-    
-    this.updateControlReg2 = function(value){
+    updateControlReg2: function(value){
         
         this.triggerRendering();
         
@@ -560,24 +522,22 @@ function PPU(nes) {
         this.f_dispType =      value&1;
         
         if(this.f_dispType == 0){
-            this.nes.palTable.setEmphasis(this.f_color);
+            this.palTable.setEmphasis(this.f_color);
         }
         this.updatePalettes();
-        
-    }
+    },
     
-    
-    this.setStatusFlag = function(flag, value){
+    setStatusFlag: function(flag, value){
         var n = 1<<flag;
         this.nes.cpuMem[0x2002] = 
             ((this.nes.cpuMem[0x2002]&(255-n))|(value?n:0));
-    }
+    },
     
     // CPU Register $2002:
     // Read the Status Register.
-    this.readStatusRegister = function(){
+    readStatusRegister: function(){
         
-        this.tmp = this.nes.cpuMem[0x2002];
+        var tmp = this.nes.cpuMem[0x2002];
         
         // Reset scroll & VRAM Address toggle:
         this.firstWrite = true;
@@ -586,47 +546,42 @@ function PPU(nes) {
         this.setStatusFlag(this.STATUS_VBLANK,false);
         
         // Fetch status data:
-        return this.tmp;
+        return tmp;
         
-    }
-    
-    
+    },
     
     // CPU Register $2003:
     // Write the SPR-RAM address that is used for sramWrite (Register 0x2004 in CPU memory map)
-    this.writeSRAMAddress = function(address){
+    writeSRAMAddress: function(address){
         this.sramAddress = address;
-    }
-    
+    },
     
     // CPU Register $2004 (R):
     // Read from SPR-RAM (Sprite RAM).
     // The address should be set first.
-    this.sramLoad = function(){
+    sramLoad: function(){
         /*short tmp = sprMem.load(sramAddress);
         sramAddress++; // Increment address
         sramAddress%=0x100;
         return tmp;*/
         return this.sprMem[this.sramAddress]
-    }
-    
+    },
     
     // CPU Register $2004 (W):
     // Write to SPR-RAM (Sprite RAM).
     // The address should be set first.
-    this.sramWrite = function(value){
+    sramWrite: function(value){
         this.sprMem[this.sramAddress] = value;
         this.spriteRamWriteUpdate(this.sramAddress,value);
         this.sramAddress++; // Increment address
         this.sramAddress%=0x100;
-    }
-    
+    },
     
     // CPU Register $2005:
     // Write to scroll registers.
     // The first write is the vertical offset, the second is the
     // horizontal offset:
-    this.scrollWrite = function(value){
+    scrollWrite: function(value){
         this.triggerRendering();
         
         if(this.firstWrite){
@@ -643,14 +598,12 @@ function PPU(nes) {
         }
         this.firstWrite = !this.firstWrite;
         
-    }
-    
-    
+    },
     
     // CPU Register $2006:
     // Sets the adress used when reading/writing from/to VRAM.
     // The first write sets the high byte, the second the low byte.
-    this.writeVRAMAddress = function(address){
+    writeVRAMAddress: function(address){
         
         if(this.firstWrite){
             
@@ -680,14 +633,13 @@ function PPU(nes) {
         // Invoke mapper latch:
         this.cntsToAddress();
         if(this.vramAddress < 0x2000){
-            this.nes.memMapper.latchAccess(this.vramAddress);
+            this.nes.mmap.latchAccess(this.vramAddress);
         }   
-    }
-    
+    },
     
     // CPU Register $2007(R):
     // Read from PPU memory. The address should be set first.
-    this.vramLoad = function(){
+    vramLoad: function(){
         
         this.cntsToAddress();
         this.regsToAddress();
@@ -706,7 +658,7 @@ function PPU(nes) {
             
             // Mapper latch access:
             if(this.vramAddress < 0x2000){
-                this.nes.memMapper.latchAccess(this.vramAddress);
+                this.nes.mmap.latchAccess(this.vramAddress);
             }
             
             // Increment by either 1 or 32, depending on d2 of Control Register 1:
@@ -729,11 +681,11 @@ function PPU(nes) {
         
         return tmp;
         
-    }
+    },
     
     // CPU Register $2007(W):
     // Write to PPU memory. The address should be set first.
-    this.vramWrite = function(value){
+    vramWrite: function(value){
         
         this.triggerRendering();
         this.cntsToAddress();
@@ -748,7 +700,7 @@ function PPU(nes) {
             this.writeMem(this.vramAddress,value);
             
             // Invoke mapper latch:
-            this.nes.memMapper.latchAccess(this.vramAddress);
+            this.nes.mmap.latchAccess(this.vramAddress);
             
         }
         
@@ -757,12 +709,12 @@ function PPU(nes) {
         this.regsFromAddress();
         this.cntsFromAddress();
         
-    }
+    },
     
     // CPU Register $4014:
     // Write 256 bytes of main memory
     // into Sprite RAM.
-    this.sramDMA = function(value){
+    sramDMA: function(value){
         var baseAddress = value * 0x100;
         var data;
         for(var i=this.sramAddress;i<256;i++){
@@ -773,10 +725,10 @@ function PPU(nes) {
         
         this.nes.cpu.haltCycles(513);
         
-    }
+    },
     
     // Updates the scroll registers from a new VRAM address.
-    this.regsFromAddress = function(){
+    regsFromAddress: function(){
         
         var address = (this.vramTmpAddress>>8)&0xFF;
         this.regFV = (address>>4)&7;
@@ -787,10 +739,10 @@ function PPU(nes) {
         address = this.vramTmpAddress&0xFF;
         this.regVT = (this.regVT&24) | ((address>>5)&7);
         this.regHT = address&31;
-    }
+    },
     
     // Updates the scroll registers from a new VRAM address.
-    this.cntsFromAddress = function(){
+    cntsFromAddress: function(){
         
         var address = (this.vramAddress>>8)&0xFF;
         this.cntFV = (address>>4)&3;
@@ -802,9 +754,9 @@ function PPU(nes) {
         this.cntVT = (this.cntVT&24) | ((address>>5)&7);
         this.cntHT = address&31;
         
-    }
+    },
     
-    this.regsToAddress = function(){
+    regsToAddress: function(){
         var b1  = (this.regFV&7)<<4;
         b1 |= (this.regV&1)<<3;
         b1 |= (this.regH&1)<<2;
@@ -814,9 +766,9 @@ function PPU(nes) {
         b2 |= this.regHT&31;
         
         this.vramTmpAddress = ((b1<<8) | b2)&0x7FFF;
-    }
+    },
     
-    this.cntsToAddress = function(){
+    cntsToAddress: function(){
         var b1  = (this.cntFV&7)<<4;
         b1 |= (this.cntV&1)<<3;
         b1 |= (this.cntH&1)<<2;
@@ -826,10 +778,9 @@ function PPU(nes) {
         b2 |= this.cntHT&31;
         
         this.vramAddress = ((b1<<8) | b2)&0x7FFF;
-    }
+    },
     
-    this.incTileCounter = function(count){
-        
+    incTileCounter: function(count){  
         for(var i=count; i!=0; i--){
             this.cntHT++;
             if(this.cntHT==32){
@@ -849,18 +800,17 @@ function PPU(nes) {
                 }
             }
         }
-        
-    }
+    },
     
     // Reads from memory, taking into account
     // mirroring/mapping of address ranges.
-    this.mirroredLoad = function(address){
+    mirroredLoad: function(address){
         return this.ppuMem[this.vramMirrorTable[address]];
-    }
+    },
     
     // Writes to memory, taking into account
     // mirroring/mapping of address ranges.
-    this.mirroredWrite = function(address, value){
+    mirroredWrite: function(address, value){
         if(address>=0x3f00 && address<0x3f20){
             // Palette write mirroring.
             if(address==0x3F00 || address==0x3F10){
@@ -897,13 +847,10 @@ function PPU(nes) {
             }
             
         }
-        
-    }
+    },
     
-    this.triggerRendering = function(){
-        
+    triggerRendering: function(){
         if(this.scanline >= 21 && this.scanline <= 260){
-            
             // Render sprites, and combine:
             this.renderFramePartially(
                 this.lastRenderedScanline+1,
@@ -912,13 +859,10 @@ function PPU(nes) {
             
             // Set last rendered scanline:
             this.lastRenderedScanline = this.scanline-21;
-            
         }
-        
-    }
+    },
     
-    this.renderFramePartially = function(startScan, scanCount){
-        
+    renderFramePartially: function(startScan, scanCount){
         if(this.f_spVisibility == 1){
             this.renderSpritesPartially(startScan,scanCount,true);
         }
@@ -941,12 +885,10 @@ function PPU(nes) {
             this.renderSpritesPartially(startScan,scanCount,false);
         }
         
-        
         this.validTileData = false;
-        
-    }
+    },
     
-    this.renderBgScanline = function(bgbuffer, scan){
+    renderBgScanline: function(bgbuffer, scan){
 
         var baseTile = (this.regS==0?0:256);
         var destIndex = (scan<<8)-this.regFH;
@@ -1055,10 +997,9 @@ function PPU(nes) {
             this.validTileData = false;
             
         }
-        
-    }
+    },
     
-    this.renderSpritesPartially = function(startscan, scancount, bgPri){
+    renderSpritesPartially: function(startscan, scancount, bgPri){
         if(this.f_spVisibility==1){
             
             var sprT1,sprT2;
@@ -1081,9 +1022,14 @@ function PPU(nes) {
                         }
                         
                         if(this.f_spPatternTable==0){
-                            this.ptTile[this.sprTile[i]].render(0, this.srcy1, 8, this.srcy2, this.sprX[i], this.sprY[i]+1, this.sprCol[i], this.sprPalette, this.horiFlip[i], this.vertFlip[i], i, this.pixrendered);
+                            this.ptTile[this.sprTile[i]].render(this.buffer, 
+                                0, this.srcy1, 8, this.srcy2, this.sprX[i], 
+                                this.sprY[i]+1, this.sprCol[i], this.sprPalette, 
+                                this.horiFlip[i], this.vertFlip[i], i, 
+                                this.pixrendered
+                            );
                         }else{
-                            this.ptTile[this.sprTile[i]+256].render(0, this.srcy1, 8, this.srcy2, this.sprX[i], this.sprY[i]+1, this.sprCol[i], this.sprPalette, this.horiFlip[i], this.vertFlip[i], i, this.pixrendered);
+                            this.ptTile[this.sprTile[i]+256].render(this.buffer, 0, this.srcy1, 8, this.srcy2, this.sprX[i], this.sprY[i]+1, this.sprCol[i], this.sprPalette, this.horiFlip[i], this.vertFlip[i], i, this.pixrendered);
                         }
                     }else{
                         // 8x16 sprites
@@ -1103,7 +1049,9 @@ function PPU(nes) {
                             srcy2 = startscan+scancount-this.sprY[i];
                         }
                         
-                        this.ptTile[top+(this.vertFlip[i]?1:0)].render(0,
+                        this.ptTile[top+(this.vertFlip[i]?1:0)].render(
+                            this.buffer,
+                            0,
                             srcy1,
                             8,
                             srcy2,
@@ -1129,6 +1077,7 @@ function PPU(nes) {
                         }
                         
                         this.ptTile[top+(this.vertFlip[i]?0:1)].render(
+                            this.buffer,
                             0,
                             srcy1,
                             8,
@@ -1147,10 +1096,9 @@ function PPU(nes) {
                 }
             }
         }
-        
-    }
+    },
     
-    this.checkSprite0 = function(scan){
+    checkSprite0: function(scan){
         
         this.spr0HitX = -1;
         this.spr0HitY = -1;
@@ -1287,13 +1235,12 @@ function PPU(nes) {
         }
         
         return false;
-        
-    }
+    },
     
     // This will write to PPU memory, and
     // update internally buffered data
     // appropriately.
-    this.writeMem = function(address, value){
+    writeMem: function(address, value){
         
         this.ppuMem[address] = value;
         
@@ -1340,40 +1287,36 @@ function PPU(nes) {
             this.updatePalettes();
             
         }
-        
-    }
+    },
     
     // Reads data from $3f00 to $f20 
     // into the two buffered palettes.
-    this.updatePalettes = function(){
+    updatePalettes: function(){
         
         for(var i=0;i<16;i++){
             if(this.f_dispType == 0){
-                this.imgPalette[i] = this.nes.palTable.getEntry(
+                this.imgPalette[i] = this.palTable.getEntry(
                                         this.ppuMem[0x3f00+i]&63);
             }else{
-                this.imgPalette[i] = this.nes.palTable.getEntry(
+                this.imgPalette[i] = this.palTable.getEntry(
                                         this.ppuMem[0x3f00+i]&32);
             }
         }
         for(var i=0;i<16;i++){
             if(this.f_dispType == 0){
-                this.sprPalette[i] = this.nes.palTable.getEntry(
+                this.sprPalette[i] = this.palTable.getEntry(
                                         this.ppuMem[0x3f10+i]&63);
             }else{
-                this.sprPalette[i] = this.nes.palTable.getEntry(
+                this.sprPalette[i] = this.palTable.getEntry(
                                         this.ppuMem[0x3f10+i]&32);
             }
         }
-        
-        //renderPalettes();
-        
-    }
+    },
     
     // Updates the internal pattern
     // table buffers with this new byte.
     // In vNES, there is a version of this with 4 arguments which isn't used.
-    this.patternWrite = function(address, value){
+    patternWrite: function(address, value){
         var tileIndex = parseInt(address/16);
         var leftOver = address%16;
         if(leftOver<8){
@@ -1383,30 +1326,28 @@ function PPU(nes) {
             this.ptTile[tileIndex].setScanline(
                 leftOver-8, this.ppuMem[address-8], value);
         }
-    }
+    },
 
     // Updates the internal name table buffers
     // with this new byte.
-    this.nameTableWrite = function(index, address, value){
+    nameTableWrite: function(index, address, value){
         this.nameTable[index].tile[address] = value;
         
         // Update Sprite #0 hit:
         //updateSpr0Hit();
         this.checkSprite0(this.scanline-20);
-        
-    }
+    },
     
     // Updates the internal pattern
     // table buffers with this new attribute
     // table byte.
-    this.attribTableWrite = function(index, address, value){
+    attribTableWrite: function(index, address, value){
         this.nameTable[index].writeAttrib(address,value);
-    }
+    },
     
     // Updates the internally buffered sprite
     // data with this new byte of info.
-    this.spriteRamWriteUpdate = function(address, value){
-        
+    spriteRamWriteUpdate: function(address, value){
         var tIndex = parseInt(address/4);
         
         if(tIndex == 0){
@@ -1431,73 +1372,371 @@ function PPU(nes) {
             // X coordinate
             this.sprX[tIndex] = value;
         }
-        
-    }
+    },
     
-    this.doNMI = function(){
-        
+    doNMI: function(){
         // Set VBlank flag:
         this.setStatusFlag(this.STATUS_VBLANK,true);
         //nes.getCpu().doNonMaskableInterrupt();
         this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NMI);
-        
-    }
-    
-    this.reset = function() {
-        
-        this.vramBufferedReadValue = 0;
-        this.sramAddress           = 0;
-        this.curX                  = 0;
-        this.scanline              = 0;
-        this.lastRenderedScanline  = 0;
-        this.spr0HitX              = 0;
-        this.spr0HitY              = 0;
-        this.mapperIrqCounter     = 0;
-        
-        this.currentMirroring = -1;
-        
-        this.firstWrite = true;
-        this.requestEndFrame = false;
-        this.nmiOk = false;
-        this.hitSpr0 = false;
-        this.dummyCycleToggle = false;
-        this.validTileData = false;
-        this.nmiCounter = 0;
-        this.tmp = 0;
-        
-        // Control Flags Register 1:
-        this.f_nmiOnVblank = 0;    // NMI on VBlank. 0=disable, 1=enable
-        this.f_spriteSize = 0;     // Sprite size. 0=8x8, 1=8x16
-        this.f_bgPatternTable = 0; // Background Pattern Table address. 0=0x0000,1=0x1000
-        this.f_spPatternTable = 0; // Sprite Pattern Table address. 0=0x0000,1=0x1000
-        this.f_addrInc = 0;        // PPU Address Increment. 0=1,1=32
-        this.f_nTblAddress = 0;    // Name Table Address. 0=0x2000,1=0x2400,2=0x2800,3=0x2C00
-        
-        // Control Flags Register 2:
-        this.f_color = 0;         // Background color. 0=black, 1=blue, 2=green, 4=red
-        this.f_spVisibility = 0;   // Sprite visibility. 0=not displayed,1=displayed
-        this.f_bgVisibility = 0;   // Background visibility. 0=Not Displayed,1=displayed
-        this.f_spClipping = 0;     // Sprite clipping. 0=Sprites invisible in left 8-pixel column,1=No clipping
-        this.f_bgClipping = 0;     // Background clipping. 0=BG invisible in left 8-pixel column, 1=No clipping
-        this.f_dispType = 0;       // Display type. 0=color, 1=monochrome
-        // Counters:
-        this.cntFV = 0;
-        this.cntV = 0;
-        this.cntH = 0;
-        this.cntVT = 0;
-        this.cntHT = 0;
-        // Registers:
-        this.regFV = 0;
-        this.regV = 0;
-        this.regH = 0;
-        this.regVT = 0;
-        this.regHT = 0;
-        this.regFH = 0;
-        this.regS = 0;
-        
-        
-        // Initialize stuff:
-        this.init();
-        
     }
 }
+
+NES.PPU.NameTable = function(width, height, name) {   
+    this.width = width;
+    this.height = height;
+    this.name = name;
+    
+    this.tile = new Array(width*height);
+    this.attrib = new Array(width*height);
+}
+
+NES.PPU.NameTable.prototype = {
+    getTileIndex: function(x, y){
+        return this.tile[y*this.width+x];
+    },
+
+    getAttrib: function(x, y){
+        return this.attrib[y*this.width+x];
+    },
+
+    writeAttrib: function(index, value){
+        var basex = (index % 8) * 4;
+        var basey = parseInt(index / 8) * 4;
+        var add;
+        var tx, ty;
+        var attindex;
+    
+        for(var sqy=0;sqy<2;sqy++){
+            for(var sqx=0;sqx<2;sqx++){
+                add = (value>>(2*(sqy*2+sqx)))&3;
+                for(var y=0;y<2;y++){
+                    for(var x=0;x<2;x++){
+                        tx = basex+sqx*2+x;
+                        ty = basey+sqy*2+y;
+                        attindex = ty*this.width+tx;
+                        this.attrib[ty*this.width+tx] = (add<<2)&12;
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+NES.PPU.PaletteTable = function() {
+    this.curTable = new Array(64);
+    this.emphTable = new Array(8);
+    this.currentEmph = -1;
+}
+
+NES.PPU.PaletteTable.prototype = {
+    reset: function() {
+        this.setEmphasis(0);
+    },
+    
+    loadNTSCPalette: function() {
+        this.curTable = [0x525252, 0xB40000, 0xA00000, 0xB1003D, 0x740069, 0x00005B, 0x00005F, 0x001840, 0x002F10, 0x084A08, 0x006700, 0x124200, 0x6D2800, 0x000000, 0x000000, 0x000000, 0xC4D5E7, 0xFF4000, 0xDC0E22, 0xFF476B, 0xD7009F, 0x680AD7, 0x0019BC, 0x0054B1, 0x006A5B, 0x008C03, 0x00AB00, 0x2C8800, 0xA47200, 0x000000, 0x000000, 0x000000, 0xF8F8F8, 0xFFAB3C, 0xFF7981, 0xFF5BC5, 0xFF48F2, 0xDF49FF, 0x476DFF, 0x00B4F7, 0x00E0FF, 0x00E375, 0x03F42B, 0x78B82E, 0xE5E218, 0x787878, 0x000000, 0x000000, 0xFFFFFF, 0xFFF2BE, 0xF8B8B8, 0xF8B8D8, 0xFFB6FF, 0xFFC3FF, 0xC7D1FF, 0x9ADAFF, 0x88EDF8, 0x83FFDD, 0xB8F8B8, 0xF5F8AC, 0xFFFFB0, 0xF8D8F8, 0x000000, 0x000000];
+        this.makeTables();
+        this.setEmphasis(0);
+    },
+    
+    loadPALPalette: function() {
+        this.curTable = [0x525252, 0xB40000, 0xA00000, 0xB1003D, 0x740069, 0x00005B, 0x00005F, 0x001840, 0x002F10, 0x084A08, 0x006700, 0x124200, 0x6D2800, 0x000000, 0x000000, 0x000000, 0xC4D5E7, 0xFF4000, 0xDC0E22, 0xFF476B, 0xD7009F, 0x680AD7, 0x0019BC, 0x0054B1, 0x006A5B, 0x008C03, 0x00AB00, 0x2C8800, 0xA47200, 0x000000, 0x000000, 0x000000, 0xF8F8F8, 0xFFAB3C, 0xFF7981, 0xFF5BC5, 0xFF48F2, 0xDF49FF, 0x476DFF, 0x00B4F7, 0x00E0FF, 0x00E375, 0x03F42B, 0x78B82E, 0xE5E218, 0x787878, 0x000000, 0x000000, 0xFFFFFF, 0xFFF2BE, 0xF8B8B8, 0xF8B8D8, 0xFFB6FF, 0xFFC3FF, 0xC7D1FF, 0x9ADAFF, 0x88EDF8, 0x83FFDD, 0xB8F8B8, 0xF5F8AC, 0xFFFFB0, 0xF8D8F8, 0x000000, 0x000000];
+        this.makeTables();
+        this.setEmphasis(0);
+    },
+    
+    makeTables: function(){
+        var r,g,b,col;
+        
+        // Calculate a table for each possible emphasis setting:
+        for(var emph=0;emph<8;emph++){
+            
+            // Determine color component factors:
+            var rFactor=1.0, gFactor=1.0, bFactor=1.0;
+            if((emph&1)!=0){
+                rFactor = 0.75;
+                bFactor = 0.75;
+            }
+            if((emph&2)!=0){
+                rFactor = 0.75;
+                gFactor = 0.75;
+            }
+            if((emph&4)!=0){
+                gFactor = 0.75;
+                bFactor = 0.75;
+            }
+            
+            this.emphTable[emph] = new Array(64);
+            
+            // Calculate table:
+            for(var i=0;i<64;i++){
+                col = this.curTable[i];
+                r = parseInt(this.getRed(col) * rFactor);
+                g = parseInt(this.getGreen(col) * gFactor);
+                b = parseInt(this.getBlue(col) * bFactor);
+                this.emphTable[emph][i] = this.getRgb(r,g,b);
+            }
+        }
+    },
+    
+    setEmphasis: function(emph){
+        if(emph != this.currentEmph){
+            this.currentEmph = emph;
+            for(var i=0;i<64;i++){
+                this.curTable[i] = this.emphTable[emph][i];
+            }
+        }
+    },
+    
+    getEntry: function(yiq){
+        return this.curTable[yiq];
+    },
+    
+    getRed: function(rgb){
+        return (rgb>>16)&0xFF;
+    },
+    
+    getGreen: function(rgb){
+        return (rgb>>8)&0xFF;
+    },
+    
+    getBlue: function(rgb){
+        return rgb&0xFF;
+    },
+    
+    getRgb: function(r, g, b){
+        return ((r<<16)|(g<<8)|(b));
+    },
+    
+    loadDefaultPalette: function(){
+        this.curTable[ 0] = this.getRgb(117,117,117);
+        this.curTable[ 1] = this.getRgb( 39, 27,143);
+        this.curTable[ 2] = this.getRgb(  0,  0,171);
+        this.curTable[ 3] = this.getRgb( 71,  0,159);
+        this.curTable[ 4] = this.getRgb(143,  0,119);
+        this.curTable[ 5] = this.getRgb(171,  0, 19);
+        this.curTable[ 6] = this.getRgb(167,  0,  0);
+        this.curTable[ 7] = this.getRgb(127, 11,  0);
+        this.curTable[ 8] = this.getRgb( 67, 47,  0);
+        this.curTable[ 9] = this.getRgb(  0, 71,  0);
+        this.curTable[10] = this.getRgb(  0, 81,  0);
+        this.curTable[11] = this.getRgb(  0, 63, 23);
+        this.curTable[12] = this.getRgb( 27, 63, 95);
+        this.curTable[13] = this.getRgb(  0,  0,  0);
+        this.curTable[14] = this.getRgb(  0,  0,  0);
+        this.curTable[15] = this.getRgb(  0,  0,  0);
+        this.curTable[16] = this.getRgb(188,188,188);
+        this.curTable[17] = this.getRgb(  0,115,239);
+        this.curTable[18] = this.getRgb( 35, 59,239);
+        this.curTable[19] = this.getRgb(131,  0,243);
+        this.curTable[20] = this.getRgb(191,  0,191);
+        this.curTable[21] = this.getRgb(231,  0, 91);
+        this.curTable[22] = this.getRgb(219, 43,  0);
+        this.curTable[23] = this.getRgb(203, 79, 15);
+        this.curTable[24] = this.getRgb(139,115,  0);
+        this.curTable[25] = this.getRgb(  0,151,  0);
+        this.curTable[26] = this.getRgb(  0,171,  0);
+        this.curTable[27] = this.getRgb(  0,147, 59);
+        this.curTable[28] = this.getRgb(  0,131,139);
+        this.curTable[29] = this.getRgb(  0,  0,  0);
+        this.curTable[30] = this.getRgb(  0,  0,  0);
+        this.curTable[31] = this.getRgb(  0,  0,  0);
+        this.curTable[32] = this.getRgb(255,255,255);
+        this.curTable[33] = this.getRgb( 63,191,255);
+        this.curTable[34] = this.getRgb( 95,151,255);
+        this.curTable[35] = this.getRgb(167,139,253);
+        this.curTable[36] = this.getRgb(247,123,255);
+        this.curTable[37] = this.getRgb(255,119,183);
+        this.curTable[38] = this.getRgb(255,119, 99);
+        this.curTable[39] = this.getRgb(255,155, 59);
+        this.curTable[40] = this.getRgb(243,191, 63);
+        this.curTable[41] = this.getRgb(131,211, 19);
+        this.curTable[42] = this.getRgb( 79,223, 75);
+        this.curTable[43] = this.getRgb( 88,248,152);
+        this.curTable[44] = this.getRgb(  0,235,219);
+        this.curTable[45] = this.getRgb(  0,  0,  0);
+        this.curTable[46] = this.getRgb(  0,  0,  0);
+        this.curTable[47] = this.getRgb(  0,  0,  0);
+        this.curTable[48] = this.getRgb(255,255,255);
+        this.curTable[49] = this.getRgb(171,231,255);
+        this.curTable[50] = this.getRgb(199,215,255);
+        this.curTable[51] = this.getRgb(215,203,255);
+        this.curTable[52] = this.getRgb(255,199,255);
+        this.curTable[53] = this.getRgb(255,199,219);
+        this.curTable[54] = this.getRgb(255,191,179);
+        this.curTable[55] = this.getRgb(255,219,171);
+        this.curTable[56] = this.getRgb(255,231,163);
+        this.curTable[57] = this.getRgb(227,255,163);
+        this.curTable[58] = this.getRgb(171,243,191);
+        this.curTable[59] = this.getRgb(179,255,207);
+        this.curTable[60] = this.getRgb(159,255,243);
+        this.curTable[61] = this.getRgb(  0,  0,  0);
+        this.curTable[62] = this.getRgb(  0,  0,  0);
+        this.curTable[63] = this.getRgb(  0,  0,  0);
+        
+        this.makeTables();
+        this.setEmphasis(0);
+    }
+}
+
+NES.PPU.Tile = function() {
+    // Tile data:
+    this.pix = new Array(64);
+    
+    this.fbIndex = null;
+    this.tIndex = null;
+    this.x = null;
+    this.y = null;
+    this.w = null;
+    this.h = null;
+    this.incX = null;
+    this.incY = null;
+    this.palIndex = null;
+    this.tpri = null;
+    this.c = null;
+    this.initialized = false;
+    this.opaque = new Array(8);
+}
+    
+NES.PPU.Tile.prototype = {
+    setBuffer: function(scanline){
+        for(this.y=0;this.y<8;this.y++){
+            this.setScanline(this.y,scanline[this.y],scanline[this.y+8]);
+        }
+    },
+    
+    setScanline: function(sline, b1, b2){
+        this.initialized = true;
+        this.tIndex = sline<<3;
+        for(this.x=0;this.x<8;this.x++){
+            this.pix[this.tIndex+this.x] = ((b1>>(7-this.x))&1) 
+                    + (((b2>>(7-this.x))&1)<<1);
+            if(this.pix[this.tIndex+this.x]==0) this.opaque[sline]=false;
+        }
+    },
+    
+    render: function(buffer, srcx1, srcy1, srcx2, srcy2, dx, dy, palAdd, palette, flipHorizontal, flipVertical, pri, priTable) {
+
+        if(dx<-7 || dx>=256 || dy<-7 || dy>=240){
+            return;
+        }
+
+        this.w=srcx2-srcx1;
+        this.h=srcy2-srcy1;
+    
+        if(dx<0){
+            srcx1-=dx;
+        }
+        if(dx+srcx2>=256){
+            srcx2=256-dx;
+        }
+    
+        if(dy<0){
+            srcy1-=dy;
+        }
+        if(dy+srcy2>=240){
+            srcy2=240-dy;
+        }
+    
+        if(!flipHorizontal && !flipVertical){
+        
+            this.fbIndex = (dy<<8)+dx;
+            this.tIndex = 0;
+            for(this.y=0;this.y<8;this.y++){
+                for(this.x=0;this.x<8;this.x++){
+                    if(this.x>=srcx1 && this.x<srcx2 && this.y>=srcy1 && this.y<srcy2){
+                        this.palIndex = this.pix[this.tIndex];
+                        this.tpri = priTable[this.fbIndex];
+                        if(this.palIndex!=0 && pri<=(this.tpri&0xFF)){
+                            //console.log("Rendering upright tile to buffer");
+                            buffer[this.fbIndex] = palette[this.palIndex+palAdd];
+                            this.tpri = (this.tpri&0xF00)|pri;
+                            priTable[this.fbIndex] =this.tpri;
+                        }
+                    }
+                    this.fbIndex++;
+                    this.tIndex++;
+                }
+                this.fbIndex-=8;
+                this.fbIndex+=256;
+            }
+        
+        }else if(flipHorizontal && !flipVertical){
+        
+            this.fbIndex = (dy<<8)+dx;
+            this.tIndex = 7;
+            for(this.y=0;this.y<8;this.y++){
+                for(this.x=0;this.x<8;this.x++){
+                    if(this.x>=srcx1 && this.x<srcx2 && this.y>=srcy1 && this.y<srcy2){
+                        this.palIndex = this.pix[this.tIndex];
+                        this.tpri = priTable[this.fbIndex];
+                        if(this.palIndex!=0 && pri<=(this.tpri&0xFF)){
+                            buffer[this.fbIndex] = palette[this.palIndex+palAdd];
+                            this.tpri = (this.tpri&0xF00)|pri;
+                            priTable[this.fbIndex] =this.tpri;
+                        }
+                    }
+                    this.fbIndex++;
+                    this.tIndex--;
+                }
+                this.fbIndex-=8;
+                this.fbIndex+=256;
+                this.tIndex+=16;
+            }
+        
+        }else if(flipVertical && !flipHorizontal){
+        
+            this.fbIndex = (dy<<8)+dx;
+            this.tIndex = 56;
+            for(this.y=0;this.y<8;this.y++){
+                for(this.x=0;this.x<8;this.x++){
+                    if(this.x>=srcx1 && this.x<srcx2 && this.y>=srcy1 && this.y<srcy2){
+                        this.palIndex = this.pix[this.tIndex];
+                        this.tpri = priTable[this.fbIndex];
+                        if(this.palIndex!=0 && pri<=(this.tpri&0xFF)){
+                            buffer[this.fbIndex] = palette[this.palIndex+palAdd];
+                            this.tpri = (this.tpri&0xF00)|pri;
+                            priTable[this.fbIndex] =this.tpri;
+                        }
+                    }
+                    this.fbIndex++;
+                    this.tIndex++;
+                }
+                this.fbIndex-=8;
+                this.fbIndex+=256;
+                this.tIndex-=16;
+            }
+        
+        }else{
+        
+            this.fbIndex = (dy<<8)+dx;
+            this.tIndex = 63;
+            for(this.y=0;this.y<8;this.y++){
+                for(this.x=0;this.x<8;this.x++){
+                    if(this.x>=srcx1 && this.x<srcx2 && this.y>=srcy1 && this.y<srcy2){
+                        this.palIndex = this.pix[this.tIndex];
+                        this.tpri = priTable[this.fbIndex];
+                        if(this.palIndex!=0 && pri<=(this.tpri&0xFF)){
+                            buffer[this.fbIndex] = palette[this.palIndex+palAdd];
+                            this.tpri = (this.tpri&0xF00)|pri;
+                            priTable[this.fbIndex] =this.tpri;
+                        }
+                    }
+                    this.fbIndex++;
+                    this.tIndex--;
+                }
+                this.fbIndex-=8;
+                this.fbIndex+=256;
+            }
+        
+        }
+    
+    },
+    
+    isTransparent: function(x, y){
+        return (this.pix[(y<<3)+x]==0);
+    }
+}
+
