@@ -3,7 +3,6 @@ NES.PPU = function(nes) {
     
     // Rendering Options:
     this.showSpr0Hit = false;
-    this.showSoundBuffer = false;
     this.clipToTvSize = true;
     
     this.reset();
@@ -17,6 +16,16 @@ NES.PPU.prototype = {
     STATUS_VBLANK: 7,
     
     reset: function() {
+        // Memory
+        this.vramMem = new Array(0x8000);
+        this.spriteMem = new Array(0x100);
+        for (var i=0; i<this.vramMem.length; i++) {
+            this.vramMem[i] = 0;
+        }
+        for (var i=0; i<this.spriteMem.length; i++) {
+            this.spriteMem[i] = 0;
+        }
+        
         // VRAM I/O:
         this.vramAddress = null;
         this.vramTmpAddress = null;
@@ -66,10 +75,6 @@ NES.PPU.prototype = {
         this.regHT = 0;
         this.regFH = 0;
         this.regS = 0;
-        
-        // Get the memory:
-        this.ppuMem = this.nes.ppuMem;
-        this.sprMem = this.nes.sprMem;
         
         // These are temporary variables used in rendering and sound procedures.
         // Their states outside of those procedures can be ignored.
@@ -529,15 +534,15 @@ NES.PPU.prototype = {
     
     setStatusFlag: function(flag, value){
         var n = 1<<flag;
-        this.nes.cpuMem[0x2002] = 
-            ((this.nes.cpuMem[0x2002]&(255-n))|(value?n:0));
+        this.nes.cpu.mem[0x2002] = 
+            ((this.nes.cpu.mem[0x2002] & (255-n)) | (value?n:0));
     },
     
     // CPU Register $2002:
     // Read the Status Register.
     readStatusRegister: function(){
         
-        var tmp = this.nes.cpuMem[0x2002];
+        var tmp = this.nes.cpu.mem[0x2002];
         
         // Reset scroll & VRAM Address toggle:
         this.firstWrite = true;
@@ -564,17 +569,17 @@ NES.PPU.prototype = {
         sramAddress++; // Increment address
         sramAddress%=0x100;
         return tmp;*/
-        return this.sprMem[this.sramAddress]
+        return this.spriteMem[this.sramAddress]
     },
     
     // CPU Register $2004 (W):
     // Write to SPR-RAM (Sprite RAM).
     // The address should be set first.
     sramWrite: function(value){
-        this.sprMem[this.sramAddress] = value;
+        this.spriteMem[this.sramAddress] = value;
         this.spriteRamWriteUpdate(this.sramAddress,value);
         this.sramAddress++; // Increment address
-        this.sramAddress%=0x100;
+        this.sramAddress %= 0x100;
     },
     
     // CPU Register $2005:
@@ -651,7 +656,7 @@ NES.PPU.prototype = {
         
             // Update buffered value:
             if(this.vramAddress < 0x2000){
-                this.vramBufferedReadValue = this.ppuMem[this.vramAddress];
+                this.vramBufferedReadValue = this.vramMem[this.vramAddress];
             }else{
                 this.vramBufferedReadValue = this.mirroredLoad(this.vramAddress);
             }
@@ -717,9 +722,9 @@ NES.PPU.prototype = {
     sramDMA: function(value){
         var baseAddress = value * 0x100;
         var data;
-        for(var i=this.sramAddress;i<256;i++){
-            data = this.nes.cpuMem[baseAddress+i];
-            this.sprMem[i] = data;
+        for(var i=this.sramAddress; i < 256; i++){
+            data = this.nes.cpu.mem[baseAddress+i];
+            this.spriteMem[i] = data;
             this.spriteRamWriteUpdate(i, data);
         }
         
@@ -804,8 +809,8 @@ NES.PPU.prototype = {
     
     // Reads from memory, taking into account
     // mirroring/mapping of address ranges.
-    mirroredLoad: function(address){
-        return this.ppuMem[this.vramMirrorTable[address]];
+    mirroredLoad: function(address) {
+        return this.vramMem[this.vramMirrorTable[address]];
     },
     
     // Writes to memory, taking into account
@@ -1242,12 +1247,12 @@ NES.PPU.prototype = {
     // appropriately.
     writeMem: function(address, value){
         
-        this.ppuMem[address] = value;
+        this.vramMem[address] = value;
         
         // Update internally buffered data:
         if(address < 0x2000){
             
-            this.ppuMem[address] = value;
+            this.vramMem[address] = value;
             this.patternWrite(address,value);
             
         }else if(address >=0x2000 && address <0x23c0){
@@ -1294,21 +1299,27 @@ NES.PPU.prototype = {
     updatePalettes: function(){
         
         for(var i=0;i<16;i++){
-            if(this.f_dispType == 0){
+            if (this.f_dispType == 0) {
                 this.imgPalette[i] = this.palTable.getEntry(
-                                        this.ppuMem[0x3f00+i]&63);
-            }else{
+                    this.vramMem[0x3f00+i] & 63
+                );
+            }
+            else {
                 this.imgPalette[i] = this.palTable.getEntry(
-                                        this.ppuMem[0x3f00+i]&32);
+                    this.vramMem[0x3f00+i] & 32
+                );
             }
         }
         for(var i=0;i<16;i++){
-            if(this.f_dispType == 0){
+            if (this.f_dispType == 0) {
                 this.sprPalette[i] = this.palTable.getEntry(
-                                        this.ppuMem[0x3f10+i]&63);
-            }else{
+                    this.vramMem[0x3f10+i] & 63
+                );
+            }
+            else {
                 this.sprPalette[i] = this.palTable.getEntry(
-                                        this.ppuMem[0x3f10+i]&32);
+                    this.vramMem[0x3f10+i] & 32
+                );
             }
         }
     },
@@ -1319,12 +1330,19 @@ NES.PPU.prototype = {
     patternWrite: function(address, value){
         var tileIndex = parseInt(address/16);
         var leftOver = address%16;
-        if(leftOver<8){
+        if (leftOver<8) {
             this.ptTile[tileIndex].setScanline(
-                leftOver, value, this.ppuMem[address+8]);
-        }else{
+                leftOver,
+                value,
+                this.vramMem[address+8]
+            );
+        }
+        else {
             this.ptTile[tileIndex].setScanline(
-                leftOver-8, this.ppuMem[address-8], value);
+                leftOver-8,
+                this.vramMem[address-8],
+                value
+            );
         }
     },
 

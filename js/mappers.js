@@ -18,11 +18,11 @@ NES.Mappers[0].prototype = {
     write: function(address, value) {
         if (address < 0x2000) {
             // Mirroring of RAM:
-            this.nes.cpuMem[address & 0x7FF] = value;
+            this.nes.cpu.mem[address & 0x7FF] = value;
         
         }
         else if (address > 0x4017) {
-            this.nes.cpuMem[address] = value;
+            this.nes.cpu.mem[address] = value;
             if (address >= 0x6000 && address < 0x8000) {
                 // Write to SaveRAM. Store in file:
                 // TODO: not yet
@@ -45,7 +45,7 @@ NES.Mappers[0].prototype = {
         // Check address range:
         if (address > 0x4017) {
             // ROM:
-            return this.nes.cpuMem[address];
+            return this.nes.cpu.mem[address];
         }
         else if (address >= 0x2000) {
             // I/O Ports.
@@ -53,7 +53,7 @@ NES.Mappers[0].prototype = {
         }
         else {
             // RAM (mirrored)
-            return this.nes.cpuMem[address&0x7FF];
+            return this.nes.cpu.mem[address&0x7FF];
         }
     },
 
@@ -78,7 +78,7 @@ NES.Mappers[0].prototype = {
                         // in main memory and in the
                         // PPU as flags):
                         // (not in the real NES)
-                        return this.nes.cpuMem[0x2000];
+                        return this.nes.cpu.mem[0x2000];
                     }
                     case 0x1: {
                         // 0x2001:
@@ -87,7 +87,7 @@ NES.Mappers[0].prototype = {
                         // in main memory and in the
                         // PPU as flags):
                         // (not in the real NES)
-                        return this.nes.cpuMem[0x2001];
+                        return this.nes.cpu.mem[0x2001];
                     }
                     case 0x2:{
                     
@@ -187,14 +187,14 @@ NES.Mappers[0].prototype = {
             case 0x2000:{
             
                 // PPU Control register 1
-                this.nes.cpuMem[address] = value;
+                this.nes.cpu.mem[address] = value;
                 this.nes.ppu.updateControlReg1(value);
                 break;
             
             }case 0x2001:{
             
                 // PPU Control register 2
-                this.nes.cpuMem[address] = value;
+                this.nes.cpu.mem[address] = value;
                 this.nes.ppu.updateControlReg2(value);
                 break;
             
@@ -410,7 +410,7 @@ NES.Mappers[0].prototype = {
             var ram = this.nes.rom.batteryRam;
             if (ram!=null && ram.length==0x2000) {
                 // Load Battery RAM into memory:
-                NES.Utils.arraycopy(ram, 0, this.nes.cpuMem, 0x6000, 0x2000);
+                NES.Utils.arraycopy(ram, 0, this.nes.cpu.mem, 0x6000, 0x2000);
             }
         }
     },
@@ -420,7 +420,7 @@ NES.Mappers[0].prototype = {
         bank %= this.nes.rom.romCount;
         //var data = this.nes.rom.rom[bank];
         //cpuMem.write(address,data,data.length);
-        NES.Utils.arraycopy(this.nes.rom.rom[bank], 0, this.nes.cpuMem, address, 16384);
+        NES.Utils.arraycopy(this.nes.rom.rom[bank], 0, this.nes.cpu.mem, address, 16384);
     },
 
     loadVromBank: function(bank, address) {
@@ -429,8 +429,8 @@ NES.Mappers[0].prototype = {
         }
         this.nes.ppu.triggerRendering();
     
-        NES.Utils.arraycopy(this.nes.rom.vrom[bank%this.nes.rom.vromCount],0,
-            this.nes.ppuMem,address,4096);
+        NES.Utils.arraycopy(this.nes.rom.vrom[bank%this.nes.rom.vromCount], 0,
+            this.nes.ppu.vramMem, address, 4096);
     
         var vromTile = this.nes.rom.vromTile[bank%this.nes.rom.vromCount];
         NES.Utils.arraycopy(vromTile, 0, this.nes.ppu.ptTile,address >> 4, 256);
@@ -459,7 +459,7 @@ NES.Mappers[0].prototype = {
     
         var bank4k = parseInt(bank1k/4) % this.nes.rom.vromCount;
         var bankoffset = (bank1k%4)*1024;
-        NES.Utils.arraycopy(this.nes.rom.vrom[bank4k], 0, this.nes.ppuMem,
+        NES.Utils.arraycopy(this.nes.rom.vrom[bank4k], 0, this.nes.ppu.vramMem,
             bankoffset, 1024);
     
         // Update tiles:
@@ -479,7 +479,7 @@ NES.Mappers[0].prototype = {
         var bank4k = parseInt(bank2k/2)%this.nes.rom.vromCount;
         var bankoffset = (bank2k%2)*2048;
         NES.Utils.arraycopy(this.nes.rom.vrom[bank4k], bankoffset,
-            this.nes.ppuMem,address,2048);
+            this.nes.ppu.vramMem, address, 2048);
     
         // Update tiles:
         var vromTile = this.nes.rom.vromTile[bank4k];
@@ -494,9 +494,9 @@ NES.Mappers[0].prototype = {
         var bank16k = parseInt(bank8k/2)%this.nes.rom.romCount;
         var offset = (bank8k%2)*8192;
     
-        //this.nes.cpuMem.write(address,this.nes.rom.rom[bank16k],offset,8192);
+        //this.nes.cpu.mem.write(address,this.nes.rom.rom[bank16k],offset,8192);
         NES.Utils.arraycopy(this.nes.rom.rom[bank16k], offset, 
-                  this.nes.cpuMem, address, 8192);
+                  this.nes.cpu.mem, address, 8192);
     },
 
     clockIrqCounter: function() {

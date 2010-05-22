@@ -10,6 +10,23 @@ NES.CPU.prototype = {
     IRQ_RESET: 2,
     
     reset: function() {
+        // Main memory 
+        this.mem = new Array(0x10000);
+        
+        for (var i=0; i < 0x2000; i++) {
+            this.mem[i] = 0xFF;
+        }
+        for (var p=0; p < 4; p++) {
+            var i = p*0x800;
+            this.mem[i+0x008] = 0xF7;
+            this.mem[i+0x009] = 0xEF;
+            this.mem[i+0x00A] = 0xDF;
+            this.mem[i+0x00F] = 0xBF;
+        }
+        for (var i=0x2001; i < this.mem.length; i++) {
+            this.mem[i] = 0;
+        }
+        
         // CPU Registers:
         this.REG_ACC = 0;
         this.REG_X = 0;
@@ -204,7 +221,7 @@ NES.CPU.prototype = {
                 // at the given location.
                 addr = this.load16bit(opaddr+2);// Find op
                 if(addr < 0x1FFF) {
-                    addr = this.nes.cpuMem[addr] + (this.nes.cpuMem[(addr & 0xFF00) | (((addr & 0xFF) + 1) & 0xFF)] << 8);// Read from address given in op
+                    addr = this.mem[addr] + (this.mem[(addr & 0xFF00) | (((addr & 0xFF) + 1) & 0xFF)] << 8);// Read from address given in op
                 }
                 else{
                     addr = this.nes.mmap.load(addr) + (this.nes.mmap.load((addr & 0xFF00) | (((addr & 0xFF) + 1) & 0xFF)) << 8);
@@ -1026,7 +1043,7 @@ NES.CPU.prototype = {
     
     load: function(addr){
         if (addr < 0x2000) {
-            return this.nes.cpuMem[addr & 0x7FF];
+            return this.mem[addr & 0x7FF];
         }
         else {
             return this.nes.mmap.load(addr);
@@ -1035,8 +1052,8 @@ NES.CPU.prototype = {
     
     load16bit: function(addr){
         if (addr < 0x1FFF) {
-            return this.nes.cpuMem[addr&0x7FF] 
-                | (this.nes.cpuMem[(addr+1)&0x7FF]<<8);
+            return this.mem[addr&0x7FF] 
+                | (this.mem[(addr+1)&0x7FF]<<8);
         }
         else {
             return this.nes.mmap.load(addr) | (this.nes.mmap.load(addr+1) << 8);
@@ -1045,7 +1062,7 @@ NES.CPU.prototype = {
     
     write: function(addr, val){
         if(addr < 0x2000) {
-            this.nes.cpuMem[addr&0x7FF] = val;
+            this.mem[addr&0x7FF] = val;
         }
         else {
             this.nes.mmap.write(addr,val);

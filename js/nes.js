@@ -13,11 +13,6 @@ function NES() {
     }
     this.frameTime = 1000/this.opts.preferredFrameRate;
     
-    // TODO: move
-    this.cpuMem = new Array(0x10000);   // Main memory (internal to CPU)
-    this.ppuMem = new Array(0x8000);    // VRAM memory (internal to PPU)
-    this.sprMem = new Array(0x100); // Sprite RAM  (internal to PPU)
-    
     this.cpu = new NES.CPU(this);
     this.ppu = new NES.PPU(this);
     this.papu = new NES.PAPU(this);
@@ -36,8 +31,6 @@ function NES() {
         this.imageData.data[i] = 0xFF;
     }
     
-    this.clearCPUMemory();
-    
     $("#status").text("Initialised. Ready to load a ROM.");
 }
     
@@ -46,6 +39,17 @@ NES.prototype = {
     isRunning: false,
     fpsFrameCount: 0,
     limitFrames: true,
+    
+    // Resets the system.
+    reset: function() {
+        if(this.mmap != null) {
+            this.mmap.reset();
+        }
+        
+        this.cpu.reset();
+        this.ppu.reset();
+        this.papu.reset();
+    },
     
     start: function() {
         var self = this;
@@ -165,19 +169,6 @@ NES.prototype = {
         }
     },
     
-    clearCPUMemory: function() {
-        for(var i=0;i<0x2000;i++) {
-            this.cpuMem[i] = 0xFF;
-        }
-        for(var p=0;p<4;p++){
-            var i = p*0x800;
-            this.cpuMem[i+0x008] = 0xF7;
-            this.cpuMem[i+0x009] = 0xEF;
-            this.cpuMem[i+0x00A] = 0xDF;
-            this.cpuMem[i+0x00F] = 0xBF;
-        }
-    },
-    
     // Loads a ROM file into the CPU and PPU.
     // The ROM file is validated first.
     loadRom: function(file){
@@ -210,21 +201,6 @@ NES.prototype = {
             $("#status").text(file+" is an invalid ROM!");
         }
         return this.rom.valid;
-    },
-    
-    // Resets the system.
-    reset: function() {
-        if(this.mmap != null) {
-            this.mmap.reset();
-        }
-        for (var i=0; i<this.cpuMem.length; i++) this.cpuMem[i] = 0;
-        for (var i=0; i<this.ppuMem.length; i++) this.ppuMem[i] = 0;
-        for (var i=0; i<this.sprMem.length; i++) this.sprMem[i] = 0;
-        this.clearCPUMemory();
-        this.cpu.reset();
-        this.ppu.reset();
-        
-        this.papu.reset();
     },
     
     resetFps: function() {
