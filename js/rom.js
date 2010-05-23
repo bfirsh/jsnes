@@ -1,40 +1,9 @@
 NES.ROM = function(nes) {
     this.nes = nes;
     
-    // Mirroring types:
-    this.VERTICAL_MIRRORING     = 0;
-    this.HORIZONTAL_MIRRORING   = 1;
-    this.FOURSCREEN_MIRRORING   = 2;
-    this.SINGLESCREEN_MIRRORING = 3;
-    this.SINGLESCREEN_MIRRORING2= 4;
-    this.SINGLESCREEN_MIRRORING3= 5;
-    this.SINGLESCREEN_MIRRORING4= 6;
-    this.CHRROM_MIRRORING       = 7;
-    
-    this.failedSaveFile=false;
-    this.saveRamUpToDate=true;
-    
-    this.header = null;
-    this.rom = null;
-    this.vrom = null;
-    this.saveRam = null;
-    this.vromTile = null;
-    
-    this.romCount = null;
-    this.vromCount = null;
-    this.mirroring = null;
-    this.batteryRam = null;
-    this.trainer = null;
-    this.fourScreen = null;
-    this.mapperType = null;
-    this.fileName = null;
-    this.raFile = null;
-    this.enableSave = true;
-    this.valid = false;
-    
     this.mapperName = new Array(92);
     
-    for(var i=0;i<92;i++) {
+    for (var i=0;i<92;i++) {
         this.mapperName[i] = "Unknown Mapper";
     }
     this.mapperName[ 0] = "Direct Access";
@@ -77,90 +46,121 @@ NES.ROM = function(nes) {
 }
 
 NES.ROM.prototype = {
+    // Mirroring types:
+    VERTICAL_MIRRORING: 0,
+    HORIZONTAL_MIRRORING: 1,
+    FOURSCREEN_MIRRORING: 2,
+    SINGLESCREEN_MIRRORING: 3,
+    SINGLESCREEN_MIRRORING2: 4,
+    SINGLESCREEN_MIRRORING3: 5,
+    SINGLESCREEN_MIRRORING4: 6,
+    CHRROM_MIRRORING: 7,
+    
+    header: null,
+    rom: null,
+    vrom: null,
+    vromTile: null,
+    
+    romCount: null,
+    vromCount: null,
+    mirroring: null,
+    batteryRam: null,
+    trainer: null,
+    fourScreen: null,
+    mapperType: null,
+    valid: false,
+    
     load: function(fileName) {
         this.fileName = fileName;
         if (!roms[fileName]) {
             alert("ROM does not exist.");
             return;
         }
-        b = roms[fileName]
-        if (b.indexOf("NES\x1a") == -1) {
+        var data = roms[fileName];
+        if (data.indexOf("NES\x1a") == -1) {
             alert("Not a valid NES ROM.");
             return;
         }
         this.header = new Array(16);
-        for (var i = 0; i < 16; i++)
-            this.header[i] = b.charCodeAt(i);
+        for (var i = 0; i < 16; i++) {
+            this.header[i] = data.charCodeAt(i);
+        }
         this.romCount = this.header[4];
         this.vromCount = this.header[5]*2; // Get the number of 4kB banks, not 8kB
-        this.mirroring = ((this.header[6]&1)!=0?1:0);
-        this.batteryRam = (this.header[6]&2)!=0;
-        this.trainer =    (this.header[6]&4)!=0;
-        this.fourScreen = (this.header[6]&8)!=0;
-        this.mapperType = (this.header[6]>>4)|(this.header[7]&0xF0);
+        this.mirroring = ((this.header[6] & 1) !=0 ? 1 : 0);
+        this.batteryRam = (this.header[6] & 2) != 0;
+        this.trainer = (this.header[6] & 4) != 0;
+        this.fourScreen = (this.header[6] & 8) != 0;
+        this.mapperType = (this.header[6] >> 4) | (this.header[7] & 0xF0);
         /* TODO
         if (this.batteryRam)
             this.loadBatteryRam();*/
         // Check whether byte 8-15 are zero's:
         var foundError = false;
-        for(var i=8;i<16;i++){
-            if(this.header[i]!=0){
+        for (var i=8; i<16; i++) {
+            if (this.header[i] != 0) {
                 foundError = true;
                 break;
             }
         }
-        if (foundError)
+        if (foundError) {
             mapperType &= 0xF; // Ignore byte 7
+        }
         // Load PRG-ROM banks:
         this.rom = new Array(this.romCount);
         var offset = 16;
-        for (var i=0; i<this.romCount;i++) {
+        for (var i=0; i < this.romCount; i++) {
             this.rom[i] = new Array(16384);
-            for(var j=0;j<16384;j++){
-                if(offset+j >= b.length){
+            for (var j=0; j < 16384; j++) {
+                if (offset+j >= data.length) {
                     break;
                 }
-                this.rom[i][j] = b.charCodeAt(offset+j);
+                this.rom[i][j] = data.charCodeAt(offset + j);
             }
-            offset+=16384;
+            offset += 16384;
         }
         // Load CHR-ROM banks:
         this.vrom = new Array(this.vromCount);
-        for(var i=0;i<this.vromCount;i++){
+        for (var i=0; i < this.vromCount; i++) {
             this.vrom[i] = new Array(4096);
-            for(var j=0;j<4096;j++){
-                if(offset+j >= b.length){
+            for (var j=0; j < 4096; j++) {
+                if (offset+j >= data.length){
                     break;
                 }
-                this.vrom[i][j] = b.charCodeAt(offset+j);
+                this.vrom[i][j] = data.charCodeAt(offset + j);
             }
-            offset+=4096;
+            offset += 4096;
         }
         
         // Create VROM tiles:
         this.vromTile = new Array(this.vromCount);
-        for(var i=0;i<this.vromCount;i++){
+        for (var i=0; i < this.vromCount; i++) {
             this.vromTile[i] = new Array(256);
-            for(var j=0;j<256;j++){
+            for (var j=0; j < 256; j++) {
                 this.vromTile[i][j] = new NES.PPU.Tile();
             }
         }
         
         // Convert CHR-ROM banks to tiles:
-        //System.out.println("Converting CHR-ROM image data..");
-        //System.out.println("VROM bank count: "+vromCount);
         var tileIndex;
         var leftOver;
-        for(var v=0;v<this.vromCount;v++){
-            for(var i=0;i<4096;i++){
-                tileIndex = i>>4;
-                leftOver = i%16;
-                if(leftOver<8){
+        for (var v=0; v < this.vromCount; v++) {
+            for (var i=0; i < 4096; i++) {
+                tileIndex = i >> 4;
+                leftOver = i % 16;
+                if (leftOver < 8) {
                     this.vromTile[v][tileIndex].setScanline(
-                            leftOver,this.vrom[v][i],this.vrom[v][i+8]);
-                }else{
+                        leftOver,
+                        this.vrom[v][i],
+                        this.vrom[v][i+8]
+                    );
+                }
+                else {
                     this.vromTile[v][tileIndex].setScanline(
-                            leftOver-8,this.vrom[v][i-8],this.vrom[v][i]);
+                        leftOver-8,
+                        this.vrom[v][i-8],
+                        this.vrom[v][i]
+                    );
                 }
             }
         }
@@ -169,15 +169,17 @@ NES.ROM.prototype = {
     },
     
     getMirroringType: function() {
-        if (this.fourScreen)
+        if (this.fourScreen) {
             return this.FOURSCREEN_MIRRORING;
-        if (this.mirroring == 0) 
+        }
+        if (this.mirroring == 0) {
             return this.HORIZONTAL_MIRRORING;
+        }
         return this.VERTICAL_MIRRORING;
     },
     
     getMapperName: function() {
-        if (this.mapperType>=0 && this.mapperType<this.mapperName.length){
+        if (this.mapperType >= 0 && this.mapperType < this.mapperName.length) {
             return this.mapperName[this.mapperType];
         }
         return "Unknown Mapper, "+this.mapperType;
