@@ -100,6 +100,8 @@ NES.PAPU = function(nes) {
         }
     }
     
+    this.dynamicaudio = new DynamicAudio();
+    
     this.reset();
 }
 
@@ -586,14 +588,16 @@ NES.PAPU.prototype = {
         sampleValueR = this.smpAccumR;
 
         // Write:
-        if(this.bufferIndex+2 < this.sampleBuffer.length){
-            if (sampleValueL > this.maxSample) this.maxSample = sampleValueL;
-            if (sampleValueL < this.minSample) this.minSample = sampleValueL;
-            this.sampleBuffer[this.bufferIndex++] = (sampleValueL );
-            this.sampleBuffer[this.bufferIndex++] = (sampleValueR );
-        }
-        else {
-            //console.debug('Reached end of buffer');
+        if (sampleValueL > this.maxSample) this.maxSample = sampleValueL;
+        if (sampleValueL < this.minSample) this.minSample = sampleValueL;
+        this.sampleBuffer[this.bufferIndex++] = (sampleValueL );
+        this.sampleBuffer[this.bufferIndex++] = (sampleValueR );
+        
+        // Write full buffer
+        if (this.bufferIndex == this.sampleBuffer.length) {
+            this.dynamicaudio.writeInt(this.sampleBuffer);
+            this.sampleBuffer = new Array(this.bufferSize*2);
+            this.bufferIndex = 0;
         }
 
         // Reset sampled values:
@@ -602,19 +606,6 @@ NES.PAPU.prototype = {
         this.smpTriangle = 0;
         this.smpDmc      = 0;
 
-    },
-
-    readBuffer: function() {
-        //console.debug(this.bufferIndex);
-        if (this.bufferIndex >= 2048) {
-            var b = this.sampleBuffer;
-            this.sampleBuffer = new Array(this.bufferSize*2);
-            this.bufferIndex = 0;
-            return b
-        }
-        else {
-            //console.debug("Insufficient buffer: "+this.bufferIndex);
-        }
     },
 
     getLengthMax: function(value){

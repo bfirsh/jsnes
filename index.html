@@ -157,7 +157,7 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
         resetButtons();
         var romName = $("#roms").val();
         $("#status").text("Downloading "+romName);
-        $.getScript("roms/"+escape(romName)+".js", function(){
+        $.getScript("http://benfirshman.com/projects/jsnes/roms/"+escape(romName)+".js", function(){
             nes.loadRom(romName);
             nes.start();
         });
@@ -192,17 +192,6 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
         nes.reloadRom();
         nes.start();
     });
-    
-    var dynamicaudio = new DynamicAudio();
-    
-    setInterval(function writeSoundBuffer() {
-        if (nes) {
-            var b = nes.papu.readBuffer();
-            if (b) {
-                dynamicaudio.writeInt(b);
-            }
-        }
-    }, 100);
     
     var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
     document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
