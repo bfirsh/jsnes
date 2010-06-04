@@ -1,5 +1,33 @@
 NES.CPU = function(nes) {
     this.nes = nes;
+    
+    // Keep Chrome happy
+    this.mem = null;
+    this.REG_ACC = null;
+    this.REG_X = null;
+    this.REG_Y = null;
+    this.REG_SP = null;
+    this.REG_PC = null;
+    this.REG_PC_NEW = null;
+    this.REG_STATUS = null;
+    this.F_CARRY = null;
+    this.F_DECIMAL = null;
+    this.F_INTERRUPT = null;
+    this.F_INTERRUPT_NEW = null;
+    this.F_OVERFLOW = null;
+    this.F_SIGN = null;
+    this.F_ZERO = null;
+    this.F_NOTUSED = null;
+    this.F_NOTUSED_NEW = null;
+    this.F_BRK = null;
+    this.F_BRK_NEW = null;
+    this.palCnt = null;
+    this.opdata = null;
+    this.cyclesToHalt = null;
+    this.crash = null;
+    this.irqRequested = null;
+    this.irqType = null;
+    
     this.reset();
 }
 
@@ -56,7 +84,7 @@ NES.CPU.prototype = {
         this.F_BRK_NEW = 1;
         
         this.palCnt = 0;
-        this.opdata = this.opdata = new NES.CPU.OpData();
+        this.opdata = new NES.CPU.OpData().opdata;
         this.cyclesToHalt = 0;
         
         // Reset crash flag:
@@ -116,7 +144,7 @@ NES.CPU.prototype = {
             this.irqRequested = false;
         }
 
-        var opinf = this.opdata.opdata[this.nes.mmap.load(this.REG_PC+1)];
+        var opinf = this.opdata[this.nes.mmap.load(this.REG_PC+1)];
         var cycleCount = (opinf>>24);
         var cycleAdd = 0;
 

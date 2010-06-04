@@ -72,6 +72,9 @@ NES.PAPU = function(nes) {
 
     this.extraCycles = null;
     
+    this.maxSample = null;
+    this.minSample = null;
+    
     // Panning:
     this.panning = new Array(
          80,
