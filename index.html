@@ -52,6 +52,7 @@ charset="utf-8">
             <input type="button" value="pause" id="pause" disabled="disabled">
             <input type="button" value="restart" id="restart" disabled="disabled">
             <input type="button" value="enable sound" id="enablesound" disabled="disabled">
+            <input type="button" value="zoom in" id="zoom">
         </div>
         <p id="status">Loading...</p>
 <script type="text/javascript">
@@ -185,6 +186,26 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
         else {
             nes.opts.emulateSound = false;
             b.attr("value", "enable sound");
+        }
+    });
+    
+    var zoomed = false;
+    $("#zoom").click(function() {
+        if (zoomed) {
+            $('#screen').animate({
+                width: '256px',
+                height: '240px'
+            });
+            $('#zoom').attr("value", "zoom in");
+            zoomed = false;
+        }
+        else {
+            $('#screen').animate({
+                width: '512px',
+                height: '480px'
+            });
+            $('#zoom').attr("value", "zoom out");
+            zoomed = true;
         }
     });
     

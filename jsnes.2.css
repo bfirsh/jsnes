@@ -10,3 +10,8 @@
     font-size: 0.8em;
     color: #999;
 }
+
+#screen {
+    display: block;
+    margin: 0 auto 20px auto;
+}
