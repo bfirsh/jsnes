@@ -70,20 +70,14 @@ NES.ROM.prototype = {
     mapperType: null,
     valid: false,
     
-    load: function(fileName) {
-        this.fileName = fileName;
-        if (!roms[fileName]) {
-            alert("ROM does not exist.");
-            return;
-        }
-        var data = roms[fileName];
+    load: function(data) {
         if (data.indexOf("NES\x1a") == -1) {
             alert("Not a valid NES ROM.");
             return;
         }
         this.header = new Array(16);
         for (var i = 0; i < 16; i++) {
-            this.header[i] = data.charCodeAt(i);
+            this.header[i] = data.charCodeAt(i) & 0xFF;
         }
         this.romCount = this.header[4];
         this.vromCount = this.header[5]*2; // Get the number of 4kB banks, not 8kB
@@ -115,7 +109,7 @@ NES.ROM.prototype = {
                 if (offset+j >= data.length) {
                     break;
                 }
-                this.rom[i][j] = data.charCodeAt(offset + j);
+                this.rom[i][j] = data.charCodeAt(offset + j) & 0xFF;
             }
             offset += 16384;
         }
@@ -127,7 +121,7 @@ NES.ROM.prototype = {
                 if (offset+j >= data.length){
                     break;
                 }
-                this.vrom[i][j] = data.charCodeAt(offset + j);
+                this.vrom[i][j] = data.charCodeAt(offset + j) & 0xFF;
             }
             offset += 4096;
         }

@@ -27,6 +27,7 @@ NES.prototype = {
     isRunning: false,
     fpsFrameCount: 0,
     limitFrames: true,
+    romData: null,
     
     // Resets the system.
     reset: function() {
@@ -44,7 +45,6 @@ NES.prototype = {
         
         if(this.rom != null && this.rom.valid) {
             if (!this.isRunning) {
-                //$("#status").text("Running "+this.romFile)
                 this.isRunning = true;
                 
                 this.frameInterval = setInterval(function() {
@@ -151,41 +151,38 @@ NES.prototype = {
     },
     
     reloadRom: function() {
-        if(this.romFile != null){
-            this.loadRom(this.romFile);
+        if(this.romData != null){
+            this.loadRom(this.romData);
         }
     },
     
     // Loads a ROM file into the CPU and PPU.
     // The ROM file is validated first.
-    loadRom: function(file){
-        // Can't load ROM while still running.
-        if(this.isRunning)
+    loadRom: function(data) {
+        if (this.isRunning) {
             this.stop();
+        }
         
-        $("#status").text("Loading "+file);
+        $("#status").text("Loading...");
         
         // Load ROM file:
         this.rom = new NES.ROM(this);
-        this.rom.load(file);
-        if(this.rom.valid){
-            
-            // The CPU will load
-            // the ROM into the CPU
-            // and PPU memory.
-            
+        this.rom.load(data);
+        
+        if (this.rom.valid) {
             this.reset();
-            
             this.mmap = this.rom.createMapper();
-            if (!this.mmap) return;
+            if (!this.mmap) {
+                return;
+            }
             this.mmap.loadROM();
             this.ppu.setMirroring(this.rom.getMirroringType());
-            this.romFile = file;
+            this.romData = data;
             
-            $("#status").text(file+" successfully loaded. Ready to be started.");
+            $("#status").text("Successfully loaded. Ready to be started.");
         }
         else {
-            $("#status").text(file+" is an invalid ROM!");
+            $("#status").text("Invalid ROM!");
         }
         return this.rom.valid;
     },

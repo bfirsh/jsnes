@@ -158,9 +158,17 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
         resetButtons();
         var romName = $("#roms").val();
         $("#status").text("Downloading "+romName);
-        $.getScript("http://benfirshman.com/projects/jsnes/roms/"+escape(romName)+".js", function(){
-            nes.loadRom(romName);
-            nes.start();
+        $.ajax({
+            url: "roms/"+escape(romName),
+            xhr: function() {
+                var xhr = $.ajaxSettings.xhr()
+                xhr.overrideMimeType('text/plain; charset=x-user-defined');
+                return xhr;
+            },
+            success: function(data) {
+                nes.loadRom(data);
+                nes.start();
+            }
         });
     });
     
