@@ -512,8 +512,6 @@ NES.Mappers[1] = function(nes) {
     this.nes = nes;
 }
 
-NES.Utils.copyPrototype(NES.Mappers[1], NES.Mappers[0]);
-
 NES.Mappers[1].prototype = {
     reset: function() {
         NES.Mappers[0].prototype.reset.apply(this);
@@ -542,7 +540,7 @@ NES.Mappers[1].prototype = {
     write: function(address, value) {
         // Writes to addresses other than MMC registers are handled by NoMapper.
         if (address < 0x8000) {
-            MapperDefault.prototype.write.apply(this, arguments);
+            NES.Mappers[0].prototype.write.apply(this, arguments);
             return;
         }
     
@@ -770,17 +768,18 @@ NES.Mappers[1].prototype = {
     }
 }
 
+NES.Utils.copyPrototype(NES.Mappers[1], NES.Mappers[0]);
+
+
 NES.Mappers[2] = function(nes) {
     this.nes = nes
 }
-
-NES.Utils.copyPrototype(NES.Mappers[2], NES.Mappers[0]);
 
 NES.Mappers[2].prototype = {
     write: function(address, value) {
         // Writes to addresses other than MMC registers are handled by NoMapper.
         if (address < 0x8000) {
-            MapperDefault.prototype.write.apply(this, arguments);
+            NES.Mappers[0].prototype.write.apply(this, arguments);
             return;
         }
     
@@ -811,6 +810,9 @@ NES.Mappers[2].prototype = {
     }
 }
 
+NES.Utils.copyPrototype(NES.Mappers[2], NES.Mappers[0]);
+
+
 NES.Mappers[4] = function(nes) {
     this.nes = nes
     
@@ -832,8 +834,6 @@ NES.Mappers[4] = function(nes) {
     this.irqEnable = null;
     this.prgAddressChanged = false;
 }
-
-NES.Utils.copyPrototype(NES.Mappers[4], NES.Mappers[0]);
 
 NES.Mappers[4].prototype = {
     write: function(address, value) {
@@ -1046,3 +1046,5 @@ NES.Mappers[4].prototype = {
         this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
     }
 }
+
+NES.Utils.copyPrototype(NES.Mappers[4], NES.Mappers[0]);

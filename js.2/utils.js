@@ -12,7 +12,9 @@ NES.Utils = {
         var aMatch = sConstructor.match( /\s*function (.*)\(/ );
         if ( aMatch != null ) { descendant.prototype[aMatch[1]] = parent; }
         for (var m in parent.prototype) {
-            descendant.prototype[m] = parent.prototype[m];
+            if (typeof descendant.prototype[m] == 'undefined') {
+                descendant.prototype[m] = parent.prototype[m];
+            }
         }
     }
 }
