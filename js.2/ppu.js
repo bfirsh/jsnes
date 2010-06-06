@@ -89,7 +89,7 @@ NES.PPU = function(nes) {
     }
     
     this.reset();
-}
+};
 
 NES.PPU.prototype = {
     // Status flags:
@@ -99,13 +99,15 @@ NES.PPU.prototype = {
     STATUS_VBLANK: 7,
     
     reset: function() {
+        var i;
+        
         // Memory
         this.vramMem = new Array(0x8000);
         this.spriteMem = new Array(0x100);
-        for (var i=0; i<this.vramMem.length; i++) {
+        for (i=0; i<this.vramMem.length; i++) {
             this.vramMem[i] = 0;
         }
-        for (var i=0; i<this.spriteMem.length; i++) {
+        for (i=0; i<this.spriteMem.length; i++) {
             this.spriteMem[i] = 0;
         }
         
@@ -200,7 +202,7 @@ NES.PPU.prototype = {
         
         // Create pattern table tile buffers:
         this.ptTile = new Array(512);
-        for(var i=0;i<512;i++){
+        for (i=0; i<512; i++) {
             this.ptTile[i] = new NES.PPU.Tile();
         }
         
@@ -209,13 +211,13 @@ NES.PPU.prototype = {
         this.ntable1 = new Array(4);
         this.currentMirroring = -1;
         this.nameTable = new Array(4);
-        for(var i=0;i<4;i++){
+        for (i=0; i<4; i++) {
             this.nameTable[i] = new NES.PPU.NameTable(32, 32, "Nt"+i);
         }
         
         // Initialize mirroring lookup table:
         this.vramMirrorTable = new Array(0x8000);
-        for(var i=0;i<0x8000;i++){
+        for (i=0; i<0x8000; i++) {
             this.vramMirrorTable[i] = i;
         }
         
@@ -238,10 +240,10 @@ NES.PPU.prototype = {
         this.triggerRendering();
     
         // Remove mirroring:
-        if(this.vramMirrorTable==null){
+        if (this.vramMirrorTable === null) {
             this.vramMirrorTable = new Array(0x8000);
         }
-        for(var i=0;i<0x8000;i++){
+        for (var i=0; i<0x8000; i++) {
             this.vramMirrorTable[i] = i;
         }
         
@@ -411,12 +413,12 @@ NES.PPU.prototype = {
                 break;
                 
             default:
-                if(this.scanline>=21 && this.scanline<=260){
+                if (this.scanline >= 21 && this.scanline <= 260) {
 
                     // Render normally:
-                    if(this.f_bgVisibility == 1){
+                    if (this.f_bgVisibility == 1) {
 
-                        if(!this.scanlineAlreadyRendered){
+                        if (!this.scanlineAlreadyRendered) {
                             // update scroll:
                             this.cntHT = this.regHT;
                             this.cntH = this.regH;
@@ -425,12 +427,14 @@ NES.PPU.prototype = {
                         this.scanlineAlreadyRendered=false;
 
                         // Check for sprite 0 (next scanline):
-                        if(!this.hitSpr0 && this.f_spVisibility==1){
-                            if(this.sprX[0]>=-7 && this.sprX[0]<256 && this.sprY[0]+1<=(this.scanline-20) && (this.sprY[0]+1+(this.f_spriteSize==0?8:16))>=(this.scanline-20)){
-
-                                if(this.checkSprite0(
-                                            this.scanline-20)){
-                                    //console.log("found spr0. curscan="+this.scanline+" hitscan="+this.spr0HitY);
+                        if (!this.hitSpr0 && this.f_spVisibility == 1) {
+                            if (this.sprX[0] >= -7 
+                                    && this.sprX[0] < 256
+                                    && this.sprY[0] + 1 <= (this.scanline - 20)
+                                    && (this.sprY[0] + 1 + (
+                                        this.f_spriteSize === 0 ? 8 : 16
+                                    )) >= (this.scanline - 20)) {
+                                if (this.checkSprite0(this.scanline - 20)) {
                                     this.hitSpr0 = true;
                                 }
                             }
@@ -455,79 +459,76 @@ NES.PPU.prototype = {
         // Set background color:
         var bgColor=0;
         
-        if(this.f_dispType == 0){
-            
+        if (this.f_dispType === 0) {
             // Color display.
             // f_color determines color emphasis.
             // Use first entry of image palette as BG color.
             bgColor = this.imgPalette[0];
-            
-        }else{
-            
+        }
+        else {
             // Monochrome display.
             // f_color determines the bg color.
-            switch(this.f_color){
-                case 0:{
+            switch (this.f_color) {
+                case 0:
                     // Black
                     bgColor = 0x00000;
                     break;
-                }
-                case 1:{
+                case 1:
                     // Green
                     bgColor = 0x00FF00;
-                }
-                case 2:{
+                    break;
+                case 2:
                     // Blue
                     bgColor = 0xFF0000;
-                }
-                case 3:{
+                    break;
+                case 3:
                     // Invalid. Use black.
                     bgColor = 0x000000;
-                }
-                case 4:{
+                    break;
+                case 4:
                     // Red
                     bgColor = 0x0000FF;
-                }
-                default:{
+                    break;
+                default:
                     // Invalid. Use black.
                     bgColor = 0x0;
-                }   
             }
-            
         }
         
         var buffer = this.buffer;
-        for(var i=0;i<256*240;i++) {
+        var i;
+        for (i=0; i<256*240; i++) {
             buffer[i] = bgColor;
         }
         var pixrendered = this.pixrendered;
-        for(var i=0;i<pixrendered.length;i++) {
+        for (i=0; i<pixrendered.length; i++) {
             pixrendered[i]=65;
         }
-        
     },
     
     endFrame: function(){
-
+        var i, x, y;
         var buffer = this.buffer;
         
         // Draw spr#0 hit coordinates:
-        if(this.showSpr0Hit){
+        if (this.showSpr0Hit) {
             // Spr 0 position:
-            if(this.sprX[0]>=0 && this.sprX[0]<256 && this.sprY[0]>=0 && this.sprY[0]<240){
-                for(var i=0;i<256;i++){ 
+            if (this.sprX[0] >= 0 && this.sprX[0] < 256 
+                    && this.sprY[0] >= 0 && this.sprY[0] < 240) {
+                for (i=0; i<256; i++){  
                     buffer[(this.sprY[0]<<8)+i] = 0xFF5555;
                 }
-                for(var i=0;i<240;i++){
+                for (i=0; i<240; i++) {
                     buffer[(i<<8)+this.sprX[0]] = 0xFF5555;
                 }
             }
             // Hit position:
-            if(this.spr0HitX>=0 && this.spr0HitX<256 && this.spr0HitY>=0 && this.spr0HitY<240){
-                for(var i=0;i<256;i++){ 
+            if (this.spr0HitX >= 0 && this.spr0HitX < 256 
+                    && this.spr0HitY >= 0 && this.spr0HitY < 240) {
+                for (i=0; i<256; i++) {
                     buffer[(this.spr0HitY<<8)+i] = 0x55FF55;
                 }
-                for(var i=0;i<240;i++){
+                for (i=0; i<240; i++) {
                     buffer[(i<<8)+this.spr0HitX] = 0x55FF55;
                 }
             }
@@ -536,10 +537,10 @@ NES.PPU.prototype = {
         // This is a bit lazy..
         // if either the sprites or the background should be clipped,
         // both are clipped after rendering is finished.
-        if(this.clipToTvSize || this.f_bgClipping==0 || this.f_spClipping==0){
+        if (this.clipToTvSize || this.f_bgClipping === 0 || this.f_spClipping === 0) {
             // Clip left 8-pixels column:
-            for(var y=0;y<240;y++){
-                for(var x=0;x<8;x++){
+            for(y=0;y<240;y++){
+                for(x=0;x<8;x++){
                     buffer[(y<<8)+x] = 0;
                 }
             }
@@ -547,17 +548,17 @@ NES.PPU.prototype = {
         
         if(this.clipToTvSize){
             // Clip right 8-pixels column too:
-            for(var y=0;y<240;y++){
-                for(var x=0;x<8;x++){
+            for (y=0; y<240; y++) {
+                for (x=0; x<8; x++) {
                     buffer[(y<<8)+255-x] = 0;
                 }
             }
         }
         
         // Clip top and bottom 8 pixels:
-        if(this.clipToTvSize){
-            for(var y=0;y<8;y++){
-                for(var x=0;x<256;x++){
+        if (this.clipToTvSize) {
+            for (y=0; y<8; y++) {
+                for (x=0; x<256; x++) {
                     buffer[(y<<8)+x] = 0;
                     buffer[((239-y)<<8)+x] = 0;
                 }
@@ -567,15 +568,16 @@ NES.PPU.prototype = {
         if (this.nes.opts.showDisplay) {
             var imageData = this.canvasImageData.data;
             var prevBuffer = this.prevBuffer;
-        
-            for (var i=0;i<256*240;i++) {
-                var pixel = buffer[i];
+            var pixel, j;
+            
+            for (i=0; i<256*240; i++) {
+                pixel = buffer[i];
             
                 if (pixel != prevBuffer[i]) {
-                    var j = i*4;
-                    imageData[j] = pixel&0xFF;
-                    imageData[j+1] = (pixel>>8)&0xFF;
-                    imageData[j+2] = (pixel>>16)&0xFF;
+                    j = i*4;
+                    imageData[j] = pixel & 0xFF;
+                    imageData[j+1] = (pixel >> 8) & 0xFF;
+                    imageData[j+2] = (pixel >> 16) & 0xFF;
                     prevBuffer[i] = pixel;
                 }
             }
@@ -612,7 +614,7 @@ NES.PPU.prototype = {
         this.f_bgClipping =   (value>>1)&1;
         this.f_dispType =      value&1;
         
-        if(this.f_dispType == 0){
+        if (this.f_dispType === 0) {
             this.palTable.setEmphasis(this.f_color);
         }
         this.updatePalettes();
@@ -643,19 +645,19 @@ NES.PPU.prototype = {
     
     // CPU Register $2003:
     // Write the SPR-RAM address that is used for sramWrite (Register 0x2004 in CPU memory map)
-    writeSRAMAddress: function(address){
+    writeSRAMAddress: function(address) {
         this.sramAddress = address;
     },
     
     // CPU Register $2004 (R):
     // Read from SPR-RAM (Sprite RAM).
     // The address should be set first.
-    sramLoad: function(){
+    sramLoad: function() {
         /*short tmp = sprMem.load(sramAddress);
         sramAddress++; // Increment address
         sramAddress%=0x100;
         return tmp;*/
-        return this.spriteMem[this.sramAddress]
+        return this.spriteMem[this.sramAddress];
     },
     
     // CPU Register $2004 (W):
@@ -731,47 +733,49 @@ NES.PPU.prototype = {
     // CPU Register $2007(R):
     // Read from PPU memory. The address should be set first.
     vramLoad: function(){
+        var tmp;
         
         this.cntsToAddress();
         this.regsToAddress();
         
         // If address is in range 0x0000-0x3EFF, return buffered values:
-        if(this.vramAddress <= 0x3EFF){
-            
-            var tmp = this.vramBufferedReadValue;
+        if (this.vramAddress <= 0x3EFF) {
+            tmp = this.vramBufferedReadValue;
         
             // Update buffered value:
-            if(this.vramAddress < 0x2000){
+            if (this.vramAddress < 0x2000) {
                 this.vramBufferedReadValue = this.vramMem[this.vramAddress];
-            }else{
-                this.vramBufferedReadValue = this.mirroredLoad(this.vramAddress);
+            }
+            else {
+                this.vramBufferedReadValue = this.mirroredLoad(
+                    this.vramAddress
+                );
             }
             
             // Mapper latch access:
-            if(this.vramAddress < 0x2000){
+            if (this.vramAddress < 0x2000) {
                 this.nes.mmap.latchAccess(this.vramAddress);
             }
             
             // Increment by either 1 or 32, depending on d2 of Control Register 1:
-            this.vramAddress += (this.f_addrInc==1?32:1);
+            this.vramAddress += (this.f_addrInc == 1 ? 32 : 1);
             
             this.cntsFromAddress();
             this.regsFromAddress();
-            return tmp; // Return the previous buffered value.
             
+            return tmp; // Return the previous buffered value.
         }
             
         // No buffering in this mem range. Read normally.
-        var tmp = this.mirroredLoad(this.vramAddress);
+        tmp = this.mirroredLoad(this.vramAddress);
         
         // Increment by either 1 or 32, depending on d2 of Control Register 1:
-        this.vramAddress += (this.f_addrInc==1?32:1); 
+        this.vramAddress += (this.f_addrInc == 1 ? 32 : 1); 
         
         this.cntsFromAddress();
         this.regsFromAddress();
         
         return tmp;
-        
     },
     
     // CPU Register $2007(W):
@@ -871,21 +875,21 @@ NES.PPU.prototype = {
         this.vramAddress = ((b1<<8) | b2)&0x7FFF;
     },
     
-    incTileCounter: function(count){  
-        for(var i=count; i!=0; i--){
+    incTileCounter: function(count) { 
+        for (var i=count; i!==0; i--) {
             this.cntHT++;
-            if(this.cntHT==32){
-                this.cntHT=0;
+            if (this.cntHT == 32) {
+                this.cntHT = 0;
                 this.cntVT++;
-                if(this.cntVT>=30){
+                if (this.cntVT >= 30) {
                     this.cntH++;
-                    if(this.cntH==2){
-                        this.cntH=0;
+                    if(this.cntH == 2) {
+                        this.cntH = 0;
                         this.cntV++;
-                        if(this.cntV==2){
-                            this.cntV=0;
+                        if (this.cntV == 2) {
+                            this.cntV = 0;
                             this.cntFV++;
-                            this.cntFV&=0x7;
+                            this.cntFV &= 0x7;
                         }
                     }
                 }
@@ -958,30 +962,31 @@ NES.PPU.prototype = {
             this.renderSpritesPartially(startScan,scanCount,true);
         }
         
-        if(this.f_bgVisibility == 1){
+        if(this.f_bgVisibility == 1) {
             var si = startScan<<8;
             var ei = (startScan+scanCount)<<8;
-            if(ei>0xF000) ei=0xF000;
+            if (ei > 0xF000) {
+                ei = 0xF000;
+            }
             var buffer = this.buffer;
             var bgbuffer = this.bgbuffer;
             var pixrendered = this.pixrendered;
-            for(var destIndex=si;destIndex<ei;destIndex++){
-                if(pixrendered[destIndex]>0xFF){
+            for (var destIndex=si; destIndex<ei; destIndex++) {
+                if (pixrendered[destIndex] > 0xFF) {
                     buffer[destIndex] = bgbuffer[destIndex];
                 }
             }
         }
         
-        if(this.f_spVisibility == 1){
-            this.renderSpritesPartially(startScan,scanCount,false);
+        if (this.f_spVisibility == 1) {
+            this.renderSpritesPartially(startScan, scanCount, false);
         }
         
         this.validTileData = false;
     },
     
-    renderBgScanline: function(bgbuffer, scan){
-
-        var baseTile = (this.regS==0?0:256);
+    renderBgScanline: function(bgbuffer, scan) {
+        var baseTile = (this.regS === 0 ? 0 : 256);
         var destIndex = (scan<<8)-this.regFH;
 
         this.curNt = this.ntable1[this.cntV+this.cntV+this.cntH];
@@ -990,7 +995,7 @@ NES.PPU.prototype = {
         this.cntH = this.regH;
         this.curNt = this.ntable1[this.cntV+this.cntV+this.cntH];
         
-        if(scan<240 && (scan-this.cntFV)>=0){
+        if (scan<240 && (scan-this.cntFV)>=0){
             
             var tscanoffset = this.cntFV<<3;
             var scantile = this.scantile;
@@ -1033,17 +1038,19 @@ NES.PPU.prototype = {
                         }
                         if(t.opaque[this.cntFV]){
                             for(;sx<8;sx++){
-                                var pix = imgPalette[tpix[tscanoffset+sx]+att];
-                                targetBuffer[destIndex] = pix;
+                                targetBuffer[destIndex] = imgPalette[
+                                    tpix[tscanoffset+sx]+att
+                                ];
                                 pixrendered[destIndex] |= 256;
                                 destIndex++;
                             }
                         }else{
                             for(;sx<8;sx++){
                                 col = tpix[tscanoffset+sx];
-                                if(col != 0){
-                                    var pix = imgPalette[col+att];
-                                    targetBuffer[destIndex] = pix;
+                                if(col !== 0) {
+                                    targetBuffer[destIndex] = imgPalette[
+                                        col+att
+                                    ];
                                     pixrendered[destIndex] |= 256;
                                 }
                                 destIndex++;
@@ -1098,7 +1105,7 @@ NES.PPU.prototype = {
             for(var i=0;i<64;i++){
                 if(this.bgPriority[i]==bgPri && this.sprX[i]>=0 && this.sprX[i]<256 && this.sprY[i]+8>=startscan && this.sprY[i]<startscan+scancount){
                     // Show sprite.
-                    if(this.f_spriteSize == 0){
+                    if(this.f_spriteSize === 0){
                         // 8x8 sprites
                         
                         this.srcy1 = 0;
@@ -1112,7 +1119,7 @@ NES.PPU.prototype = {
                             this.srcy2 = startscan+scancount-this.sprY[i]+1;
                         }
                         
-                        if(this.f_spPatternTable==0){
+                        if(this.f_spPatternTable===0){
                             this.ptTile[this.sprTile[i]].render(this.buffer, 
                                 0, this.srcy1, 8, this.srcy2, this.sprX[i], 
                                 this.sprY[i]+1, this.sprCol[i], this.sprPalette, 
@@ -1125,7 +1132,7 @@ NES.PPU.prototype = {
                     }else{
                         // 8x16 sprites
                         var top = this.sprTile[i];
-                        if((top&1)!=0){
+                        if((top&1)!==0){
                             top = this.sprTile[i]-1+256;
                         }
                         
@@ -1195,7 +1202,7 @@ NES.PPU.prototype = {
         this.spr0HitY = -1;
         
         var toffset;
-        var tIndexAdd = (this.f_spPatternTable==0?0:256);
+        var tIndexAdd = (this.f_spPatternTable === 0?0:256);
         var x,y;
         var bufferIndex;
         var col;
@@ -1205,7 +1212,7 @@ NES.PPU.prototype = {
         x = this.sprX[0];
         y = this.sprY[0]+1;
         
-        if(this.f_spriteSize==0){
+        if(this.f_spriteSize === 0){
             // 8x8 sprites.
 
             // Check range:
@@ -1228,8 +1235,8 @@ NES.PPU.prototype = {
                 if(this.horiFlip[0]){
                     for(var i=7;i>=0;i--){
                         if(x>=0 && x<256){
-                            if(bufferIndex>=0 && bufferIndex<61440 && this.pixrendered[bufferIndex]!=0){
-                                if(t.pix[toffset+i] != 0){
+                            if(bufferIndex>=0 && bufferIndex<61440 && this.pixrendered[bufferIndex]!==0){
+                                if(t.pix[toffset+i] !== 0){
                                     this.spr0HitX = bufferIndex%256;
                                     this.spr0HitY = scan;
                                     return true;
@@ -1243,7 +1250,7 @@ NES.PPU.prototype = {
                 }else{
                     for(var i=0;i<8;i++){
                         if(x>=0 && x<256){
-                            if(bufferIndex>=0 && bufferIndex<61440 && this.pixrendered[bufferIndex]!=0){
+                            if(bufferIndex>=0 && bufferIndex<61440 && this.pixrendered[bufferIndex]!==0){
                                 if(t.pix[toffset+i] != 0){
                                     this.spr0HitX = bufferIndex%256;
                                     this.spr0HitY = scan;
@@ -1273,10 +1280,10 @@ NES.PPU.prototype = {
                 
                 if(toffset<8){
                     // first half of sprite.
-                    t = this.ptTile[this.sprTile[0]+(this.vertFlip[0]?1:0)+((this.sprTile[0]&1)!=0?255:0)];
+                    t = this.ptTile[this.sprTile[0]+(this.vertFlip[0]?1:0)+((this.sprTile[0]&1)!==0?255:0)];
                 }else{
                     // second half of sprite.
-                    t = this.ptTile[this.sprTile[0]+(this.vertFlip[0]?0:1)+((this.sprTile[0]&1)!=0?255:0)];
+                    t = this.ptTile[this.sprTile[0]+(this.vertFlip[0]?0:1)+((this.sprTile[0]&1)!==0?255:0)];
                     if(this.vertFlip[0]){
                         toffset = 15-toffset;
                     }else{
@@ -1291,7 +1298,7 @@ NES.PPU.prototype = {
                 if(this.horiFlip[0]){
                     for(var i=7;i>=0;i--){
                         if(x>=0 && x<256){
-                            if(bufferIndex>=0 && bufferIndex<61440 && this.pixrendered[bufferIndex]!=0){
+                            if(bufferIndex>=0 && bufferIndex<61440 && this.pixrendered[bufferIndex]!==0){
                                 if(t.pix[toffset+i] != 0){
                                     this.spr0HitX = bufferIndex%256;
                                     this.spr0HitY = scan;
@@ -1307,7 +1314,7 @@ NES.PPU.prototype = {
                     
                     for(var i=0;i<8;i++){
                         if(x>=0 && x<256){
-                            if(bufferIndex>=0 && bufferIndex<61440 && this.pixrendered[bufferIndex]!=0){
+                            if(bufferIndex>=0 && bufferIndex<61440 && this.pixrendered[bufferIndex]!==0){
                                 if(t.pix[toffset+i] != 0){
                                     this.spr0HitX = bufferIndex%256;
                                     this.spr0HitY = scan;
@@ -1467,9 +1474,9 @@ NES.PPU.prototype = {
             this.sprTile[tIndex] = value;
         }else if(address%4 == 2){
             // Attributes
-            this.vertFlip[tIndex] = ((value&0x80)!=0);
-            this.horiFlip[tIndex] = ((value&0x40)!=0);
-            this.bgPriority[tIndex] = ((value&0x20)!=0);
+            this.vertFlip[tIndex] = ((value&0x80)!==0);
+            this.horiFlip[tIndex] = ((value&0x40)!==0);
+            this.bgPriority[tIndex] = ((value&0x20)!==0);
             this.sprCol[tIndex] = (value&3)<<2;
             
         }else if(address%4 == 3){
@@ -1484,7 +1491,7 @@ NES.PPU.prototype = {
         //nes.getCpu().doNonMaskableInterrupt();
         this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NMI);
     }
-}
+};
 
 NES.PPU.NameTable = function(width, height, name) {   
     this.width = width;
@@ -1493,7 +1500,7 @@ NES.PPU.NameTable = function(width, height, name) {
     
     this.tile = new Array(width*height);
     this.attrib = new Array(width*height);
-}
+};
 
 NES.PPU.NameTable.prototype = {
     getTileIndex: function(x, y){
@@ -1525,14 +1532,14 @@ NES.PPU.NameTable.prototype = {
             }
         }
     }
-}
+};
 
 
 NES.PPU.PaletteTable = function() {
     this.curTable = new Array(64);
     this.emphTable = new Array(8);
     this.currentEmph = -1;
-}
+};
 
 NES.PPU.PaletteTable.prototype = {
     reset: function() {
@@ -1559,15 +1566,15 @@ NES.PPU.PaletteTable.prototype = {
             
             // Determine color component factors:
             var rFactor=1.0, gFactor=1.0, bFactor=1.0;
-            if((emph&1)!=0){
+            if((emph&1)!==0){
                 rFactor = 0.75;
                 bFactor = 0.75;
             }
-            if((emph&2)!=0){
+            if((emph&2)!==0){
                 rFactor = 0.75;
                 gFactor = 0.75;
             }
-            if((emph&4)!=0){
+            if((emph&4)!==0){
                 gFactor = 0.75;
                 bFactor = 0.75;
             }
@@ -1683,7 +1690,7 @@ NES.PPU.PaletteTable.prototype = {
         this.makeTables();
         this.setEmphasis(0);
     }
-}
+};
 
 NES.PPU.Tile = function() {
     // Tile data:
@@ -1702,7 +1709,7 @@ NES.PPU.Tile = function() {
     this.c = null;
     this.initialized = false;
     this.opaque = new Array(8);
-}
+};
     
 NES.PPU.Tile.prototype = {
     setBuffer: function(scanline){
@@ -1717,7 +1724,9 @@ NES.PPU.Tile.prototype = {
         for(this.x=0;this.x<8;this.x++){
             this.pix[this.tIndex+this.x] = ((b1>>(7-this.x))&1) 
                     + (((b2>>(7-this.x))&1)<<1);
-            if(this.pix[this.tIndex+this.x]==0) this.opaque[sline]=false;
+            if(this.pix[this.tIndex+this.x] === 0) {
+                this.opaque[sline] = false;
+            }
         }
     },
     
@@ -1753,7 +1762,7 @@ NES.PPU.Tile.prototype = {
                     if(this.x>=srcx1 && this.x<srcx2 && this.y>=srcy1 && this.y<srcy2){
                         this.palIndex = this.pix[this.tIndex];
                         this.tpri = priTable[this.fbIndex];
-                        if(this.palIndex!=0 && pri<=(this.tpri&0xFF)){
+                        if(this.palIndex!==0 && pri<=(this.tpri&0xFF)){
                             //console.log("Rendering upright tile to buffer");
                             buffer[this.fbIndex] = palette[this.palIndex+palAdd];
                             this.tpri = (this.tpri&0xF00)|pri;
@@ -1776,7 +1785,7 @@ NES.PPU.Tile.prototype = {
                     if(this.x>=srcx1 && this.x<srcx2 && this.y>=srcy1 && this.y<srcy2){
                         this.palIndex = this.pix[this.tIndex];
                         this.tpri = priTable[this.fbIndex];
-                        if(this.palIndex!=0 && pri<=(this.tpri&0xFF)){
+                        if(this.palIndex!==0 && pri<=(this.tpri&0xFF)){
                             buffer[this.fbIndex] = palette[this.palIndex+palAdd];
                             this.tpri = (this.tpri&0xF00)|pri;
                             priTable[this.fbIndex] =this.tpri;
@@ -1790,7 +1799,8 @@ NES.PPU.Tile.prototype = {
                 this.tIndex+=16;
             }
         
-        }else if(flipVertical && !flipHorizontal){
+        }
+        else if(flipVertical && !flipHorizontal) {
         
             this.fbIndex = (dy<<8)+dx;
             this.tIndex = 56;
@@ -1799,7 +1809,7 @@ NES.PPU.Tile.prototype = {
                     if(this.x>=srcx1 && this.x<srcx2 && this.y>=srcy1 && this.y<srcy2){
                         this.palIndex = this.pix[this.tIndex];
                         this.tpri = priTable[this.fbIndex];
-                        if(this.palIndex!=0 && pri<=(this.tpri&0xFF)){
+                        if(this.palIndex!==0 && pri<=(this.tpri&0xFF)){
                             buffer[this.fbIndex] = palette[this.palIndex+palAdd];
                             this.tpri = (this.tpri&0xF00)|pri;
                             priTable[this.fbIndex] =this.tpri;
@@ -1813,8 +1823,8 @@ NES.PPU.Tile.prototype = {
                 this.tIndex-=16;
             }
         
-        }else{
-        
+        }
+        else {
             this.fbIndex = (dy<<8)+dx;
             this.tIndex = 63;
             for(this.y=0;this.y<8;this.y++){
@@ -1822,7 +1832,7 @@ NES.PPU.Tile.prototype = {
                     if(this.x>=srcx1 && this.x<srcx2 && this.y>=srcy1 && this.y<srcy2){
                         this.palIndex = this.pix[this.tIndex];
                         this.tpri = priTable[this.fbIndex];
-                        if(this.palIndex!=0 && pri<=(this.tpri&0xFF)){
+                        if(this.palIndex!==0 && pri<=(this.tpri&0xFF)){
                             buffer[this.fbIndex] = palette[this.palIndex+palAdd];
                             this.tpri = (this.tpri&0xF00)|pri;
                             priTable[this.fbIndex] =this.tpri;
@@ -1840,7 +1850,6 @@ NES.PPU.Tile.prototype = {
     },
     
     isTransparent: function(x, y){
-        return (this.pix[(y<<3)+x]==0);
+        return (this.pix[(y<<3)+x] === 0);
     }
-}
-
+};
