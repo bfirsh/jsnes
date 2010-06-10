@@ -10,7 +10,6 @@ charset="utf-8">
 charset="utf-8">
     
     <script src="js.2/jquery-1.4.2.min.js" type="text/javascript" charset="utf-8"></script>
-    <script src="js.2/jquery.dimensions.min.js" type="text/javascript" charset="utf-8"></script>
     <script src="js.2/dynamicaudio-min.js" type="text/javascript" charset="utf-8"></script>
     <script src="js.2/nes.js" type="text/javascript" charset="utf-8"></script>
     <script src="js.2/utils.js" type="text/javascript" charset="utf-8"></script>
@@ -20,24 +19,35 @@ charset="utf-8">
     <script src="js.2/papu.js" type="text/javascript" charset="utf-8"></script>
     <script src="js.2/ppu.js" type="text/javascript" charset="utf-8"></script>
     <script src="js.2/rom.js" type="text/javascript" charset="utf-8"></script>
-    <script src="js.2/roms.js" type="text/javascript" charset="utf-8"></script>
+    <script src="js.2/ui.js" type="text/javascript" charset="utf-8"></script>
     <script type="text/javascript" charset="utf-8">
-        var nes;
-        var roms = {};
-        
-        $(document).ready(function() {
-            $("#status").text("Initialising...");
-            $("<option>Select a ROM...</option>").appendTo("#roms");
-            for (c in roms_list) {
-                var optgroup = $('<optgroup></optgroup>').attr("label", c);
-                for (i in roms_list[c]) if (roms_list[c].hasOwnProperty(i)) {
-                    $('<option>'+roms_list[c][i]+'</option>')
-                        .attr("value", roms_list[c][i])
-                        .appendTo(optgroup);
-                }
-                $("#roms").append(optgroup);
-            }
-            nes = new NES();
+        $(function() {
+            var nes = new NES('#emulator');
+            nes.ui.setRoms({
+                "Working": [
+                    ['Bubble Bobble', 'roms/Bubble Bobble (U).nes'],
+                    ['Contra', 'roms/Contra (U) [!].nes'],
+                    ['Donkey Kong', 'roms/Donkey Kong (JU).nes'],
+                    ['Dr. Mario', 'roms/Dr. Mario (JU).nes'],
+                    ['Golf', 'roms/Golf (JU).nes'],
+                    ['The Legend of Zelda', 'roms/Legend of Zelda, The (U) (PRG1).nes'],
+                    ['Lemmings', 'roms/Lemmings (U).nes'],
+                    ['Lifeforce', 'roms/Lifeforce (U).nes'],
+                    ['Mario Bros.', 'roms/Mario Bros. (JU) [!].nes'],
+                    ['Mega Man', 'roms/Mega Man (U).nes'],
+                    ['Pac-Man', 'roms/Pac-Man (U) [!].nes'],
+                    ['Super Mario Bros.', 'roms/Super Mario Bros. (JU) (PRG0) [!].nes'],
+                    ['Tennis', 'roms/Tennis (JU) [!].nes'],
+                    ['Tetris', 'roms/Tetris (U) [!].nes'],
+                    ['Tetris 2', 'roms/Tetris 2 (U) [!].nes'],
+                    ['Zelda II - The Adventure of Link', 'roms/Zelda II - The Adventure of Link (U).nes']
+                ],
+
+                "Nearly Working": [
+                    ['Duck Hunt', 'roms/Duck Hunt (JUE) [!].nes'],
+                    ['Super Mario Bros. 3', 'roms/Super Mario Bros. 3 (U) (PRG1) [!].nes']
+                ]
+            });
         });
     </script>
 </head>
@@ -45,16 +55,9 @@ charset="utf-8">
 <body><div id="wrapper">
     <h1>JSNES</h1>
     <p class="summary">A JavaScript <a href="http://en.wikipedia.org/wiki/Nintendo_Entertainment_System">NES</a> emulator. <small>By <a href="/">Ben Firshman</a> <a href="http://twitter.com/bfirsh">@bfirsh</a></small></p>
-    <div id="emulator">
-        <canvas id="screen" width="256" height="240"></canvas>
-        <div id="controls">
-            <select id="roms"></select>
-            <input type="button" value="pause" id="pause" disabled="disabled">
-            <input type="button" value="restart" id="restart" disabled="disabled">
-            <input type="button" value="enable sound" id="enablesound" disabled="disabled">
-            <input type="button" value="zoom in" id="zoom">
-        </div>
-        <p id="status">Loading...</p>
+    
+    <div id="emulator"></div>
+    
 <script type="text/javascript">
 digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_entirely_in_Javascript';
 
@@ -62,7 +65,6 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
 <script src="http://digg.com/tools/diggthis.js" type="text/javascript"></script>
 <script type="text/javascript" src="http://www.reddit.com/button.js?t=1"></script>
 
-    </div>
     <h2>Controls</h2>
     <table id="controls">
         <tr>
@@ -123,105 +125,6 @@ digg_url = 'http://digg.com/playable_web_games/JSNES_A_NES_emulator_written_enti
     <p>Playing sound probably won't run at full speed, but Chrome appears to be fastest.</p>
     
 <script type="text/javascript" charset="utf-8">
-    // Mouse events
-    $("#screen").mousedown(function(e){
-        if (nes && nes.mmap) {
-            nes.mmap.mousePressed = true;
-            nes.mmap.mouseX = e.pageX-$("#screen").offset()["left"];
-            nes.mmap.mouseY = e.pageY-$("#screen").offset()["top"];
-        }
-    });
-    
-    $("#screen").mouseup(function(){
-        setTimeout(function(){
-            if (nes && nes.mmap) {
-                nes.mmap.mousePressed = false;
-                nes.mmap.mouseX = 0;
-                nes.mmap.mouseY = 0;
-            }
-        }, 500);
-    });
-    
-    function resetButtons() {
-        $("#pause").attr("disabled", null).attr("value", "pause");
-        $("#restart").attr("disabled", null);
-        $("#enablesound").attr("disabled", null);
-        if (nes.opts.emulateSound) {
-            $("#enablesound").attr("value", "disable sound");
-        }
-        else {
-            $("#enablesound").attr("value", "enable sound");
-        }
-    }
-    
-    $("#roms").change(function() {
-        resetButtons();
-        var romName = $("#roms").val();
-        $("#status").text("Downloading "+romName);
-        $.ajax({
-            url: "roms/"+escape(romName),
-            xhr: function() {
-                var xhr = $.ajaxSettings.xhr()
-                xhr.overrideMimeType('text/plain; charset=x-user-defined');
-                return xhr;
-            },
-            success: function(data) {
-                nes.loadRom(data);
-                nes.start();
-            }
-        });
-    });
-    
-    $("#pause").click(function() {
-        b = $("#pause");
-        if (b.attr("value") == "pause") {
-            nes.stop();
-            $("#status").text("Paused")
-            b.attr("value", "resume");
-        }
-        else {
-            nes.start();
-            b.attr("value", "pause");
-        }
-    });
-    
-    $("#enablesound").click(function() {
-        b = $("#enablesound");
-        if (b.attr("value") == "enable sound") {
-            nes.opts.emulateSound = true;
-            b.attr("value", "disable sound");
-        }
-        else {
-            nes.opts.emulateSound = false;
-            b.attr("value", "enable sound");
-        }
-    });
-    
-    var zoomed = false;
-    $("#zoom").click(function() {
-        if (zoomed) {
-            $('#screen').animate({
-                width: '256px',
-                height: '240px'
-            });
-            $('#zoom').attr("value", "zoom in");
-            zoomed = false;
-        }
-        else {
-            $('#screen').animate({
-                width: '512px',
-                height: '480px'
-            });
-            $('#zoom').attr("value", "zoom out");
-            zoomed = true;
-        }
-    });
-    
-    $("#restart").click(function() {
-        nes.reloadRom();
-        nes.start();
-    });
-    
     var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
     document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
     </script>

@@ -2,16 +2,16 @@
     text-align: center;
 }
 
-#controls {
+.nes-controls {
     margin-bottom: 2em;
 }
 
-#status {
+.nes-status {
     font-size: 0.8em;
     color: #999;
 }
 
-#screen {
+.nes-screen {
     display: block;
     margin: 0 auto 20px auto;
 }

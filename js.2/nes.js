@@ -1,5 +1,5 @@
 
-function NES() {
+var NES = function(parent) {
     this.opts = {
         preferredFrameRate: 60,
         fpsInterval: 500, // Time between updating FPS in ms
@@ -13,13 +13,14 @@ function NES() {
     }
     this.frameTime = 1000/this.opts.preferredFrameRate;
     
+    this.ui = new NES.UI(this, parent);
     this.cpu = new NES.CPU(this);
     this.ppu = new NES.PPU(this);
     this.papu = new NES.PAPU(this);
     this.mmap = null; // set in loadRom()
     this.keyboard = new NES.Keyboard();
     
-    $("#status").text("Initialised. Ready to load a ROM.");
+    this.ui.updateStatus("Ready to load a ROM.");
 }
     
     
@@ -65,7 +66,7 @@ NES.prototype = {
     frame: function() {
         this.ppu.startFrame();
         var cycles = 0;
-        var emulateSound = nes.opts.emulateSound;
+        var emulateSound = this.opts.emulateSound;
         var cpu = this.cpu;
         var ppu = this.ppu;
         var papu = this.papu;
@@ -138,13 +139,12 @@ NES.prototype = {
         if (this.lastFpsTime) {
             s += ': '+(this.fpsFrameCount/((now-this.lastFpsTime)/1000)).toFixed(2)+' FPS';
         }
-        $("#status").text(s);
+        this.ui.updateStatus(s);
         this.fpsFrameCount = 0;
         this.lastFpsTime = now;
     },
     
     stop: function() {
-        //$("#status").text("Stopped.");
         clearInterval(this.frameInterval);
         clearInterval(this.fpsInterval);
         this.isRunning = false;
@@ -163,7 +163,7 @@ NES.prototype = {
             this.stop();
         }
         
-        $("#status").text("Loading...");
+        this.ui.updateStatus("Loading ROM...");
         
         // Load ROM file:
         this.rom = new NES.ROM(this);
@@ -179,10 +179,10 @@ NES.prototype = {
             this.ppu.setMirroring(this.rom.getMirroringType());
             this.romData = data;
             
-            $("#status").text("Successfully loaded. Ready to be started.");
+            this.ui.updateStatus("Successfully loaded. Ready to be started.");
         }
         else {
-            $("#status").text("Invalid ROM!");
+            this.ui.updateStatus("Invalid ROM!");
         }
         return this.rom.valid;
     },

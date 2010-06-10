@@ -78,8 +78,7 @@ NES.PPU = function(nes) {
     this.showSpr0Hit = false;
     this.clipToTvSize = true;
     
-    this.canvas = document.getElementById('screen');
-    this.canvasContext = this.canvas.getContext('2d');
+    this.canvasContext = this.nes.ui.screen[0].getContext('2d');
     this.canvasImageData = this.canvasContext.getImageData(0, 0, 256, 240);
     this.canvasContext.fillStyle = 'black';
     this.canvasContext.fillRect(0, 0, 256, 240); /* set alpha to opaque */
