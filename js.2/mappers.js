@@ -1,10 +1,10 @@
-NES.Mappers = {};
+JSNES.Mappers = {};
 
-NES.Mappers[0] = function(nes) {
+JSNES.Mappers[0] = function(nes) {
     this.nes = nes;
 }
 
-NES.Mappers[0].prototype = {
+JSNES.Mappers[0].prototype = {
     reset: function() {
         this.joy1StrobeState = 0;
         this.joy2StrobeState = 0;
@@ -410,7 +410,7 @@ NES.Mappers[0].prototype = {
             var ram = this.nes.rom.batteryRam;
             if (ram!=null && ram.length==0x2000) {
                 // Load Battery RAM into memory:
-                NES.Utils.arraycopy(ram, 0, this.nes.cpu.mem, 0x6000, 0x2000);
+                JSNES.Utils.arraycopy(ram, 0, this.nes.cpu.mem, 0x6000, 0x2000);
             }
         }
     },
@@ -420,7 +420,7 @@ NES.Mappers[0].prototype = {
         bank %= this.nes.rom.romCount;
         //var data = this.nes.rom.rom[bank];
         //cpuMem.write(address,data,data.length);
-        NES.Utils.arraycopy(this.nes.rom.rom[bank], 0, this.nes.cpu.mem, address, 16384);
+        JSNES.Utils.arraycopy(this.nes.rom.rom[bank], 0, this.nes.cpu.mem, address, 16384);
     },
 
     loadVromBank: function(bank, address) {
@@ -429,11 +429,11 @@ NES.Mappers[0].prototype = {
         }
         this.nes.ppu.triggerRendering();
     
-        NES.Utils.arraycopy(this.nes.rom.vrom[bank%this.nes.rom.vromCount], 0,
+        JSNES.Utils.arraycopy(this.nes.rom.vrom[bank%this.nes.rom.vromCount], 0,
             this.nes.ppu.vramMem, address, 4096);
     
         var vromTile = this.nes.rom.vromTile[bank%this.nes.rom.vromCount];
-        NES.Utils.arraycopy(vromTile, 0, this.nes.ppu.ptTile,address >> 4, 256);
+        JSNES.Utils.arraycopy(vromTile, 0, this.nes.ppu.ptTile,address >> 4, 256);
     },
 
     load32kRomBank: function(bank, address) {
@@ -459,7 +459,7 @@ NES.Mappers[0].prototype = {
     
         var bank4k = parseInt(bank1k/4) % this.nes.rom.vromCount;
         var bankoffset = (bank1k%4)*1024;
-        NES.Utils.arraycopy(this.nes.rom.vrom[bank4k], 0, this.nes.ppu.vramMem,
+        JSNES.Utils.arraycopy(this.nes.rom.vrom[bank4k], 0, this.nes.ppu.vramMem,
             bankoffset, 1024);
     
         // Update tiles:
@@ -478,7 +478,7 @@ NES.Mappers[0].prototype = {
     
         var bank4k = parseInt(bank2k/2)%this.nes.rom.vromCount;
         var bankoffset = (bank2k%2)*2048;
-        NES.Utils.arraycopy(this.nes.rom.vrom[bank4k], bankoffset,
+        JSNES.Utils.arraycopy(this.nes.rom.vrom[bank4k], bankoffset,
             this.nes.ppu.vramMem, address, 2048);
     
         // Update tiles:
@@ -495,7 +495,7 @@ NES.Mappers[0].prototype = {
         var offset = (bank8k%2)*8192;
     
         //this.nes.cpu.mem.write(address,this.nes.rom.rom[bank16k],offset,8192);
-        NES.Utils.arraycopy(this.nes.rom.rom[bank16k], offset, 
+        JSNES.Utils.arraycopy(this.nes.rom.rom[bank16k], offset, 
                   this.nes.cpu.mem, address, 8192);
     },
 
@@ -508,13 +508,13 @@ NES.Mappers[0].prototype = {
     }
 }
 
-NES.Mappers[1] = function(nes) {
+JSNES.Mappers[1] = function(nes) {
     this.nes = nes;
 }
 
-NES.Mappers[1].prototype = {
+JSNES.Mappers[1].prototype = {
     reset: function() {
-        NES.Mappers[0].prototype.reset.apply(this);
+        JSNES.Mappers[0].prototype.reset.apply(this);
         
         // 5-bit buffer:
         this.regBuffer = 0;
@@ -540,7 +540,7 @@ NES.Mappers[1].prototype = {
     write: function(address, value) {
         // Writes to addresses other than MMC registers are handled by NoMapper.
         if (address < 0x8000) {
-            NES.Mappers[0].prototype.write.apply(this, arguments);
+            JSNES.Mappers[0].prototype.write.apply(this, arguments);
             return;
         }
     
@@ -768,18 +768,18 @@ NES.Mappers[1].prototype = {
     }
 }
 
-NES.Utils.copyPrototype(NES.Mappers[1], NES.Mappers[0]);
+JSNES.Utils.copyPrototype(JSNES.Mappers[1], JSNES.Mappers[0]);
 
 
-NES.Mappers[2] = function(nes) {
+JSNES.Mappers[2] = function(nes) {
     this.nes = nes
 }
 
-NES.Mappers[2].prototype = {
+JSNES.Mappers[2].prototype = {
     write: function(address, value) {
         // Writes to addresses other than MMC registers are handled by NoMapper.
         if (address < 0x8000) {
-            NES.Mappers[0].prototype.write.apply(this, arguments);
+            JSNES.Mappers[0].prototype.write.apply(this, arguments);
             return;
         }
     
@@ -810,10 +810,10 @@ NES.Mappers[2].prototype = {
     }
 }
 
-NES.Utils.copyPrototype(NES.Mappers[2], NES.Mappers[0]);
+JSNES.Utils.copyPrototype(JSNES.Mappers[2], JSNES.Mappers[0]);
 
 
-NES.Mappers[4] = function(nes) {
+JSNES.Mappers[4] = function(nes) {
     this.nes = nes
     
     this.CMD_SEL_2_1K_VROM_0000 = 0;
@@ -835,11 +835,11 @@ NES.Mappers[4] = function(nes) {
     this.prgAddressChanged = false;
 }
 
-NES.Mappers[4].prototype = {
+JSNES.Mappers[4].prototype = {
     write: function(address, value) {
         // Writes to addresses other than MMC registers are handled by NoMapper.
         if (address < 0x8000) {
-            NES.Mappers[0].prototype.write.apply(this, arguments);
+            JSNES.Mappers[0].prototype.write.apply(this, arguments);
             return;
         }
     
@@ -1047,4 +1047,4 @@ NES.Mappers[4].prototype = {
     }
 }
 
-NES.Utils.copyPrototype(NES.Mappers[4], NES.Mappers[0]);
+JSNES.Utils.copyPrototype(JSNES.Mappers[4], JSNES.Mappers[0]);

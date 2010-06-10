@@ -1,5 +1,5 @@
 
-var NES = function(parent) {
+var JSNES = function(parent) {
     this.opts = {
         preferredFrameRate: 60,
         fpsInterval: 500, // Time between updating FPS in ms
@@ -13,18 +13,18 @@ var NES = function(parent) {
     }
     this.frameTime = 1000/this.opts.preferredFrameRate;
     
-    this.ui = new NES.UI(this, parent);
-    this.cpu = new NES.CPU(this);
-    this.ppu = new NES.PPU(this);
-    this.papu = new NES.PAPU(this);
+    this.ui = new JSNES.UI(this, parent);
+    this.cpu = new JSNES.CPU(this);
+    this.ppu = new JSNES.PPU(this);
+    this.papu = new JSNES.PAPU(this);
     this.mmap = null; // set in loadRom()
-    this.keyboard = new NES.Keyboard();
+    this.keyboard = new JSNES.Keyboard();
     
     this.ui.updateStatus("Ready to load a ROM.");
-}
+};
     
     
-NES.prototype = {
+JSNES.prototype = {
     isRunning: false,
     fpsFrameCount: 0,
     limitFrames: true,
@@ -166,7 +166,7 @@ NES.prototype = {
         this.ui.updateStatus("Loading ROM...");
         
         // Load ROM file:
-        this.rom = new NES.ROM(this);
+        this.rom = new JSNES.ROM(this);
         this.rom.load(data);
         
         if (this.rom.valid) {
@@ -202,4 +202,4 @@ NES.prototype = {
         this.limitFrames = limit;
         this.lastFrameTime = null;
     }
-}
+};

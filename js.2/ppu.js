@@ -1,4 +1,4 @@
-NES.PPU = function(nes) {
+JSNES.PPU = function(nes) {
     this.nes = nes;
     
     // Keep Chrome happy
@@ -90,7 +90,7 @@ NES.PPU = function(nes) {
     this.reset();
 };
 
-NES.PPU.prototype = {
+JSNES.PPU.prototype = {
     // Status flags:
     STATUS_VRAMWRITE: 4,
     STATUS_SLSPRITECOUNT: 5,
@@ -202,7 +202,7 @@ NES.PPU.prototype = {
         // Create pattern table tile buffers:
         this.ptTile = new Array(512);
         for (i=0; i<512; i++) {
-            this.ptTile[i] = new NES.PPU.Tile();
+            this.ptTile[i] = new JSNES.PPU.Tile();
         }
         
         // Create nametable buffers:
@@ -211,7 +211,7 @@ NES.PPU.prototype = {
         this.currentMirroring = -1;
         this.nameTable = new Array(4);
         for (i=0; i<4; i++) {
-            this.nameTable[i] = new NES.PPU.NameTable(32, 32, "Nt"+i);
+            this.nameTable[i] = new JSNES.PPU.NameTable(32, 32, "Nt"+i);
         }
         
         // Initialize mirroring lookup table:
@@ -220,7 +220,7 @@ NES.PPU.prototype = {
             this.vramMirrorTable[i] = i;
         }
         
-        this.palTable = new NES.PPU.PaletteTable();
+        this.palTable = new JSNES.PPU.PaletteTable();
         this.palTable.loadNTSCPalette();
         //this.palTable.loadDefaultPalette();
         
@@ -1492,7 +1492,7 @@ NES.PPU.prototype = {
     }
 };
 
-NES.PPU.NameTable = function(width, height, name) {   
+JSNES.PPU.NameTable = function(width, height, name) {   
     this.width = width;
     this.height = height;
     this.name = name;
@@ -1501,7 +1501,7 @@ NES.PPU.NameTable = function(width, height, name) {
     this.attrib = new Array(width*height);
 };
 
-NES.PPU.NameTable.prototype = {
+JSNES.PPU.NameTable.prototype = {
     getTileIndex: function(x, y){
         return this.tile[y*this.width+x];
     },
@@ -1534,13 +1534,13 @@ NES.PPU.NameTable.prototype = {
 };
 
 
-NES.PPU.PaletteTable = function() {
+JSNES.PPU.PaletteTable = function() {
     this.curTable = new Array(64);
     this.emphTable = new Array(8);
     this.currentEmph = -1;
 };
 
-NES.PPU.PaletteTable.prototype = {
+JSNES.PPU.PaletteTable.prototype = {
     reset: function() {
         this.setEmphasis(0);
     },
@@ -1691,7 +1691,7 @@ NES.PPU.PaletteTable.prototype = {
     }
 };
 
-NES.PPU.Tile = function() {
+JSNES.PPU.Tile = function() {
     // Tile data:
     this.pix = new Array(64);
     
@@ -1710,7 +1710,7 @@ NES.PPU.Tile = function() {
     this.opaque = new Array(8);
 };
     
-NES.PPU.Tile.prototype = {
+JSNES.PPU.Tile.prototype = {
     setBuffer: function(scanline){
         for(this.y=0;this.y<8;this.y++){
             this.setScanline(this.y,scanline[this.y],scanline[this.y+8]);

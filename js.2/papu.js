@@ -1,12 +1,12 @@
 
-NES.PAPU = function(nes) {
+JSNES.PAPU = function(nes) {
     this.nes = nes;
     
-    this.square1 = new NES.PAPU.ChannelSquare(this, true);
-    this.square2 = new NES.PAPU.ChannelSquare(this, false);
-    this.triangle = new NES.PAPU.ChannelTriangle(this);
-    this.noise = new NES.PAPU.ChannelNoise(this);
-    this.dmc = new NES.PAPU.ChannelDM(this);
+    this.square1 = new JSNES.PAPU.ChannelSquare(this, true);
+    this.square2 = new JSNES.PAPU.ChannelSquare(this, false);
+    this.triangle = new JSNES.PAPU.ChannelTriangle(this);
+    this.noise = new JSNES.PAPU.ChannelNoise(this);
+    this.dmc = new JSNES.PAPU.ChannelDM(this);
 
     this.frameIrqCounter = null;
     this.frameIrqCounterMax = 4;
@@ -105,7 +105,7 @@ NES.PAPU = function(nes) {
     this.reset();
 }
 
-NES.PAPU.prototype = {
+JSNES.PAPU.prototype = {
     reset: function() {
         this.sampleRate = this.nes.opts.sampleRate;
         this.sampleTimerMax = parseInt(
@@ -770,7 +770,7 @@ NES.PAPU.prototype = {
 }
 
 
-NES.PAPU.ChannelDM = function(papu) {
+JSNES.PAPU.ChannelDM = function(papu) {
     this.papu = papu;
     
     this.MODE_NORMAL = 0;
@@ -799,7 +799,7 @@ NES.PAPU.ChannelDM = function(papu) {
     this.reset();
 }   
     
-NES.PAPU.ChannelDM.prototype = {
+JSNES.PAPU.ChannelDM.prototype = {
     clockDmc: function() {
     
         // Only alter DAC value if the sample buffer has data:
@@ -979,7 +979,7 @@ NES.PAPU.ChannelDM.prototype = {
 }
 
 
-NES.PAPU.ChannelNoise = function(papu) {
+JSNES.PAPU.ChannelNoise = function(papu) {
     this.papu = papu;
     
     this.isEnabled = null;
@@ -1007,7 +1007,7 @@ NES.PAPU.ChannelNoise = function(papu) {
     this.reset();
 }
 
-NES.PAPU.ChannelNoise.prototype = {
+JSNES.PAPU.ChannelNoise.prototype = {
     reset: function() {
         this.progTimerCount = 0;
         this.progTimerMax = 0;
@@ -1101,7 +1101,7 @@ NES.PAPU.ChannelNoise.prototype = {
 }
 
 
-NES.PAPU.ChannelSquare = function(papu, square1) {
+JSNES.PAPU.ChannelSquare = function(papu, square1) {
     this.papu = papu;
     
     this.dutyLookup = [
@@ -1147,7 +1147,7 @@ NES.PAPU.ChannelSquare = function(papu, square1) {
     this.reset();
 }
 
-NES.PAPU.ChannelSquare.prototype = {
+JSNES.PAPU.ChannelSquare.prototype = {
     reset: function() {
         this.progTimerCount = 0;
         this.progTimerMax = 0;
@@ -1290,7 +1290,7 @@ NES.PAPU.ChannelSquare.prototype = {
 }
 
 
-NES.PAPU.ChannelTriangle = function(papu) {
+JSNES.PAPU.ChannelTriangle = function(papu) {
     this.papu = papu;
     
     this.isEnabled = null;
@@ -1311,7 +1311,7 @@ NES.PAPU.ChannelTriangle = function(papu) {
     this.reset();
 }
 
-NES.PAPU.ChannelTriangle.prototype = {
+JSNES.PAPU.ChannelTriangle.prototype = {
     reset: function(){
         this.progTimerCount = 0;
         this.progTimerMax = 0;

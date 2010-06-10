@@ -1,4 +1,4 @@
-NES.ROM = function(nes) {
+JSNES.ROM = function(nes) {
     this.nes = nes;
     
     this.mapperName = new Array(92);
@@ -45,7 +45,7 @@ NES.ROM = function(nes) {
     this.mapperName[91] = "Pirate HK-SF3 chip";
 }
 
-NES.ROM.prototype = {
+JSNES.ROM.prototype = {
     // Mirroring types:
     VERTICAL_MIRRORING: 0,
     HORIZONTAL_MIRRORING: 1,
@@ -131,7 +131,7 @@ NES.ROM.prototype = {
         for (var i=0; i < this.vromCount; i++) {
             this.vromTile[i] = new Array(256);
             for (var j=0; j < 256; j++) {
-                this.vromTile[i][j] = new NES.PPU.Tile();
+                this.vromTile[i][j] = new JSNES.PPU.Tile();
             }
         }
         
@@ -180,12 +180,12 @@ NES.ROM.prototype = {
     },
     
     mapperSupported: function() {
-        return new Boolean(NES.Mappers[this.mapperType]);
+        return new Boolean(JSNES.Mappers[this.mapperType]);
     },
     
     createMapper: function() {
         if (this.mapperSupported()) {
-            return new NES.Mappers[this.mapperType](this.nes);
+            return new JSNES.Mappers[this.mapperType](this.nes);
         }
         else {
             alert("Mapper not supported: "+this.mapperType);

@@ -1,5 +1,5 @@
 
-NES.Keyboard = function() {
+JSNES.Keyboard = function() {
     this.keys = {
         KEY_A: 0,
         KEY_B: 1,
@@ -27,7 +27,7 @@ NES.Keyboard = function() {
         .bind('keypress', function(evt) {self.keyPress(evt)});
 }
 
-NES.Keyboard.prototype = {
+JSNES.Keyboard.prototype = {
     setKey: function(key, value) {
         switch (key) {
             case 88: this.state1[this.keys.KEY_A] = value; break;      // X

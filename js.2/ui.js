@@ -1,5 +1,5 @@
 (function($) {
-    NES.UI = function(nes, parent) {
+    JSNES.UI = function(nes, parent) {
         var self = this;
         self.nes = nes;
         
@@ -104,7 +104,7 @@
         
     };
     
-    NES.UI.prototype = {
+    JSNES.UI.prototype = {
         updateStatus: function(s) {
             this.status.text(s);
         },
