@@ -43,7 +43,7 @@ JSNES.ROM = function(nes) {
     this.mapperName[71] = "Camerica chip";
     this.mapperName[78] = "Irem 74HC161/32-based";
     this.mapperName[91] = "Pirate HK-SF3 chip";
-}
+};
 
 JSNES.ROM.prototype = {
     // Mirroring types:
@@ -71,41 +71,43 @@ JSNES.ROM.prototype = {
     valid: false,
     
     load: function(data) {
-        if (data.indexOf("NES\x1a") == -1) {
-            alert("Not a valid NES ROM.");
+        var i, j, v;
+        
+        if (data.indexOf("NES\x1a") === -1) {
+            this.nes.ui.updateStatus("Not a valid NES ROM.");
             return;
         }
         this.header = new Array(16);
-        for (var i = 0; i < 16; i++) {
+        for (i = 0; i < 16; i++) {
             this.header[i] = data.charCodeAt(i) & 0xFF;
         }
         this.romCount = this.header[4];
         this.vromCount = this.header[5]*2; // Get the number of 4kB banks, not 8kB
-        this.mirroring = ((this.header[6] & 1) !=0 ? 1 : 0);
-        this.batteryRam = (this.header[6] & 2) != 0;
-        this.trainer = (this.header[6] & 4) != 0;
-        this.fourScreen = (this.header[6] & 8) != 0;
+        this.mirroring = ((this.header[6] & 1) !== 0 ? 1 : 0);
+        this.batteryRam = (this.header[6] & 2) !== 0;
+        this.trainer = (this.header[6] & 4) !== 0;
+        this.fourScreen = (this.header[6] & 8) !== 0;
         this.mapperType = (this.header[6] >> 4) | (this.header[7] & 0xF0);
         /* TODO
         if (this.batteryRam)
             this.loadBatteryRam();*/
         // Check whether byte 8-15 are zero's:
         var foundError = false;
-        for (var i=8; i<16; i++) {
-            if (this.header[i] != 0) {
+        for (i=8; i<16; i++) {
+            if (this.header[i] !== 0) {
                 foundError = true;
                 break;
             }
         }
         if (foundError) {
-            mapperType &= 0xF; // Ignore byte 7
+            this.mapperType &= 0xF; // Ignore byte 7
         }
         // Load PRG-ROM banks:
         this.rom = new Array(this.romCount);
         var offset = 16;
-        for (var i=0; i < this.romCount; i++) {
+        for (i=0; i < this.romCount; i++) {
             this.rom[i] = new Array(16384);
-            for (var j=0; j < 16384; j++) {
+            for (j=0; j < 16384; j++) {
                 if (offset+j >= data.length) {
                     break;
                 }
@@ -115,9 +117,9 @@ JSNES.ROM.prototype = {
         }
         // Load CHR-ROM banks:
         this.vrom = new Array(this.vromCount);
-        for (var i=0; i < this.vromCount; i++) {
+        for (i=0; i < this.vromCount; i++) {
             this.vrom[i] = new Array(4096);
-            for (var j=0; j < 4096; j++) {
+            for (j=0; j < 4096; j++) {
                 if (offset+j >= data.length){
                     break;
                 }
@@ -128,9 +130,9 @@ JSNES.ROM.prototype = {
         
         // Create VROM tiles:
         this.vromTile = new Array(this.vromCount);
-        for (var i=0; i < this.vromCount; i++) {
+        for (i=0; i < this.vromCount; i++) {
             this.vromTile[i] = new Array(256);
-            for (var j=0; j < 256; j++) {
+            for (j=0; j < 256; j++) {
                 this.vromTile[i][j] = new JSNES.PPU.Tile();
             }
         }
@@ -138,8 +140,8 @@ JSNES.ROM.prototype = {
         // Convert CHR-ROM banks to tiles:
         var tileIndex;
         var leftOver;
-        for (var v=0; v < this.vromCount; v++) {
-            for (var i=0; i < 4096; i++) {
+        for (v=0; v < this.vromCount; v++) {
+            for (i=0; i < 4096; i++) {
                 tileIndex = i >> 4;
                 leftOver = i % 16;
                 if (leftOver < 8) {
@@ -166,7 +168,7 @@ JSNES.ROM.prototype = {
         if (this.fourScreen) {
             return this.FOURSCREEN_MIRRORING;
         }
-        if (this.mirroring == 0) {
+        if (this.mirroring === 0) {
             return this.HORIZONTAL_MIRRORING;
         }
         return this.VERTICAL_MIRRORING;
@@ -180,7 +182,7 @@ JSNES.ROM.prototype = {
     },
     
     mapperSupported: function() {
-        return new Boolean(JSNES.Mappers[this.mapperType]);
+        return typeof JSNES.Mappers[this.mapperType] !== 'undefined';
     },
     
     createMapper: function() {
@@ -188,8 +190,8 @@ JSNES.ROM.prototype = {
             return new JSNES.Mappers[this.mapperType](this.nes);
         }
         else {
-            alert("Mapper not supported: "+this.mapperType);
+            this.nes.ui.updateStatus("This ROM uses a mapper not supported by JSNES: "+this.getMapperName()+"("+this.mapperType+")");
             return null;
         }
     }
-}
+};

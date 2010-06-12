@@ -6,7 +6,7 @@
         self.root = $('<div></div>');
         self.screen = $('<canvas class="nes-screen" width="256" height="240"></canvas>').appendTo(self.root);
         self.controls = $('<div class="nes-controls"></div>').appendTo(self.root);
-        self.romSelect = $('<select class="nes-roms"></select>').appendTo(self.controls)
+        self.romSelect = $('<select class="nes-roms"></select>').appendTo(self.controls);
         self.buttons = {
             pause: $('<input type="button" value="pause" class="nes-pause" disabled="disabled">').appendTo(self.controls),
             restart: $('<input type="button" value="restart" class="nes-restart" disabled="disabled">').appendTo(self.controls),
@@ -21,7 +21,7 @@
             $.ajax({
                 url: escape(self.romSelect.val()),
                 xhr: function() {
-                    var xhr = $.ajaxSettings.xhr()
+                    var xhr = $.ajaxSettings.xhr();
                     // Download as binary
                     xhr.overrideMimeType('text/plain; charset=x-user-defined');
                     return xhr;
@@ -88,8 +88,8 @@
                 if (self.nes.mmap) {
                     self.nes.mmap.mousePressed = true;
                     // FIXME: does not take into account zoom
-                    self.nes.mmap.mouseX = e.pageX-self.screen.offset()["left"];
-                    self.nes.mmap.mouseY = e.pageY-self.screen.offset()["top"];
+                    self.nes.mmap.mouseX = e.pageX - self.screen.offset().left;
+                    self.nes.mmap.mouseY = e.pageY - self.screen.offset().top;
                 }
             }).mouseup(function() {
                 setTimeout(function() {
@@ -131,14 +131,16 @@
             this.romSelect.children().remove();
             $("<option>Select a ROM...</option>").appendTo(this.romSelect);
             for (var groupName in roms) {
-                var optgroup = $('<optgroup></optgroup>')
-                    .attr("label", groupName);
-                for (var i = 0; i < roms[groupName].length; i++) {
-                    $('<option>'+roms[groupName][i][0]+'</option>')
-                        .attr("value", roms[groupName][i][1])
-                        .appendTo(optgroup);
+                if (roms.hasOwnProperty(groupName)) {
+                    var optgroup = $('<optgroup></optgroup>').
+                        attr("label", groupName);
+                    for (var i = 0; i < roms[groupName].length; i++) {
+                        $('<option>'+roms[groupName][i][0]+'</option>')
+                            .attr("value", roms[groupName][i][1])
+                            .appendTo(optgroup);
+                    }
+                    this.romSelect.append(optgroup);
                 }
-                this.romSelect.append(optgroup);
             }
         }
     };

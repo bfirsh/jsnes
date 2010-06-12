@@ -1,5 +1,7 @@
 
 JSNES.Keyboard = function() {
+    var i;
+    
     this.keys = {
         KEY_A: 0,
         KEY_B: 1,
@@ -11,21 +13,21 @@ JSNES.Keyboard = function() {
         KEY_RIGHT: 7
     };
 
-    this.state1 = Array(8);
-    for (var i = 0; i < this.state1.length; i++) {
+    this.state1 = new Array(8);
+    for (i = 0; i < this.state1.length; i++) {
         this.state1[i] = 0x40;
     }
-    this.state2 = Array(8);
-    for (var i = 0; i < this.state2.length; i++) {
+    this.state2 = new Array(8);
+    for (i = 0; i < this.state2.length; i++) {
         this.state2[i] = 0x40;
     }
     
     var self = this;
-    $(document)
-        .bind('keydown', function(evt) {self.keyDown(evt)})
-        .bind('keyup', function(evt) {self.keyUp(evt)})
-        .bind('keypress', function(evt) {self.keyPress(evt)});
-}
+    $(document).
+        bind('keydown', function(evt) { self.keyDown(evt); }).
+        bind('keyup', function(evt) { self.keyUp(evt); }).
+        bind('keypress', function(evt) { self.keyPress(evt); });
+};
 
 JSNES.Keyboard.prototype = {
     setKey: function(key, value) {
@@ -53,16 +55,18 @@ JSNES.Keyboard.prototype = {
     },
 
     keyDown: function(evt) {
-        if (!this.setKey(evt.keyCode, 0x41) && evt.preventDefault)
+        if (!this.setKey(evt.keyCode, 0x41) && evt.preventDefault) {
             evt.preventDefault();
+        }
+    },
+    
+    keyUp: function(evt) {
+        if (!this.setKey(evt.keyCode, 0x40) && evt.preventDefault) {
+            evt.preventDefault();
+        }
     },
     
     keyPress: function(evt) {
         evt.preventDefault();
-    },
-    
-    keyUp: function(evt) {
-        if (!this.setKey(evt.keyCode, 0x40) && evt.preventDefault)
-            evt.preventDefault();
     }
-}
+};

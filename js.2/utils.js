@@ -5,4 +5,4 @@ JSNES.Utils = {
             dest[destPos+i] = src[srcPos+i];
         }
     }
-}
+};
