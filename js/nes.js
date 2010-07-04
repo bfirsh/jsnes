@@ -16,8 +16,11 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-var JSNES = function(parent) {
+var JSNES = function(opts) {
     this.opts = {
+        ui: JSNES.DummyUI,
+        swfPath: 'lib/',
+        
         preferredFrameRate: 60,
         fpsInterval: 500, // Time between updating FPS in ms
         showDisplay: true,
@@ -28,9 +31,18 @@ var JSNES = function(parent) {
         CPU_FREQ_NTSC: 1789772.5, //1789772.72727272d;
         CPU_FREQ_PAL: 1773447.4
     };
+    if (typeof opts != 'undefined') {
+        var key;
+        for (key in this.opts) {
+            if (typeof opts[key] != 'undefined') {
+                this.opts[key] = opts[key];
+            }
+        }
+    }
+    
     this.frameTime = 1000 / this.opts.preferredFrameRate;
     
-    this.ui = new JSNES.UI(this, parent);
+    this.ui = new this.opts.ui(this);
     this.cpu = new JSNES.CPU(this);
     this.ppu = new JSNES.PPU(this);
     this.papu = new JSNES.PAPU(this);
@@ -47,7 +59,7 @@ JSNES.prototype = {
     limitFrames: true,
     romData: null,
     
-    // Resets the system.
+    // Resets the system
     reset: function() {
         if (this.mmap !== null) {
             this.mmap.reset();

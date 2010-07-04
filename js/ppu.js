@@ -96,15 +96,6 @@ JSNES.PPU = function(nes) {
     this.showSpr0Hit = false;
     this.clipToTvSize = true;
     
-    this.canvasContext = this.nes.ui.screen[0].getContext('2d');
-    this.canvasImageData = this.canvasContext.getImageData(0, 0, 256, 240);
-    this.canvasContext.fillStyle = 'black';
-    this.canvasContext.fillRect(0, 0, 256, 240); /* set alpha to opaque */
-    // Set alpha
-    for (var i = 3; i < this.canvasImageData.data.length-3; i+=4) {
-        this.canvasImageData.data[i] = 0xFF;
-    }
-    
     this.reset();
 };
 
@@ -583,23 +574,7 @@ JSNES.PPU.prototype = {
         }
         
         if (this.nes.opts.showDisplay) {
-            var imageData = this.canvasImageData.data;
-            var prevBuffer = this.prevBuffer;
-            var pixel, j;
-            
-            for (i=0; i<256*240; i++) {
-                pixel = buffer[i];
-            
-                if (pixel != prevBuffer[i]) {
-                    j = i*4;
-                    imageData[j] = pixel & 0xFF;
-                    imageData[j+1] = (pixel >> 8) & 0xFF;
-                    imageData[j+2] = (pixel >> 16) & 0xFF;
-                    prevBuffer[i] = pixel;
-                }
-            }
-            
-            this.canvasContext.putImageData(this.canvasImageData, 0, 0);
+            this.nes.ui.writeFrame(buffer, this.prevBuffer);
         }
     },
     

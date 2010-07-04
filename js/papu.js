@@ -113,8 +113,6 @@ JSNES.PAPU = function(nes) {
         }
     }
     
-    this.dynamicaudio = new DynamicAudio();
-    
     this.reset();
 };
 
@@ -637,7 +635,7 @@ JSNES.PAPU.prototype = {
         
         // Write full buffer
         if (this.bufferIndex === this.sampleBuffer.length) {
-            this.dynamicaudio.writeInt(this.sampleBuffer);
+            this.nes.ui.writeAudio(this.sampleBuffer);
             this.sampleBuffer = new Array(this.bufferSize*2);
             this.bufferIndex = 0;
         }

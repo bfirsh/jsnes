@@ -16,6 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+// Keyboard events are bound in the UI
 JSNES.Keyboard = function() {
     var i;
     
@@ -38,12 +39,6 @@ JSNES.Keyboard = function() {
     for (i = 0; i < this.state2.length; i++) {
         this.state2[i] = 0x40;
     }
-    
-    var self = this;
-    $(document).
-        bind('keydown', function(evt) { self.keyDown(evt); }).
-        bind('keyup', function(evt) { self.keyUp(evt); }).
-        bind('keypress', function(evt) { self.keyPress(evt); });
 };
 
 JSNES.Keyboard.prototype = {
