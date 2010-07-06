@@ -6,15 +6,15 @@
     <title>JSNES Benchmark</title>
     
     <script src="../lib/jquery-1.4.2.min.js" type="text/javascript" charset="utf-8"></script>
-    <script src="../js/nes.js" type="text/javascript" charset="utf-8"></script>
-    <script src="../js/utils.js" type="text/javascript" charset="utf-8"></script>
-    <script src="../js/cpu.js" type="text/javascript" charset="utf-8"></script>
-    <script src="../js/keyboard.js" type="text/javascript" charset="utf-8"></script>
-    <script src="../js/mappers.js" type="text/javascript" charset="utf-8"></script>
-    <script src="../js/papu.js" type="text/javascript" charset="utf-8"></script>
-    <script src="../js/ppu.js" type="text/javascript" charset="utf-8"></script>
-    <script src="../js/rom.js" type="text/javascript" charset="utf-8"></script>
-    <script src="../js/ui.js" type="text/javascript" charset="utf-8"></script>
+    <script src="../source/nes.js" type="text/javascript" charset="utf-8"></script>
+    <script src="../source/utils.js" type="text/javascript" charset="utf-8"></script>
+    <script src="../source/cpu.js" type="text/javascript" charset="utf-8"></script>
+    <script src="../source/keyboard.js" type="text/javascript" charset="utf-8"></script>
+    <script src="../source/mappers.js" type="text/javascript" charset="utf-8"></script>
+    <script src="../source/papu.js" type="text/javascript" charset="utf-8"></script>
+    <script src="../source/ppu.js" type="text/javascript" charset="utf-8"></script>
+    <script src="../source/rom.js" type="text/javascript" charset="utf-8"></script>
+    <script src="../source/ui.js" type="text/javascript" charset="utf-8"></script>
     
     <script src="benchmark.js" type="text/javascript" charset="utf-8"></script>
     <script type="text/javascript" charset="utf-8">
@@ -25,7 +25,8 @@
             var results = [];
             var i;
             results.length = repeatCount;
-            (function benchmark() {
+            $('#results').append('<li>Running...</li>');
+            setTimeout(function benchmark() {
                 if (currentRepeat < repeatCount) {
                     var start = +new Date();
                     
@@ -52,7 +53,7 @@
                     var meanFPS = totalFPS / repeatCount;
                     $('#results').append('<li>Average of 10 runs: '+meanTime.toFixed(2)+'ms</li>');
                 }
-            })();
+            }, 10);
         });
     </script>
 </head>
