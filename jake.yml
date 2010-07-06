@@ -1,0 +1,27 @@
+---
+source_directory:     source
+build_directory:      build
+
+layout:               together
+
+builds:
+  src:
+    packer:           false
+  min:
+    shrink_vars:      true
+    private:          true
+
+packages:
+  jsnes:
+    header: header.js
+    files:
+      - nes
+      - utils
+      - cpu
+      - keyboard
+      - mappers
+      - papu
+      - ppu
+      - rom
+      - ui
+    
