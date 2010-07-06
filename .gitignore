@@ -1,5 +1,5 @@
 /build/
-/roms/
+/local-roms/
 jsnes.tmproj
 ._*
 .DS_Store
