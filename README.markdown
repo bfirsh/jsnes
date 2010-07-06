@@ -6,7 +6,7 @@ A JavaScript NES emulator.
 Build
 -----
 
-To build a distribution, you will need jake:
+To build a distribution, you will need [jake](http://github.com/jcoglan/jake):
 
     $ sudo gem install jake
 
