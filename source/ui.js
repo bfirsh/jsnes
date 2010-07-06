@@ -162,7 +162,7 @@ if (typeof jQuery !== 'undefined') {
                 self.dynamicaudio = new DynamicAudio({
                     swf: nes.opts.swfPath+'dynamicaudio.swf'
                 });
-            }
+            };
         
             UI.prototype = {    
                 // Enable and reset UI elements
