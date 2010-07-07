@@ -55,6 +55,22 @@ JSNES.Mappers[0].prototype = {
             this.regWrite(address, value);
         }
     },
+    
+    writelow: function(address, value) {
+        if (address < 0x2000) {
+            // Mirroring of RAM:
+            this.nes.cpu.mem[address & 0x7FF] = value;
+        }
+        else if (address > 0x4017) {
+            this.nes.cpu.mem[address] = value;
+        }
+        else if (address > 0x2007 && address < 0x4000) {
+            this.regWrite(0x2000 + (address & 0x7), value);
+        }
+        else {
+            this.regWrite(address, value);
+        }
+    },
 
     load: function(address) {
         // Wrap around:

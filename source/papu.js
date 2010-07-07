@@ -842,27 +842,25 @@ JSNES.PAPU.ChannelDM.prototype = {
         // Only alter DAC value if the sample buffer has data:
         if(this.hasSample) {
         
-            if((this.data&1) === 0) {
+            if ((this.data & 1) === 0) {
             
                 // Decrement delta:
                 if(this.deltaCounter>0) {
                     this.deltaCounter--;
                 }
-            
-            }else{
-            
+            }
+            else {
                 // Increment delta:
-                if(this.deltaCounter<63) {
+                if (this.deltaCounter < 63) {
                     this.deltaCounter++;
                 }
-            
             }
         
             // Update sample value:
-            this.sample = this.isEnabled ? (this.deltaCounter<<1)+this.dacLsb : 0;
+            this.sample = this.isEnabled ? (this.deltaCounter << 1) + this.dacLsb : 0;
         
             // Update shift register:
-            this.data>>=1;
+            this.data >>= 1;
         
         }
     
@@ -883,7 +881,7 @@ JSNES.PAPU.ChannelDM.prototype = {
     },
 
     endOfSample: function() {
-        if (this.playLengthCounter===0 && this.playMode===this.MODE_LOOP) {
+        if (this.playLengthCounter === 0 && this.playMode === this.MODE_LOOP) {
         
             // Start from beginning of sample:
             this.playAddress = this.playStartAddress;
@@ -919,7 +917,7 @@ JSNES.PAPU.ChannelDM.prototype = {
     
         this.playLengthCounter--;
         this.playAddress++;
-        if (this.playAddress>0xFFFF) {
+        if (this.playAddress > 0xFFFF) {
             this.playAddress = 0x8000;
         }
     
@@ -930,48 +928,55 @@ JSNES.PAPU.ChannelDM.prototype = {
         if (address === 0x4010) {
         
             // Play mode, DMA Frequency
-            if((value>>6)===0) {
+            if ((value >> 6) === 0) {
                 this.playMode = this.MODE_NORMAL;
-            }else if(((value>>6)&1)===1) {
+            }
+            else if (((value >> 6) & 1) === 1) {
                 this.playMode = this.MODE_LOOP;
-            }else if((value>>6)===2) {
+            }
+            else if ((value >> 6) === 2) {
                 this.playMode = this.MODE_IRQ;
             }
         
-            if((value&0x80)===0) {
+            if ((value & 0x80) === 0) {
                 this.irqGenerated = false;
             }
         
-            this.dmaFrequency = this.papu.getDmcFrequency(value&0xF);
+            this.dmaFrequency = this.papu.getDmcFrequency(value & 0xF);
         
-        }else if (address === 0x4011) {
+        }
+        else if (address === 0x4011) {
         
             // Delta counter load register:
-            this.deltaCounter = (value>>1)&63;
-            this.dacLsb = value&1;
-            this.sample = ((this.deltaCounter<<1)+this.dacLsb); // update sample value
+            this.deltaCounter = (value >> 1) & 63;
+            this.dacLsb = value & 1;
+            this.sample = ((this.deltaCounter << 1) + this.dacLsb); // update sample value
         
-        }else if (address === 0x4012) {
+        }
+        else if (address === 0x4012) {
         
             // DMA address load register
-            this.playStartAddress = (value<<6)|0x0C000;
+            this.playStartAddress = (value << 6) | 0x0C000;
             this.playAddress = this.playStartAddress;
             this.reg4012 = value;
         
-        }else if (address === 0x4013) {
+        }
+        else if (address === 0x4013) {
         
             // Length of play code
-            this.playLength = (value<<4)+1;
+            this.playLength = (value << 4) + 1;
             this.playLengthCounter = this.playLength;
             this.reg4013 = value;
         
-        }else if (address === 0x4015) {
+        }
+        else if (address === 0x4015) {
         
             // DMC/IRQ Status
-            if (((value>>4)&1)===0) {
+            if (((value >> 4) & 1) === 0) {
                 // Disable:
                 this.playLengthCounter = 0;
-            }else{
+            }
+            else {
                 // Restart:
                 this.playAddress = this.playStartAddress;
                 this.playLengthCounter = this.playLength;
@@ -988,11 +993,11 @@ JSNES.PAPU.ChannelDM.prototype = {
     },
 
     getLengthStatus: function(){
-        return ((this.playLengthCounter===0 || !this.isEnabled)?0:1);
+        return ((this.playLengthCounter === 0 || !this.isEnabled) ? 0 : 1);
     },
 
     getIrqStatus: function(){
-        return (this.irqGenerated?1:0);
+        return (this.irqGenerated ? 1 : 0);
     },
 
     reset: function(){
