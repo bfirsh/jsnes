@@ -40,9 +40,10 @@ if (typeof jQuery !== 'undefined') {
                     return;
                 }
                 
+                self.romContainer = $('<div class="nes-roms"></div>').appendTo(self.root);
+                self.romSelect = $('<select></select>').appendTo(self.romContainer);
+                
                 self.controls = $('<div class="nes-controls"></div>').appendTo(self.root);
-                self.roms = $('<div class="nes-roms"></div>').appendTo(self.root);
-                self.romSelect = $('<select></select>').appendTo(self.roms);
                 self.buttons = {
                     pause: $('<input type="button" value="pause" class="nes-pause" disabled="disabled">').appendTo(self.controls),
                     restart: $('<input type="button" value="restart" class="nes-restart" disabled="disabled">').appendTo(self.controls),
