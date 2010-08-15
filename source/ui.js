@@ -34,8 +34,15 @@ if (typeof jQuery !== 'undefined') {
         
                 self.root = $('<div></div>');
                 self.screen = $('<canvas class="nes-screen" width="256" height="240"></canvas>').appendTo(self.root);
+                
+                if (!self.screen[0].getContext) {
+                    parent.html("Your browser doesn't support the <code>&lt;canvas&gt;</code> tag. Try Google Chrome, Safari, Opera or Firefox!");
+                    return;
+                }
+                
                 self.controls = $('<div class="nes-controls"></div>').appendTo(self.root);
-                self.romSelect = $('<select class="nes-roms"></select>').appendTo(self.controls);
+                self.roms = $('<div class="nes-roms"></div>').appendTo(self.root);
+                self.romSelect = $('<select></select>').appendTo(self.roms);
                 self.buttons = {
                     pause: $('<input type="button" value="pause" class="nes-pause" disabled="disabled">').appendTo(self.controls),
                     restart: $('<input type="button" value="restart" class="nes-restart" disabled="disabled">').appendTo(self.controls),
@@ -137,6 +144,12 @@ if (typeof jQuery !== 'undefined') {
             
                 // Canvas
                 self.canvasContext = self.screen[0].getContext('2d');
+                
+                if (!self.canvasContext.getImageData) {
+                    parent.html("Your browser doesn't support writing pixels directly to the <code>&lt;canvas&gt;</code> tag. Try the latest versions of Google Chrome, Safari, Opera or Firefox!");
+                    return;
+                }
+                
                 self.canvasImageData = self.canvasContext.getImageData(0, 0, 256, 240);
                 self.canvasContext.fillStyle = 'black';
                 self.canvasContext.fillRect(0, 0, 256, 240); // set alpha to opaque
