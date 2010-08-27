@@ -224,7 +224,7 @@ if (typeof jQuery !== 'undefined') {
             
                 writeFrame: function(buffer, prevBuffer) {
                     var imageData = this.canvasImageData.data;
-                    var pixel, j;
+                    var pixel, i, j;
 
                     for (i=0; i<256*240; i++) {
                         pixel = buffer[i];
