@@ -317,11 +317,6 @@ JSNES.Mappers[0].prototype = {
     joy2Read: function() {
         var ret;
     
-        this.joy2StrobeState++;
-        if (this.joy2StrobeState == 24) {
-            this.joy2StrobeState = 0;
-        }
-    
         switch (this.joy2StrobeState) {
             case 0:
             case 1:
@@ -343,17 +338,23 @@ JSNES.Mappers[0].prototype = {
             case 15:
             case 16:
             case 17:
+            case 18:
                 ret = 0;
                 break;
-            case 18:
+            case 19:
                 ret = 1;
                 break;
             default:
                 ret = 0;
         }
+
+        this.joy2StrobeState++;
+        if (this.joy2StrobeState == 24) {
+            this.joy2StrobeState = 0;
+        }
     
         return ret;
-    },
+      },
 
     loadROM: function() {
         if (!this.nes.rom.valid || this.nes.rom.romCount < 1) {
