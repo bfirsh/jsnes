@@ -10,3 +10,4 @@ Thanks to:
  * Connor Dunn for a patch that dramatically increased performance on Chrome.
  * Jens Lindstrom for some optimisations.
  * Rafal Chlodnicki for an Opera fix.
+ * Ecin Krispie for fixing player 2 controls.
