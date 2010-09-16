@@ -43,6 +43,7 @@ if (typeof jQuery !== 'undefined') {
                 self.romContainer = $('<div class="nes-roms"></div>').appendTo(self.root);
                 self.romSelect = $('<select></select>').appendTo(self.romContainer);
 
+                $('<p>or use a local file below or by using drag & drop onto the nes display</p>').appendTo(self.root);
                 self.romUpload = $('<input type="file">').appendTo(self.root);
                 
                 self.controls = $('<div class="nes-controls"></div>').appendTo(self.root);
@@ -78,12 +79,20 @@ if (typeof jQuery !== 'undefined') {
                 self.root[0].addEventListener("dragover", JSNES.Utils.cancelEvent, false);
                 self.root[0].addEventListener("drop", function(e) {
                     JSNES.Utils.cancelEvent(e);
+                    if (!e.dataTransfer) {
+                        alert("Your browser doesn't support reading local files (FileAPI).");
+                        return;
+                    }
                     var files = e.dataTransfer.files; 
                     startRomFromFileBlob(files[0]);
                 }, false);
 
                 self.romUpload.change(function() {
                     var files = self.romUpload[0].files;
+                    if (!files) {
+                        alert("Your browser doesn't support reading local files (FileAPI).");
+                        return;
+                    }
                     startRomFromFileBlob(files[0]);
                 })
 
