@@ -42,6 +42,8 @@ if (typeof jQuery !== 'undefined') {
                 
                 self.romContainer = $('<div class="nes-roms"></div>').appendTo(self.root);
                 self.romSelect = $('<select></select>').appendTo(self.romContainer);
+
+                self.romUpload = $('<input type="file">').appendTo(self.root);
                 
                 self.controls = $('<div class="nes-controls"></div>').appendTo(self.root);
                 self.buttons = {
@@ -70,6 +72,30 @@ if (typeof jQuery !== 'undefined') {
                         }
                     });
                 });
+
+                // These should be changed to use bind when jquery adds dataTransfer to its Event object.
+                self.root[0].addEventListener("dragenter", JSNES.Utils.cancelEvent, false);
+                self.root[0].addEventListener("dragover", JSNES.Utils.cancelEvent, false);
+                self.root[0].addEventListener("drop", function(e) {
+                    JSNES.Utils.cancelEvent(e);
+                    var files = e.dataTransfer.files; 
+                    startRomFromFileBlob(files[0]);
+                }, false);
+
+                self.romUpload.change(function() {
+                    var files = self.romUpload[0].files;
+                    startRomFromFileBlob(files[0]);
+                })
+
+                function startRomFromFileBlob(file) {
+                    var reader = new FileReader();
+                    reader.readAsBinaryString(file);
+                    reader.onload = function(evt) {
+                        self.nes.loadRom(evt.target.result);
+                        self.nes.start();
+                        self.enable();
+                    }
+                }
         
                 self.buttons.pause.click(function() {
                     if (self.nes.isRunning) {

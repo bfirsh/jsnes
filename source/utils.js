@@ -21,5 +21,9 @@ JSNES.Utils = {
         for (var i=0; i<length; ++i) {
             dest[destPos+i] = src[srcPos+i];
         }
+    },
+    cancelEvent: function(e) {
+        e.stopPropagation();  
+        e.preventDefault();  
     }
 };
