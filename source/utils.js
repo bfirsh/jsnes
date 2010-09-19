@@ -17,9 +17,32 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 JSNES.Utils = {
-    arraycopy: function(src, srcPos, dest, destPos, length) {
-        for (var i=0; i<length; ++i) {
-            dest[destPos+i] = src[srcPos+i];
+    copyArrayElements: function(src, srcPos, dest, destPos, length) {
+        for (var i = 0; i < length; ++i) {
+            dest[destPos + i] = src[srcPos + i];
         }
+    },
+    
+    copyArray: function(src) {
+        var dest = new Array(src.length);
+        for (var i = 0; i < src.length; i++) {
+            dest[i] = src[i];
+        }
+        return dest;
+    },
+    
+    fromJSON: function(obj, state) {
+        for (var i = 0; i < obj.JSON_PROPERTIES.length; i++) {
+            obj[obj.JSON_PROPERTIES[i]] = state[obj.JSON_PROPERTIES[i]];
+        }
+    },
+    
+    toJSON: function(obj) {
+        var state = {};
+        for (var i = 0; i < obj.JSON_PROPERTIES.length; i++) {
+            state[obj.JSON_PROPERTIES[i]] = obj[obj.JSON_PROPERTIES[i]];
+        }
+        return state;
     }
 };
+

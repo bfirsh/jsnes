@@ -411,7 +411,7 @@ JSNES.Mappers[0].prototype = {
             var ram = this.nes.rom.batteryRam;
             if (ram !== null && ram.length == 0x2000) {
                 // Load Battery RAM into memory:
-                JSNES.Utils.arraycopy(ram, 0, this.nes.cpu.mem, 0x6000, 0x2000);
+                JSNES.Utils.copyArrayElements(ram, 0, this.nes.cpu.mem, 0x6000, 0x2000);
             }
         }
     },
@@ -421,7 +421,7 @@ JSNES.Mappers[0].prototype = {
         bank %= this.nes.rom.romCount;
         //var data = this.nes.rom.rom[bank];
         //cpuMem.write(address,data,data.length);
-        JSNES.Utils.arraycopy(this.nes.rom.rom[bank], 0, this.nes.cpu.mem, address, 16384);
+        JSNES.Utils.copyArrayElements(this.nes.rom.rom[bank], 0, this.nes.cpu.mem, address, 16384);
     },
 
     loadVromBank: function(bank, address) {
@@ -430,11 +430,11 @@ JSNES.Mappers[0].prototype = {
         }
         this.nes.ppu.triggerRendering();
     
-        JSNES.Utils.arraycopy(this.nes.rom.vrom[bank % this.nes.rom.vromCount], 
+        JSNES.Utils.copyArrayElements(this.nes.rom.vrom[bank % this.nes.rom.vromCount], 
             0, this.nes.ppu.vramMem, address, 4096);
     
         var vromTile = this.nes.rom.vromTile[bank % this.nes.rom.vromCount];
-        JSNES.Utils.arraycopy(vromTile, 0, this.nes.ppu.ptTile,address >> 4, 256);
+        JSNES.Utils.copyArrayElements(vromTile, 0, this.nes.ppu.ptTile,address >> 4, 256);
     },
 
     load32kRomBank: function(bank, address) {
@@ -461,7 +461,7 @@ JSNES.Mappers[0].prototype = {
     
         var bank4k = parseInt(bank1k / 4, 10) % this.nes.rom.vromCount;
         var bankoffset = (bank1k % 4) * 1024;
-        JSNES.Utils.arraycopy(this.nes.rom.vrom[bank4k], 0, 
+        JSNES.Utils.copyArrayElements(this.nes.rom.vrom[bank4k], 0, 
             this.nes.ppu.vramMem, bankoffset, 1024);
     
         // Update tiles:
@@ -480,7 +480,7 @@ JSNES.Mappers[0].prototype = {
     
         var bank4k = parseInt(bank2k / 2, 10) % this.nes.rom.vromCount;
         var bankoffset = (bank2k % 2) * 2048;
-        JSNES.Utils.arraycopy(this.nes.rom.vrom[bank4k], bankoffset,
+        JSNES.Utils.copyArrayElements(this.nes.rom.vrom[bank4k], bankoffset,
             this.nes.ppu.vramMem, address, 2048);
     
         // Update tiles:
@@ -496,7 +496,7 @@ JSNES.Mappers[0].prototype = {
         var offset = (bank8k % 2) * 8192;
     
         //this.nes.cpu.mem.write(address,this.nes.rom.rom[bank16k],offset,8192);
-        JSNES.Utils.arraycopy(this.nes.rom.rom[bank16k], offset, 
+        JSNES.Utils.copyArrayElements(this.nes.rom.rom[bank16k], offset, 
                   this.nes.cpu.mem, address, 8192);
     },
 
@@ -506,6 +506,20 @@ JSNES.Mappers[0].prototype = {
 
     latchAccess: function(address) {
         // Does nothing. This is used by MMC2.
+    },
+    
+    toJSON: function() {
+        return {
+            'joy1StrobeState': this.joy1StrobeState,
+            'joy2StrobeState': this.joy2StrobeState,
+            'joypadLastWrite': this.joypadLastWrite
+        };
+    },
+    
+    fromJSON: function(s) {
+        this.joy1StrobeState = s.joy1StrobeState;
+        this.joy2StrobeState = s.joy2StrobeState;
+        this.joypadLastWrite = s.joypadLastWrite;
     }
 };
 
@@ -773,6 +787,34 @@ JSNES.Mappers[1].prototype.switch32to16 = function() {
     // not yet.
 };
 
+JSNES.Mappers[1].prototype.toJSON = function() {
+    var s = JSNES.Mappers[0].prototype.toJSON.apply(this);
+    s.mirroring = this.mirroring;
+    s.oneScreenMirroring = this.oneScreenMirroring;
+    s.prgSwitchingArea = this.prgSwitchingArea;
+    s.prgSwitchingSize = this.prgSwitchingSize;
+    s.vromSwitchingSize = this.vromSwitchingSize;
+    s.romSelectionReg0 = this.romSelectionReg0;
+    s.romSelectionReg1 = this.romSelectionReg1;
+    s.romBankSelect = this.romBankSelect;
+    s.regBuffer = this.regBuffer;
+    s.regBufferCounter = this.regBufferCounter;
+    return s;
+};
+
+JSNES.Mappers[1].prototype.fromJSON = function(s) {
+    JSNES.Mappers[0].prototype.fromJSON.apply(this, s);
+    this.mirroring = s.mirroring;
+    this.oneScreenMirroring = s.oneScreenMirroring;
+    this.prgSwitchingArea = s.prgSwitchingArea;
+    this.prgSwitchingSize = s.prgSwitchingSize;
+    this.vromSwitchingSize = s.vromSwitchingSize;
+    this.romSelectionReg0 = s.romSelectionReg0;
+    this.romSelectionReg1 = s.romSelectionReg1;
+    this.romBankSelect = s.romBankSelect;
+    this.regBuffer = s.regBuffer;
+    this.regBufferCounter = s.regBufferCounter;
+};
 
 JSNES.Mappers[2] = function(nes) {
     this.nes = nes;
@@ -1046,4 +1088,29 @@ JSNES.Mappers[4].prototype.loadROM = function(rom) {
 
     // Do Reset-Interrupt:
     this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
+};
+
+JSNES.Mappers[4].prototype.toJSON = function() {
+    var s = JSNES.Mappers[0].prototype.toJSON.apply(this);
+    s.command = this.command;
+    s.prgAddressSelect = this.prgAddressSelect;
+    s.chrAddressSelect = this.chrAddressSelect;
+    s.pageNumber = this.pageNumber;
+    s.irqCounter = this.irqCounter;
+    s.irqLatchValue = this.irqLatchValue;
+    s.irqEnable = this.irqEnable;
+    s.prgAddressChanged = this.prgAddressChanged;
+    return s;
+};
+
+JSNES.Mappers[4].prototype.fromJSON = function(s) {
+    JSNES.Mappers[0].prototype.fromJSON.apply(this, s);
+    this.command = s.command;
+    this.prgAddressSelect = s.prgAddressSelect;
+    this.chrAddressSelect = s.chrAddressSelect;
+    this.pageNumber = s.pageNumber;
+    this.irqCounter = s.irqCounter;
+    this.irqLatchValue = s.irqLatchValue;
+    this.irqEnable = s.irqEnable;
+    this.prgAddressChanged = s.prgAddressChanged;
 };

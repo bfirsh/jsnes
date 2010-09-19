@@ -27,7 +27,6 @@ JSNES.PPU = function(nes) {
     this.vramBufferedReadValue = null;
     this.firstWrite = null;
     this.sramAddress = null;
-    this.mapperIrqCounter     = null;
     this.currentMirroring = null;
     this.requestEndFrame = null;
     this.nmiOk = null;
@@ -65,8 +64,7 @@ JSNES.PPU = function(nes) {
     this.prevBuffer = null;
     this.bgbuffer = null;
     this.pixrendered = null;
-    this.spr0dummybuffer = null;
-    this.dummyPixPriTable = null;
+    
     this.validTileData = null;
     this.scantile = null;
     this.scanline = null;
@@ -128,7 +126,6 @@ JSNES.PPU.prototype = {
         // SPR-RAM I/O:
         this.sramAddress = 0; // 8-bit only.
         
-        this.mapperIrqCounter     = 0;
         this.currentMirroring = -1;
         this.requestEndFrame = false;
         this.nmiOk = false;
@@ -180,8 +177,6 @@ JSNES.PPU.prototype = {
         this.prevBuffer = new Array(256*240);
         this.bgbuffer = new Array(256*240);
         this.pixrendered = new Array(256*240);
-        this.spr0dummybuffer = new Array(256*240);
-        this.dummyPixPriTable = new Array(256*240);
 
         this.validTileData = null;
 
@@ -1443,38 +1438,109 @@ JSNES.PPU.prototype = {
     
     // Updates the internally buffered sprite
     // data with this new byte of info.
-    spriteRamWriteUpdate: function(address, value){
+    spriteRamWriteUpdate: function(address, value) {
         var tIndex = parseInt(address / 4, 10);
         
         if (tIndex === 0) {
             //updateSpr0Hit();
-            this.checkSprite0(this.scanline-20);
+            this.checkSprite0(this.scanline - 20);
         }
         
-        if (address%4 === 0) {
+        if (address % 4 === 0) {
             // Y coordinate
             this.sprY[tIndex] = value;
-        }else if (address%4 == 1) {
+        }
+        else if (address % 4 == 1) {
             // Tile index
             this.sprTile[tIndex] = value;
-        }else if (address%4 == 2) {
+        }
+        else if (address % 4 == 2) {
             // Attributes
-            this.vertFlip[tIndex] = ((value&0x80)!==0);
-            this.horiFlip[tIndex] = ((value&0x40)!==0);
-            this.bgPriority[tIndex] = ((value&0x20)!==0);
-            this.sprCol[tIndex] = (value&3)<<2;
+            this.vertFlip[tIndex] = ((value & 0x80) !== 0);
+            this.horiFlip[tIndex] = ((value & 0x40) !==0 );
+            this.bgPriority[tIndex] = ((value & 0x20) !== 0);
+            this.sprCol[tIndex] = (value & 3) << 2;
             
-        }else if (address%4 == 3) {
+        }
+        else if (address % 4 == 3) {
             // X coordinate
             this.sprX[tIndex] = value;
         }
     },
     
-    doNMI: function(){
+    doNMI: function() {
         // Set VBlank flag:
         this.setStatusFlag(this.STATUS_VBLANK,true);
         //nes.getCpu().doNonMaskableInterrupt();
         this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NMI);
+    },
+    
+    JSON_PROPERTIES: [
+        // Memory
+        'vramMem', 'spriteMem',
+        // Counters
+        'cntFV', 'cntV', 'cntH', 'cntVT', 'cntHT',
+        // Registers
+        'regFV', 'regV', 'regH', 'regVT', 'regHT', 'regFH', 'regS',
+        // VRAM addr
+        'vramAddress', 'vramTmpAddress',
+        // Control/Status registers
+        'f_nmiOnVblank', 'f_spriteSize', 'f_bgPatternTable', 'f_spPatternTable', 
+        'f_addrInc', 'f_nTblAddress', 'f_color', 'f_spVisibility', 
+        'f_bgVisibility', 'f_spClipping', 'f_bgClipping', 'f_dispType',
+        // VRAM I/O
+        'vramBufferedReadValue', 'firstWrite',
+        // Mirroring
+        'currentMirroring', 'vramMirrorTable', 'ntable1',
+        // SPR-RAM I/O
+        'sramAddress',
+        // Sprites. Most sprite data is rebuilt from spriteMem
+        'hitSpr0',
+        // Palettes
+        'sprPalette', 'imgPalette',
+        // Rendering progression
+        'curX', 'scanline', 'lastRenderedScanline', 'curNt', 'scantile',
+        // Used during rendering
+        'attrib', 'buffer', 'bgbuffer', 'pixrendered',
+        // Misc
+        'requestEndFrame', 'nmiOk', 'dummyCycleToggle', 'nmiCounter', 
+        'validTileData', 'scanlineAlreadyRendered'
+    ],
+    
+    toJSON: function() {
+        var i;
+        var state = JSNES.Utils.toJSON(this);
+        
+        state.nameTable = [];
+        for (i = 0; i < this.nameTable.length; i++) {
+            state.nameTable[i] = this.nameTable[i].toJSON();
+        }
+        
+        state.ptTile = [];
+        for (i = 0; i < this.ptTile.length; i++) {
+            state.ptTile[i] = this.ptTile[i].toJSON();
+        }
+        
+        return state;
+    },
+    
+    fromJSON: function(state) {
+        var i;
+        
+        JSNES.Utils.fromJSON(this, state);
+        
+        for (i = 0; i < this.nameTable.length; i++) {
+            this.nameTable[i].fromJSON(state.nameTable[i]);
+        }
+        
+        for (i = 0; i < this.ptTile.length; i++) {
+            this.ptTile[i].fromJSON(state.ptTile[i]);
+        }
+        
+        // Sprite data:
+        for (i = 0; i < this.spriteMem.length; i++) {
+            this.spriteRamWriteUpdate(i, this.spriteMem[i]);
+        }
     }
 };
 
@@ -1516,6 +1582,18 @@ JSNES.PPU.NameTable.prototype = {
                 }
             }
         }
+    },
+    
+    toJSON: function() {
+        return {
+            'tile': this.tile,
+            'attrib': this.attrib
+        };
+    },
+    
+    fromJSON: function(s) {
+        this.tile = s.tile;
+        this.attrib = s.attrib;
     }
 };
 
@@ -1835,6 +1913,18 @@ JSNES.PPU.Tile.prototype = {
     },
     
     isTransparent: function(x, y){
-        return (this.pix[(y<<3)+x] === 0);
+        return (this.pix[(y << 3) + x] === 0);
+    },
+    
+    toJSON: function() {
+        return {
+            'opaque': this.opaque,
+            'pix': this.pix
+        };
+    },
+
+    fromJSON: function(s) {
+        this.opaque = s.opaque;
+        this.pix = s.pix;
     }
 };

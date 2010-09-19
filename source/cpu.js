@@ -39,7 +39,6 @@ JSNES.CPU = function(nes) {
     this.F_NOTUSED_NEW = null;
     this.F_BRK = null;
     this.F_BRK_NEW = null;
-    this.palCnt = null;
     this.opdata = null;
     this.cyclesToHalt = null;
     this.crash = null;
@@ -47,7 +46,7 @@ JSNES.CPU = function(nes) {
     this.irqType = null;
     
     this.reset();
-}
+};
 
 JSNES.CPU.prototype = {
     // IRQ Types
@@ -101,7 +100,6 @@ JSNES.CPU.prototype = {
         this.F_BRK = 1;
         this.F_BRK_NEW = 1;
         
-        this.palCnt = 0;
         this.opdata = new JSNES.CPU.OpData().opdata;
         this.cyclesToHalt = 0;
         
@@ -113,7 +111,6 @@ JSNES.CPU.prototype = {
         this.irqType = null;
 
     },
-    
     
     // Emulates a single CPU instruction, returns the number of cycles
     emulate: function() {
@@ -1201,6 +1198,24 @@ JSNES.CPU.prototype = {
         this.F_NOTUSED   = (st>>5)&1;
         this.F_OVERFLOW  = (st>>6)&1;
         this.F_SIGN      = (st>>7)&1;
+    },
+    
+    JSON_PROPERTIES: [
+        'mem', 'cyclesToHalt', 'irqRequested', 'irqType',
+        // Registers
+        'REG_ACC', 'REG_X', 'REG_Y', 'REG_SP', 'REG_PC', 'REG_PC_NEW',
+        'REG_STATUS',
+        // Status
+        'F_CARRY', 'F_DECIMAL', 'F_INTERRUPT', 'F_INTERRUPT_NEW', 'F_OVERFLOW', 
+        'F_SIGN', 'F_ZERO', 'F_NOTUSED', 'F_NOTUSED_NEW', 'F_BRK', 'F_BRK_NEW'
+    ],
+    
+    toJSON: function() {
+        return JSNES.Utils.toJSON(this);
+    },
+    
+    fromJSON: function(s) {
+        JSNES.Utils.fromJSON(this, s);
     }
 }
 
@@ -1671,4 +1686,4 @@ JSNES.CPU.OpData.prototype = {
             ((size  &0xFF)<<16)| 
             ((cycles&0xFF)<<24);
     }
-}
+};

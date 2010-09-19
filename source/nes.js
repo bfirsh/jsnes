@@ -223,13 +223,29 @@ JSNES.prototype = {
     },
     
     setFramerate: function(rate){
-        this.nes.opts.preferredFrameRate = rate;
-        this.nes.frameTime = 1000 / rate;
+        this.opts.preferredFrameRate = rate;
+        this.frameTime = 1000 / rate;
         this.papu.setSampleRate(this.opts.sampleRate, false);
     },
     
     setLimitFrames: function(limit) {
         this.limitFrames = limit;
         this.lastFrameTime = null;
+    },
+    
+    toJSON: function() {
+        return {
+            'romData': this.romData,
+            'cpu': this.cpu.toJSON(),
+            'mmap': this.mmap.toJSON(),
+            'ppu': this.ppu.toJSON()
+        };
+    },
+    
+    fromJSON: function(s) {
+        this.loadRom(s.romData);
+        this.cpu.fromJSON(s.cpu);
+        this.mmap.fromJSON(s.mmap);
+        this.ppu.fromJSON(s.ppu);
     }
 };
