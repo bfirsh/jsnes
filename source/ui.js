@@ -174,8 +174,6 @@ if (typeof jQuery !== 'undefined') {
                 self.dynamicaudio = new DynamicAudio({
                     swf: nes.opts.swfPath+'dynamicaudio.swf'
                 });
-                
-                
             };
         
             UI.prototype = {    
@@ -186,11 +184,27 @@ if (typeof jQuery !== 'undefined') {
                         url: escape(self.romSelect.val()),
                         xhr: function() {
                             var xhr = $.ajaxSettings.xhr();
-                            // Download as binary
-                            xhr.overrideMimeType('text/plain; charset=x-user-defined');
+                            if (typeof xhr.overrideMimeType !== 'undefined') {
+                                // Download as binary
+                                xhr.overrideMimeType('text/plain; charset=x-user-defined');
+                            }
+                            self.xhr = xhr;
                             return xhr;
                         },
-                        success: function(data) {
+                        complete: function(xhr, status) {
+                            var i, data;
+                            if (JSNES.Utils.isIE()) {
+                                var charCodes = JSNESBinaryToArray(
+                                    xhr.responseBody
+                                ).toArray();
+                                data = String.fromCharCode.apply(
+                                    undefined, 
+                                    charCodes
+                                );
+                            }
+                            else {
+                                data = xhr.responseText;
+                            }
                             self.nes.loadRom(data);
                             self.nes.start();
                             self.enable();

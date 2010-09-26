@@ -43,6 +43,10 @@ JSNES.Utils = {
             state[obj.JSON_PROPERTIES[i]] = obj[obj.JSON_PROPERTIES[i]];
         }
         return state;
+    },
+    
+    isIE: function() {
+        return (/msie/i.test(navigator.userAgent) && !/opera/i.test(navigator.userAgent));
     }
 };
 
