@@ -31,7 +31,10 @@ if (typeof jQuery !== 'undefined') {
             var UI = function(nes) {
                 var self = this;
                 self.nes = nes;
-        
+                
+                /*
+                 * Create UI
+                 */
                 self.root = $('<div></div>');
                 self.screen = $('<canvas class="nes-screen" width="256" height="240"></canvas>').appendTo(self.root);
                 
@@ -52,25 +55,17 @@ if (typeof jQuery !== 'undefined') {
                 };
                 self.status = $('<p class="nes-status">Booting up...</p>').appendTo(self.root);
                 self.root.appendTo(parent);
-        
+                
+                /*
+                 * ROM loading
+                 */
                 self.romSelect.change(function() {
-                    self.updateStatus("Downloading...");
-                    $.ajax({
-                        url: escape(self.romSelect.val()),
-                        xhr: function() {
-                            var xhr = $.ajaxSettings.xhr();
-                            // Download as binary
-                            xhr.overrideMimeType('text/plain; charset=x-user-defined');
-                            return xhr;
-                        },
-                        success: function(data) {
-                            self.nes.loadRom(data);
-                            self.nes.start();
-                            self.enable();
-                        }
-                    });
+                    self.loadROM();
                 });
-        
+                
+                /*
+                 * Buttons
+                 */
                 self.buttons.pause.click(function() {
                     if (self.nes.isRunning) {
                         self.nes.stop();
@@ -118,8 +113,11 @@ if (typeof jQuery !== 'undefined') {
                         self.zoomed = true;
                     }
                 });
-        
-                // Mouse experiments. Requires jquery.dimensions.js
+                
+                /*
+                 * Lightgun experiments with mouse
+                 * (Requires jquery.dimensions.js)
+                 */
                 if ($.offset) {
                     self.screen.mousedown(function(e) {
                         if (self.nes.mmap) {
@@ -143,7 +141,9 @@ if (typeof jQuery !== 'undefined') {
                     self.setRoms(roms);
                 }
             
-                // Canvas
+                /*
+                 * Canvas
+                 */
                 self.canvasContext = self.screen[0].getContext('2d');
                 
                 if (!self.canvasContext.getImageData) {
@@ -152,15 +152,11 @@ if (typeof jQuery !== 'undefined') {
                 }
                 
                 self.canvasImageData = self.canvasContext.getImageData(0, 0, 256, 240);
-                self.canvasContext.fillStyle = 'black';
-                self.canvasContext.fillRect(0, 0, 256, 240); // set alpha to opaque
+                self.resetCanvas();
             
-                // Set alpha
-                for (var i = 3; i < this.canvasImageData.data.length-3; i+=4) {
-                    this.canvasImageData.data[i] = 0xFF;
-                }
-            
-                // Keyboard
+                /*
+                 * Keyboard
+                 */
                 $(document).
                     bind('keydown', function(evt) {
                         self.nes.keyboard.keyDown(evt); 
@@ -172,14 +168,50 @@ if (typeof jQuery !== 'undefined') {
                         self.nes.keyboard.keyPress(evt);
                     });
             
-                // Sound
+                /*
+                 * Sound
+                 */
                 self.dynamicaudio = new DynamicAudio({
                     swf: nes.opts.swfPath+'dynamicaudio.swf'
                 });
+                
+                
             };
         
             UI.prototype = {    
-                // Enable and reset UI elements
+                loadROM: function() {
+                    var self = this;
+                    self.updateStatus("Downloading...");
+                    $.ajax({
+                        url: escape(self.romSelect.val()),
+                        xhr: function() {
+                            var xhr = $.ajaxSettings.xhr();
+                            // Download as binary
+                            xhr.overrideMimeType('text/plain; charset=x-user-defined');
+                            return xhr;
+                        },
+                        success: function(data) {
+                            self.nes.loadRom(data);
+                            self.nes.start();
+                            self.enable();
+                        }
+                    });
+                },
+                
+                resetCanvas: function() {
+                    this.canvasContext.fillStyle = 'black';
+                    // set alpha to opaque
+                    this.canvasContext.fillRect(0, 0, 256, 240);
+
+                    // Set alpha
+                    for (var i = 3; i < this.canvasImageData.data.length-3; i += 4) {
+                        this.canvasImageData.data[i] = 0xFF;
+                    }
+                },
+                
+                /*
+                 * Enable and reset UI elements
+                 */
                 enable: function() {
                     this.buttons.pause.attr("disabled", null);
                     if (this.nes.isRunning) {
