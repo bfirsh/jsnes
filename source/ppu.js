@@ -1401,7 +1401,7 @@ JSNES.PPU.prototype = {
     // table buffers with this new byte.
     // In vNES, there is a version of this with 4 arguments which isn't used.
     patternWrite: function(address, value){
-        var tileIndex = parseInt(address / 16, 10);
+        var tileIndex = Math.floor(address / 16);
         var leftOver = address%16;
         if (leftOver<8) {
             this.ptTile[tileIndex].setScanline(
@@ -1439,7 +1439,7 @@ JSNES.PPU.prototype = {
     // Updates the internally buffered sprite
     // data with this new byte of info.
     spriteRamWriteUpdate: function(address, value) {
-        var tIndex = parseInt(address / 4, 10);
+        var tIndex = Math.floor(address / 4);
         
         if (tIndex === 0) {
             //updateSpr0Hit();
@@ -1564,7 +1564,7 @@ JSNES.PPU.NameTable.prototype = {
 
     writeAttrib: function(index, value){
         var basex = (index % 8) * 4;
-        var basey = parseInt(index / 8, 10) * 4;
+        var basey = Math.floor(index / 8) * 4;
         var add;
         var tx, ty;
         var attindex;
@@ -1622,22 +1622,25 @@ JSNES.PPU.PaletteTable.prototype = {
     },
     
     makeTables: function(){
-        var r,g,b,col;
+        var r, g, b, col, i, rFactor, gFactor, bFactor;
         
         // Calculate a table for each possible emphasis setting:
-        for (var emph=0;emph<8;emph++) {
+        for (var emph = 0; emph < 8; emph++) {
             
             // Determine color component factors:
-            var rFactor=1.0, gFactor=1.0, bFactor=1.0;
-            if ((emph&1)!==0) {
+            rFactor = 1.0;
+            gFactor = 1.0;
+            bFactor = 1.0;
+            
+            if ((emph & 1) !== 0) {
                 rFactor = 0.75;
                 bFactor = 0.75;
             }
-            if ((emph&2)!==0) {
+            if ((emph & 2) !== 0) {
                 rFactor = 0.75;
                 gFactor = 0.75;
             }
-            if ((emph&4)!==0) {
+            if ((emph & 4) !== 0) {
                 gFactor = 0.75;
                 bFactor = 0.75;
             }
@@ -1645,12 +1648,12 @@ JSNES.PPU.PaletteTable.prototype = {
             this.emphTable[emph] = new Array(64);
             
             // Calculate table:
-            for (var i=0;i<64;i++) {
+            for (i = 0; i < 64; i++) {
                 col = this.curTable[i];
-                r = parseInt(this.getRed(col) * rFactor, 10);
-                g = parseInt(this.getGreen(col) * gFactor, 10);
-                b = parseInt(this.getBlue(col) * bFactor, 10);
-                this.emphTable[emph][i] = this.getRgb(r,g,b);
+                r = Math.floor(this.getRed(col) * rFactor);
+                g = Math.floor(this.getGreen(col) * gFactor);
+                b = Math.floor(this.getBlue(col) * bFactor);
+                this.emphTable[emph][i] = this.getRgb(r, g, b);
             }
         }
     },
@@ -1658,7 +1661,7 @@ JSNES.PPU.PaletteTable.prototype = {
     setEmphasis: function(emph){
         if (emph != this.currentEmph) {
             this.currentEmph = emph;
-            for (var i=0;i<64;i++) {
+            for (var i = 0; i < 64; i++) {
                 this.curTable[i] = this.emphTable[emph][i];
             }
         }

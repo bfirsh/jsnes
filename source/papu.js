@@ -119,16 +119,14 @@ JSNES.PAPU = function(nes) {
 JSNES.PAPU.prototype = {
     reset: function() {
         this.sampleRate = this.nes.opts.sampleRate;
-        this.sampleTimerMax = parseInt(
+        this.sampleTimerMax = Math.floor(
             (1024.0 * this.nes.opts.CPU_FREQ_NTSC *
                 this.nes.opts.preferredFrameRate) / 
-                (this.sampleRate * 60.0),
-            10
+                (this.sampleRate * 60.0)
         );
     
-        this.frameTime = parseInt(
-            (14915.0 * this.nes.opts.preferredFrameRate) / 60.0,
-            10
+        this.frameTime = Math.floor(
+            (14915.0 * this.nes.opts.preferredFrameRate) / 60.0
         );
 
         this.sampleTimer = 0;
@@ -457,8 +455,8 @@ JSNES.PAPU.prototype = {
     accSample: function(cycles) {
         // Special treatment for triangle channel - need to interpolate.
         if (this.triangle.sampleCondition) {
-            this.triValue = parseInt((this.triangle.progTimerCount<<4) /
-                    (this.triangle.progTimerMax+1), 10);
+            this.triValue = Math.floor((this.triangle.progTimerCount << 4) /
+                    (this.triangle.progTimerMax + 1));
             if (this.triValue > 16) {
                 this.triValue = 16;
             }
@@ -549,15 +547,15 @@ JSNES.PAPU.prototype = {
         if (this.accCount > 0) {
 
             this.smpSquare1 <<= 4;
-            this.smpSquare1 = parseInt(this.smpSquare1 / this.accCount, 10);
+            this.smpSquare1 = Math.floor(this.smpSquare1 / this.accCount);
 
             this.smpSquare2 <<= 4;
-            this.smpSquare2 = parseInt(this.smpSquare2 / this.accCount, 10);
+            this.smpSquare2 = Math.floor(this.smpSquare2 / this.accCount);
 
-            this.smpTriangle = parseInt(this.smpTriangle / this.accCount, 10);
+            this.smpTriangle = Math.floor(this.smpTriangle / this.accCount);
 
             this.smpDmc <<= 4;
-            this.smpDmc = parseInt(this.smpDmc / this.accCount, 10);
+            this.smpDmc = Math.floor(this.smpDmc / this.accCount);
         
             this.accCount = 0;
         }
@@ -568,8 +566,8 @@ JSNES.PAPU.prototype = {
             this.smpDmc = this.dmc.sample << 4;
         }
     
-        var smpNoise = parseInt((this.noise.accValue << 4) / 
-                this.noise.accCount, 10);
+        var smpNoise = Math.floor((this.noise.accValue << 4) / 
+                this.noise.accCount);
         this.noise.accValue = smpNoise >> 4;
         this.noise.accCount = 1;
 
@@ -779,7 +777,7 @@ JSNES.PAPU.prototype = {
             value = 95.52 / (8128.0 / (i/16.0) + 100.0);
             value *= 0.98411;
             value *= 50000.0;
-            ival = parseInt(value, 10);
+            ival = Math.floor(value);
         
             this.square_table[i] = ival;
             if (ival > max_sqr) {
@@ -791,7 +789,7 @@ JSNES.PAPU.prototype = {
             value = 163.67 / (24329.0 / (i/16.0) + 100.0);
             value *= 0.98411;
             value *= 50000.0;
-            ival = parseInt(value, 10);
+            ival = Math.floor(value);
         
             this.tnd_table[i] = ival;
             if (ival > max_tnd) {

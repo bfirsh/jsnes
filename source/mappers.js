@@ -459,7 +459,7 @@ JSNES.Mappers[0].prototype = {
         }
         this.nes.ppu.triggerRendering();
     
-        var bank4k = parseInt(bank1k / 4, 10) % this.nes.rom.vromCount;
+        var bank4k = Math.floor(bank1k / 4) % this.nes.rom.vromCount;
         var bankoffset = (bank1k % 4) * 1024;
         JSNES.Utils.copyArrayElements(this.nes.rom.vrom[bank4k], 0, 
             this.nes.ppu.vramMem, bankoffset, 1024);
@@ -478,7 +478,7 @@ JSNES.Mappers[0].prototype = {
         }
         this.nes.ppu.triggerRendering();
     
-        var bank4k = parseInt(bank2k / 2, 10) % this.nes.rom.vromCount;
+        var bank4k = Math.floor(bank2k / 2) % this.nes.rom.vromCount;
         var bankoffset = (bank2k % 2) * 2048;
         JSNES.Utils.copyArrayElements(this.nes.rom.vrom[bank4k], bankoffset,
             this.nes.ppu.vramMem, address, 2048);
@@ -492,7 +492,7 @@ JSNES.Mappers[0].prototype = {
     },
 
     load8kRomBank: function(bank8k, address) {
-        var bank16k = parseInt(bank8k / 2, 10) % this.nes.rom.romCount;
+        var bank16k = Math.floor(bank8k / 2) % this.nes.rom.romCount;
         var offset = (bank8k % 2) * 8192;
     
         //this.nes.cpu.mem.write(address,this.nes.rom.rom[bank16k],offset,8192);
@@ -647,7 +647,7 @@ JSNES.Mappers[1].prototype.setReg = function(reg, value) {
                     }
                     else {
                         this.load8kVromBank(
-                            parseInt(this.nes.rom.vromCount / 2, 10) +
+                            Math.floor(this.nes.rom.vromCount / 2) +
                                 (value & 0xF), 
                             0x0000
                         );
@@ -661,7 +661,7 @@ JSNES.Mappers[1].prototype.setReg = function(reg, value) {
                     }
                     else {
                         this.loadVromBank(
-                            parseInt(this.nes.rom.vromCount / 2, 10) +
+                            Math.floor(this.nes.rom.vromCount / 2) +
                                 (value & 0xF),
                             0x0000
                         );
@@ -686,7 +686,7 @@ JSNES.Mappers[1].prototype.setReg = function(reg, value) {
                     }
                     else {
                         this.loadVromBank(
-                            parseInt(this.nes.rom.vromCount / 2, 10) +
+                            Math.floor(this.nes.rom.vromCount / 2) +
                                 (value & 0xF),
                             0x1000
                         );
