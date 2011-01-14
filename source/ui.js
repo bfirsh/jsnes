@@ -26,7 +26,7 @@ JSNES.DummyUI = function(nes) {
 
 if (typeof jQuery !== 'undefined') {
     (function($) {
-        $.fn.JSNESUI = function(roms) {
+        $['fn'].JSNESUI = function(roms) {
             var parent = this;
             var UI = function(nes) {
                 var self = this;
@@ -84,12 +84,12 @@ if (typeof jQuery !== 'undefined') {
                 });
         
                 self.buttons.sound.click(function() {
-                    if (self.nes.opts.emulateSound) {
-                        self.nes.opts.emulateSound = false;
+                    if (self.nes.opts['emulateSound']) {
+                        self.nes.opts['emulateSound'] = false;
                         self.buttons.sound.attr("value", "enable sound");
                     }
                     else {
-                        self.nes.opts.emulateSound = true;
+                        self.nes.opts['emulateSound'] = true;
                         self.buttons.sound.attr("value", "disable sound");
                     }
                 });
@@ -172,7 +172,7 @@ if (typeof jQuery !== 'undefined') {
                  * Sound
                  */
                 self.dynamicaudio = new DynamicAudio({
-                    swf: nes.opts.swfPath+'dynamicaudio.swf'
+                    'swf': nes.opts['swfPath']+'dynamicaudio.swf'
                 });
             };
         
@@ -182,13 +182,13 @@ if (typeof jQuery !== 'undefined') {
                     self.updateStatus("Downloading...");
                     $.ajax({
                         url: escape(self.romSelect.val()),
-                        xhr: function() {
-                            var xhr = $.ajaxSettings.xhr();
+                        'xhr': function() {
+                            var xhr = $['ajaxSettings']['xhr']();
                             if (typeof xhr.overrideMimeType !== 'undefined') {
                                 // Download as binary
                                 xhr.overrideMimeType('text/plain; charset=x-user-defined');
                             }
-                            self.xhr = xhr;
+                            self['xhr'] = xhr;
                             return xhr;
                         },
                         complete: function(xhr, status) {
@@ -246,7 +246,7 @@ if (typeof jQuery !== 'undefined') {
                         this.buttons.pause.attr("value", "resume");
                     }
                     this.buttons.restart.attr("disabled", null);
-                    if (this.nes.opts.emulateSound) {
+                    if (this.nes.opts['emulateSound']) {
                         this.buttons.sound.attr("value", "disable sound");
                     }
                     else {

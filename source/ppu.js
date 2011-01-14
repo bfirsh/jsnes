@@ -568,7 +568,7 @@ JSNES.PPU.prototype = {
             }
         }
         
-        if (this.nes.opts.showDisplay) {
+        if (this.nes.opts['showDisplay']) {
             this.nes.ui.writeFrame(buffer, this.prevBuffer);
         }
     },
@@ -1511,14 +1511,14 @@ JSNES.PPU.prototype = {
         var i;
         var state = JSNES.Utils.toJSON(this);
         
-        state.nameTable = [];
+        state['nameTable'] = [];
         for (i = 0; i < this.nameTable.length; i++) {
-            state.nameTable[i] = this.nameTable[i].toJSON();
+            state['nameTable'][i] = this.nameTable[i].toJSON();
         }
         
-        state.ptTile = [];
+        state['ptTile'] = [];
         for (i = 0; i < this.ptTile.length; i++) {
-            state.ptTile[i] = this.ptTile[i].toJSON();
+            state['ptTile'][i] = this.ptTile[i].toJSON();
         }
         
         return state;
@@ -1530,11 +1530,11 @@ JSNES.PPU.prototype = {
         JSNES.Utils.fromJSON(this, state);
         
         for (i = 0; i < this.nameTable.length; i++) {
-            this.nameTable[i].fromJSON(state.nameTable[i]);
+            this.nameTable[i].fromJSON(state['nameTable'][i]);
         }
         
         for (i = 0; i < this.ptTile.length; i++) {
-            this.ptTile[i].fromJSON(state.ptTile[i]);
+            this.ptTile[i].fromJSON(state['ptTile'][i]);
         }
         
         // Sprite data:

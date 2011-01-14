@@ -517,9 +517,9 @@ JSNES.Mappers[0].prototype = {
     },
     
     fromJSON: function(s) {
-        this.joy1StrobeState = s.joy1StrobeState;
-        this.joy2StrobeState = s.joy2StrobeState;
-        this.joypadLastWrite = s.joypadLastWrite;
+        this.joy1StrobeState = s['joy1StrobeState'];
+        this.joy2StrobeState = s['joy2StrobeState'];
+        this.joypadLastWrite = s['joypadLastWrite'];
     }
 };
 

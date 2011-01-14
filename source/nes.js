@@ -18,18 +18,18 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 var JSNES = function(opts) {
     this.opts = {
-        ui: JSNES.DummyUI,
-        swfPath: 'lib/',
+        'ui': JSNES.DummyUI,
+        'swfPath': 'lib/',
         
-        preferredFrameRate: 60,
-        fpsInterval: 500, // Time between updating FPS in ms
-        showDisplay: true,
+        'preferredFrameRate': 60,
+        'fpsInterval': 500, // Time between updating FPS in ms
+        'showDisplay': true,
 
-        emulateSound: false,
-        sampleRate: 44100, // Sound sample rate in hz
+        'emulateSound': false,
+        'sampleRate': 44100, // Sound sample rate in hz
         
-        CPU_FREQ_NTSC: 1789772.5, //1789772.72727272d;
-        CPU_FREQ_PAL: 1773447.4
+        'CPU_FREQ_NTSC': 1789772.5, //1789772.72727272d;
+        'CPU_FREQ_PAL': 1773447.4
     };
     if (typeof opts != 'undefined') {
         var key;
@@ -40,9 +40,9 @@ var JSNES = function(opts) {
         }
     }
     
-    this.frameTime = 1000 / this.opts.preferredFrameRate;
+    this.frameTime = 1000 / this.opts['preferredFrameRate'];
     
-    this.ui = new this.opts.ui(this);
+    this.ui = new this.opts['ui'](this);
     this.cpu = new JSNES.CPU(this);
     this.ppu = new JSNES.PPU(this);
     this.papu = new JSNES.PAPU(this);
@@ -82,9 +82,9 @@ JSNES.prototype = {
                 }, this.frameTime);
                 this.resetFps();
                 this.printFps();
-                this.fpsInterval = setInterval(function() {
+                this['fpsInterval'] = setInterval(function() {
                     self.printFps();
-                }, this.opts.fpsInterval);
+                }, this.opts['fpsInterval']);
             }
         }
         else {
@@ -95,7 +95,7 @@ JSNES.prototype = {
     frame: function() {
         this.ppu.startFrame();
         var cycles = 0;
-        var emulateSound = this.opts.emulateSound;
+        var emulateSound = this.opts['emulateSound'];
         var cpu = this.cpu;
         var ppu = this.ppu;
         var papu = this.papu;
@@ -168,7 +168,7 @@ JSNES.prototype = {
     
     stop: function() {
         clearInterval(this.frameInterval);
-        clearInterval(this.fpsInterval);
+        clearInterval(this['fpsInterval']);
         this.isRunning = false;
     },
     
@@ -215,9 +215,9 @@ JSNES.prototype = {
     },
     
     setFramerate: function(rate){
-        this.opts.preferredFrameRate = rate;
+        this.opts['preferredFrameRate'] = rate;
         this.frameTime = 1000 / rate;
-        this.papu.setSampleRate(this.opts.sampleRate, false);
+        this.papu.setSampleRate(this.opts['sampleRate'], false);
     },
     
     toJSON: function() {
@@ -230,9 +230,9 @@ JSNES.prototype = {
     },
     
     fromJSON: function(s) {
-        this.loadRom(s.romData);
-        this.cpu.fromJSON(s.cpu);
-        this.mmap.fromJSON(s.mmap);
-        this.ppu.fromJSON(s.ppu);
+        this.loadRom(s['romData']);
+        this.cpu.fromJSON(s['cpu']);
+        this.mmap.fromJSON(s['mmap']);
+        this.ppu.fromJSON(s['ppu']);
     }
 };
