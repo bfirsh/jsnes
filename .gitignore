@@ -2,5 +2,6 @@
 jsnes.tmproj
 ._*
 .DS_Store
+.jar
 /tmp
 /node_modules
