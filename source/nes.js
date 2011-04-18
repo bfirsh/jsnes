@@ -42,14 +42,14 @@ var JSNES = function(opts) {
     
     this.frameTime = 1000 / this.opts['preferredFrameRate'];
     
-    this.ui = new this.opts['ui'](this);
+    this['ui'] = new this.opts['ui'](this);
     this.cpu = new JSNES.CPU(this);
     this.ppu = new JSNES.PPU(this);
     this.papu = new JSNES.PAPU(this);
     this.mmap = null; // set in loadRom()
     this.keyboard = new JSNES.Keyboard();
     
-    this.ui.updateStatus("Ready to load a ROM.");
+    this['ui'].updateStatus("Ready to load a ROM.");
 };
 
 JSNES.VERSION = "<%= version %>";
@@ -88,7 +88,7 @@ JSNES.prototype = {
             }
         }
         else {
-            this.ui.updateStatus("There is no ROM loaded, or it is invalid.");
+            this['ui'].updateStatus("There is no ROM loaded, or it is invalid.");
         }
     },
     
@@ -161,7 +161,7 @@ JSNES.prototype = {
                 this.fpsFrameCount / ((now - this.lastFpsTime) / 1000)
             ).toFixed(2)+' FPS';
         }
-        this.ui.updateStatus(s);
+        this['ui'].updateStatus(s);
         this.fpsFrameCount = 0;
         this.lastFpsTime = now;
     },
@@ -185,7 +185,7 @@ JSNES.prototype = {
             this.stop();
         }
         
-        this.ui.updateStatus("Loading ROM...");
+        this['ui'].updateStatus("Loading ROM...");
         
         // Load ROM file:
         this.rom = new JSNES.ROM(this);
@@ -201,10 +201,10 @@ JSNES.prototype = {
             this.ppu.setMirroring(this.rom.getMirroringType());
             this.romData = data;
             
-            this.ui.updateStatus("Successfully loaded. Ready to be started.");
+            this['ui'].updateStatus("Successfully loaded. Ready to be started.");
         }
         else {
-            this.ui.updateStatus("Invalid ROM!");
+            this['ui'].updateStatus("Invalid ROM!");
         }
         return this.rom.valid;
     },
