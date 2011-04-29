@@ -27,13 +27,19 @@ var swfobject = {
     "addLoadEvent": function () {},
     "getQueryParamValue": function () {},
     "expressInstallCallback": function () {}
-}
+};
 
 var DynamicAudio = {
     "VERSION": {},
-    "nextId": {}
-}
+    "nextId": {},
+    "writeInt": function () {}
+};
 
 var console;
-console.log = function() {}
-console.debug = function() {}
+console.log = function() {};
+console.debug = function() {};
+
+/** @typedef {Object.<string>} */
+var xhr = {
+    responseBody: ''
+};

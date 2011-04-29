@@ -191,6 +191,10 @@ if (typeof jQuery !== 'undefined') {
                             self['xhr'] = xhr;
                             return xhr;
                         },
+                        /**
+                         * @param {xhr} xhr XHR response.
+                         * @param {number} status The status code.
+                         */
                         complete: function(xhr, status) {
                             var i, data;
                             if (JSNES.Utils.isIE()) {
