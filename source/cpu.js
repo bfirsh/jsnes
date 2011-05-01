@@ -1200,15 +1200,15 @@ JSNES.CPU.prototype = {
         this.F_SIGN      = (st>>7)&1;
     },
     
-    JSON_PROPERTIES: [
-        'mem', 'cyclesToHalt', 'irqRequested', 'irqType',
+    JSON_PROPERTIES: {
+        mem: 'mem', cyclesToHalt: 'cyclesToHalt', irqRequested: 'irqRequested', irqType: 'irqType',
         // Registers
-        'REG_ACC', 'REG_X', 'REG_Y', 'REG_SP', 'REG_PC', 'REG_PC_NEW',
-        'REG_STATUS',
+        REG_ACC: 'REG_ACC', REG_X: 'REG_X', REG_Y: 'REG_Y', REG_SP: 'REG_SP', REG_PC: 'REG_PC', REG_PC_NEW: 'REG_PC_NEW',
+        REG_STATUS: 'REG_STATUS',
         // Status
-        'F_CARRY', 'F_DECIMAL', 'F_INTERRUPT', 'F_INTERRUPT_NEW', 'F_OVERFLOW', 
-        'F_SIGN', 'F_ZERO', 'F_NOTUSED', 'F_NOTUSED_NEW', 'F_BRK', 'F_BRK_NEW'
-    ],
+        F_CARRY: 'F_CARRY', F_DECIMAL: 'F_DECIMAL', F_INTERRUPT: 'F_INTERRUPT', F_INTERRUPT_NEW: 'F_INTERRUPT_NEW', F_OVERFLOW: 'F_OVERFLOW', 
+        F_SIGN: 'F_SIGN', F_ZERO: 'F_ZERO', F_NOTUSED: 'F_NOTUSED', F_NOTUSED_NEW: 'F_NOTUSED_NEW', F_BRK: 'F_BRK', F_BRK_NEW: 'F_BRK_NEW'
+    },
     
     toJSON: function() {
         return JSNES.Utils.toJSON(this);

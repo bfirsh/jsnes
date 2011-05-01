@@ -32,15 +32,21 @@ JSNES.Utils = {
     },
     
     fromJSON: function(obj, state) {
-        for (var i = 0; i < obj.JSON_PROPERTIES.length; i++) {
-            obj[obj.JSON_PROPERTIES[i]] = state[obj.JSON_PROPERTIES[i]];
+        for (var i in obj.JSON_PROPERTIES) {
+            if (!obj.JSON_PROPERTIES.hasOwnProperty(i)) {
+                continue;
+            }
+            obj[i] = state[obj.JSON_PROPERTIES[i]];
         }
     },
     
     toJSON: function(obj) {
-        var state = {};
-        for (var i = 0; i < obj.JSON_PROPERTIES.length; i++) {
-            state[obj.JSON_PROPERTIES[i]] = obj[obj.JSON_PROPERTIES[i]];
+        var state = {}, i;
+        for (i in obj.JSON_PROPERTIES) {
+            if (!obj.JSON_PROPERTIES.hasOwnProperty(i)) {
+                continue;
+            }
+            state[obj.JSON_PROPERTIES[i]] = obj[i];
         }
         return state;
     },

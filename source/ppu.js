@@ -1475,37 +1475,37 @@ JSNES.PPU.prototype = {
         this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NMI);
     },
     
-    JSON_PROPERTIES: [
+    JSON_PROPERTIES: {
         // Memory
-        'vramMem', 'spriteMem',
+        vramMem: 'vramMem', spriteMem: 'spriteMem', 
         // Counters
-        'cntFV', 'cntV', 'cntH', 'cntVT', 'cntHT',
+        cntFV: 'cntFV', cntV: 'cntV', cntH: 'cntH', cntVT: 'cntVT', cntHT: 'cntHT', 
         // Registers
-        'regFV', 'regV', 'regH', 'regVT', 'regHT', 'regFH', 'regS',
+        regFV: 'regFV', regV: 'regV', regH: 'regH', regVT: 'regVT', regHT: 'regHT', regFH: 'regFH', regS: 'regS', 
         // VRAM addr
-        'vramAddress', 'vramTmpAddress',
+        vramAddress: 'vramAddress', vramTmpAddress: 'vramTmpAddress', 
         // Control/Status registers
-        'f_nmiOnVblank', 'f_spriteSize', 'f_bgPatternTable', 'f_spPatternTable', 
-        'f_addrInc', 'f_nTblAddress', 'f_color', 'f_spVisibility', 
-        'f_bgVisibility', 'f_spClipping', 'f_bgClipping', 'f_dispType',
+        f_nmiOnVblank: 'f_nmiOnVblank', f_spriteSize: 'f_spriteSize', f_bgPatternTable: 'f_bgPatternTable', f_spPatternTable: 'f_spPatternTable',  
+        f_addrInc: 'f_addrInc', f_nTblAddress: 'f_nTblAddress', f_color: 'f_color', f_spVisibility: 'f_spVisibility',  
+        f_bgVisibility: 'f_bgVisibility', f_spClipping: 'f_spClipping', f_bgClipping: 'f_bgClipping', f_dispType: 'f_dispType', 
         // VRAM I/O
-        'vramBufferedReadValue', 'firstWrite',
+        vramBufferedReadValue: 'vramBufferedReadValue', firstWrite: 'firstWrite', 
         // Mirroring
-        'currentMirroring', 'vramMirrorTable', 'ntable1',
+        currentMirroring: 'currentMirroring', vramMirrorTable: 'vramMirrorTable', ntable1: 'ntable1', 
         // SPR-RAM I/O
-        'sramAddress',
+        sramAddress: 'sramAddress', 
         // Sprites. Most sprite data is rebuilt from spriteMem
-        'hitSpr0',
+        hitSpr0: 'hitSpr0', 
         // Palettes
-        'sprPalette', 'imgPalette',
+        sprPalette: 'sprPalette', imgPalette: 'imgPalette', 
         // Rendering progression
-        'curX', 'scanline', 'lastRenderedScanline', 'curNt', 'scantile',
+        curX: 'curX', scanline: 'scanline', lastRenderedScanline: 'lastRenderedScanline', curNt: 'curNt', scantile: 'scantile', 
         // Used during rendering
-        'attrib', 'buffer', 'bgbuffer', 'pixrendered',
+        attrib: 'attrib', buffer: 'buffer', bgbuffer: 'bgbuffer', pixrendered: 'pixrendered', 
         // Misc
-        'requestEndFrame', 'nmiOk', 'dummyCycleToggle', 'nmiCounter', 
-        'validTileData', 'scanlineAlreadyRendered'
-    ],
+        requestEndFrame: 'requestEndFrame', nmiOk: 'nmiOk', dummyCycleToggle: 'dummyCycleToggle', nmiCounter: 'nmiCounter',  
+        validTileData: 'validTileData', scanlineAlreadyRendered: 'scanlineAlreadyRendered'
+    },
     
     toJSON: function() {
         var i;
@@ -1592,8 +1592,8 @@ JSNES.PPU.NameTable.prototype = {
     },
     
     fromJSON: function(s) {
-        this.tile = s.tile;
-        this.attrib = s.attrib;
+        this.tile = s['tile'];
+        this.attrib = s['attrib'];
     }
 };
 
@@ -1927,7 +1927,7 @@ JSNES.PPU.Tile.prototype = {
     },
 
     fromJSON: function(s) {
-        this.opaque = s.opaque;
-        this.pix = s.pix;
+        this.opaque = s['opaque'];
+        this.pix = s['pix'];
     }
 };

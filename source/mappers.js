@@ -789,31 +789,31 @@ JSNES.Mappers[1].prototype.switch32to16 = function() {
 
 JSNES.Mappers[1].prototype.toJSON = function() {
     var s = JSNES.Mappers[0].prototype.toJSON.apply(this);
-    s.mirroring = this.mirroring;
-    s.oneScreenMirroring = this.oneScreenMirroring;
-    s.prgSwitchingArea = this.prgSwitchingArea;
-    s.prgSwitchingSize = this.prgSwitchingSize;
-    s.vromSwitchingSize = this.vromSwitchingSize;
-    s.romSelectionReg0 = this.romSelectionReg0;
-    s.romSelectionReg1 = this.romSelectionReg1;
-    s.romBankSelect = this.romBankSelect;
-    s.regBuffer = this.regBuffer;
-    s.regBufferCounter = this.regBufferCounter;
+    s['mirroring'] = this.mirroring;
+    s['oneScreenMirroring'] = this.oneScreenMirroring;
+    s['prgSwitchingArea'] = this.prgSwitchingArea;
+    s['prgSwitchingSize'] = this.prgSwitchingSize;
+    s['vromSwitchingSize'] = this.vromSwitchingSize;
+    s['romSelectionReg0'] = this.romSelectionReg0;
+    s['romSelectionReg1'] = this.romSelectionReg1;
+    s['romBankSelect'] = this.romBankSelect;
+    s['regBuffer'] = this.regBuffer;
+    s['regBufferCounter'] = this.regBufferCounter;
     return s;
 };
 
 JSNES.Mappers[1].prototype.fromJSON = function(s) {
     JSNES.Mappers[0].prototype.fromJSON.apply(this, s);
-    this.mirroring = s.mirroring;
-    this.oneScreenMirroring = s.oneScreenMirroring;
-    this.prgSwitchingArea = s.prgSwitchingArea;
-    this.prgSwitchingSize = s.prgSwitchingSize;
-    this.vromSwitchingSize = s.vromSwitchingSize;
-    this.romSelectionReg0 = s.romSelectionReg0;
-    this.romSelectionReg1 = s.romSelectionReg1;
-    this.romBankSelect = s.romBankSelect;
-    this.regBuffer = s.regBuffer;
-    this.regBufferCounter = s.regBufferCounter;
+    this.mirroring = s['mirroring'];
+    this.oneScreenMirroring = s['oneScreenMirroring'];
+    this.prgSwitchingArea = s['prgSwitchingArea'];
+    this.prgSwitchingSize = s['prgSwitchingSize'];
+    this.vromSwitchingSize = s['vromSwitchingSize'];
+    this.romSelectionReg0 = s['romSelectionReg0'];
+    this.romSelectionReg1 = s['romSelectionReg1'];
+    this.romBankSelect = s['romBankSelect'];
+    this.regBuffer = s['regBuffer'];
+    this.regBufferCounter = s['regBufferCounter'];
 };
 
 JSNES.Mappers[2] = function(nes) {
@@ -1104,25 +1104,25 @@ JSNES.Mappers[4].prototype.clockIrqCounter = function() {
 
 JSNES.Mappers[4].prototype.toJSON = function() {
     var s = JSNES.Mappers[0].prototype.toJSON.apply(this);
-    s.command = this.command;
-    s.prgAddressSelect = this.prgAddressSelect;
-    s.chrAddressSelect = this.chrAddressSelect;
-    s.pageNumber = this.pageNumber;
-    s.irqCounter = this.irqCounter;
-    s.irqLatchValue = this.irqLatchValue;
-    s.irqEnable = this.irqEnable;
-    s.prgAddressChanged = this.prgAddressChanged;
+    s['command'] = this.command;
+    s['prgAddressSelect'] = this.prgAddressSelect;
+    s['chrAddressSelect'] = this.chrAddressSelect;
+    s['pageNumber'] = this.pageNumber;
+    s['irqCounter'] = this.irqCounter;
+    s['irqLatchValue'] = this.irqLatchValue;
+    s['irqEnable'] = this.irqEnable;
+    s['prgAddressChanged'] = this.prgAddressChanged;
     return s;
 };
 
 JSNES.Mappers[4].prototype.fromJSON = function(s) {
     JSNES.Mappers[0].prototype.fromJSON.apply(this, s);
-    this.command = s.command;
-    this.prgAddressSelect = s.prgAddressSelect;
-    this.chrAddressSelect = s.chrAddressSelect;
-    this.pageNumber = s.pageNumber;
-    this.irqCounter = s.irqCounter;
-    this.irqLatchValue = s.irqLatchValue;
-    this.irqEnable = s.irqEnable;
-    this.prgAddressChanged = s.prgAddressChanged;
+    this.command = s['command'];
+    this.prgAddressSelect = s['prgAddressSelect'];
+    this.chrAddressSelect = s['chrAddressSelect'];
+    this.pageNumber = s['pageNumber'];
+    this.irqCounter = s['irqCounter'];
+    this.irqLatchValue = s['irqLatchValue'];
+    this.irqEnable = s['irqEnable'];
+    this.prgAddressChanged = s['prgAddressChanged'];
 };

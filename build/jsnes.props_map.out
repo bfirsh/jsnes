@@ -72,3 +72,6 @@ dummyCycleToggle:dummyCycleToggle
 nmiCounter:nmiCounter
 validTileData:validTileData
 scanlineAlreadyRendered:scanlineAlreadyRendered
+JSON_PROPERTIES:JSON_PROPERTIES
+fromJSON:fromJSON
+toJSON:toJSON
