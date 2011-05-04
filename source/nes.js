@@ -52,7 +52,7 @@ var JSNES = function(opts) {
     this['ui'].updateStatus("Ready to load a ROM.");
 };
 
-JSNES.VERSION = "<%= version %>";
+JSNES.VERSION = "{%= version %}";
 
 JSNES.prototype = {
     isRunning: false,

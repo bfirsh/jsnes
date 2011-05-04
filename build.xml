@@ -32,17 +32,56 @@
             </java>
         </sequential>
     </macrodef>
+    <macrodef name="prepend-header">
+        <attribute name="srcfile" />
+        <attribute name="destfile" />
+        <sequential>
+            <concat destfile="@{destfile}" append="false">
+                <header file="source/header.js" />
+                <path path="@{srcfile}" />
+            </concat>
+        </sequential>
+    </macrodef>
+    <exec executable="git" outputproperty="build.commit">
+        <arg value="rev-parse" />
+        <arg value="HEAD" />
+    </exec>
+    <scriptdef name="substring" language="javascript">
+        <attribute name="text" />
+        <attribute name="property" />
+        <![CDATA[
+        var text = attributes.get("text");
+        project.setProperty(attributes.get("property"), text.substring(0, 20));
+        ]]>
+    </scriptdef>
+    <substring text="${build.commit}" property="build.commit" />
     <target name="clean" description="deletes all files created by this script">
         <delete dir="${build.dir}" />
     </target>
-    <target name="jsnes-min" description="generates a minified version of jsnes.js">
+    <target name="jsnes-concat" description="generates a concatenated version of JSNES">
         <mkdir dir="${build.dir}" />
-        <closure-compile outputfile="${build.dir}/jsnes.min.js" compilationlevel="ADVANCED_OPTIMIZATIONS" summarydetaillevel="3" warninglevel="VERBOSE">
+        <closure-compile outputfile="${build.dir}/tmp.js" compilationlevel="WHITESPACE_ONLY" summarydetaillevel="3" />
+        <replace file="${build.dir}/tmp.js" token="{%= version %}" value="${build.commit}" />
+        <prepend-header srcfile="${build.dir}/tmp.js" destfile="${build.dir}/jsnes.concat.js" />
+        <delete file="${build.dir}/tmp.js" />
+    </target>
+    <target name="jsnes-simple" description="generates a lightly minified version of JSNES">
+        <mkdir dir="${build.dir}" />
+        <closure-compile outputfile="${build.dir}/tmp.js" compilationlevel="SIMPLE_OPTIMIZATIONS" summarydetaillevel="3" warninglevel="VERBOSE" />
+        <replace file="${build.dir}/tmp.js" token="{%= version %}" value="${build.commit}" />
+        <prepend-header srcfile="${build.dir}/tmp.js" destfile="${build.dir}/jsnes.simple.js" />
+        <delete file="${build.dir}/tmp.js" />
+    </target>
+    <target name="jsnes-min" description="generates a minified version of JSNES">
+        <mkdir dir="${build.dir}" />
+        <closure-compile outputfile="${build.dir}/tmp.js" compilationlevel="ADVANCED_OPTIMIZATIONS" summarydetaillevel="3" warninglevel="VERBOSE">
             <extraflags>
                 <arg line="--js ${closure-compiler.dir}/exports.js" />
-                <arg line="--property_map_input_file ${closure-compiler.dir}/jsnes.props_map.out" />
             </extraflags>
         </closure-compile>
+        <replace file="${build.dir}/tmp.js" token="{%= version %}" value="${build.commit}" />
+        <prepend-header srcfile="${build.dir}/tmp.js" destfile="${build.dir}/jsnes.min.js" />
+        <delete file="${build.dir}/tmp.js" />
     </target>
-    <target name="build" depends="jsnes-min" />
+    <target name="build" depends="jsnes-concat,jsnes-simple,jsnes-min" />
 </project>
