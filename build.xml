@@ -62,7 +62,7 @@
         <mkdir dir="${build.dir}" />
         <closure-compile outputfile="${build.dir}/tmp.js" compilationlevel="WHITESPACE_ONLY" summarydetaillevel="3" />
         <replace file="${build.dir}/tmp.js" token="{%= version %}" value="${build.commit}" />
-        <prepend-header srcfile="${build.dir}/tmp.js" destfile="${build.dir}/jsnes.concat.js" />
+        <prepend-header srcfile="${build.dir}/tmp.js" destfile="${build.dir}/jsnes-src.js" />
         <delete file="${build.dir}/tmp.js" />
     </target>
     <target name="jsnes-simple" description="generates a lightly minified version of JSNES">
@@ -80,7 +80,7 @@
             </extraflags>
         </closure-compile>
         <replace file="${build.dir}/tmp.js" token="{%= version %}" value="${build.commit}" />
-        <prepend-header srcfile="${build.dir}/tmp.js" destfile="${build.dir}/jsnes.min.js" />
+        <prepend-header srcfile="${build.dir}/tmp.js" destfile="${build.dir}/jsnes-min.js" />
         <delete file="${build.dir}/tmp.js" />
     </target>
     <target name="build" depends="jsnes-concat,jsnes-simple,jsnes-min" />
