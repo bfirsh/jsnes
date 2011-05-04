@@ -16,6 +16,10 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/**
+ * @todo: Define custom JSON methods for ppu.scantile.
+ */
+
 JSNES.PPU = function(nes) {
     this.nes = nes;
     
@@ -1499,7 +1503,8 @@ JSNES.PPU.prototype = {
         // Palettes
         sprPalette: 'sprPalette', imgPalette: 'imgPalette', 
         // Rendering progression
-        curX: 'curX', scanline: 'scanline', lastRenderedScanline: 'lastRenderedScanline', curNt: 'curNt', scantile: 'scantile', 
+        // Can't find an elegant way to im/export scantile. Removing it seems fine though
+        curX: 'curX', scanline: 'scanline', lastRenderedScanline: 'lastRenderedScanline', curNt: 'curNt', /*scantile: 'scantile', */
         // Used during rendering
         attrib: 'attrib', buffer: 'buffer', bgbuffer: 'bgbuffer', pixrendered: 'pixrendered', 
         // Misc
