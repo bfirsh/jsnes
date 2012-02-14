@@ -21,3 +21,8 @@ Benchmark
 
 The benchmark in ``test/benchmark.js`` is intended for testing JavaScript 
 engines. It does not depend on a DOM or Canvas element etc.
+
+Edit
+----
+
+joysticks with gamepad API. tested on Chrome 17
