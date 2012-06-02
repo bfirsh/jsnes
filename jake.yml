@@ -24,4 +24,5 @@ packages:
       - ppu
       - rom
       - ui
+      - webaudio
     
