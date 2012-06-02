@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 
 JSNES.DummyUI = function(nes) {
     this.nes = nes;
@@ -46,6 +46,9 @@ if (typeof jQuery !== 'undefined') {
                 self.romContainer = $('<div class="nes-roms"></div>').appendTo(self.root);
                 self.romSelect = $('<select></select>').appendTo(self.romContainer);
                 
+                $('<p>or use a local file below or by using drag & drop onto the nes display</p>').appendTo(self.root);
+                self.romUpload = $('<input type="file">').appendTo(self.root);
+                
                 self.controls = $('<div class="nes-controls"></div>').appendTo(self.root);
                 self.buttons = {
                     pause: $('<input type="button" value="pause" class="nes-pause" disabled="disabled">').appendTo(self.controls),
@@ -62,6 +65,39 @@ if (typeof jQuery !== 'undefined') {
                 self.romSelect.change(function() {
                     self.loadROM();
                 });
+                
+                
+                // These should be changed to use bind when jquery adds dataTransfer to its Event object.
+                self.root[0].addEventListener("dragenter", JSNES.Utils.cancelEvent, false);
+                self.root[0].addEventListener("dragover", JSNES.Utils.cancelEvent, false);
+                self.root[0].addEventListener("drop", function(e) {
+                    JSNES.Utils.cancelEvent(e);
+                    if (!e.dataTransfer) {
+                        alert("Your browser doesn't support reading local files (FileAPI).");
+                        return;
+                    }
+                    var files = e.dataTransfer.files; 
+                    startRomFromFileBlob(files[0]);
+                }, false);
+
+                self.romUpload.change(function() {
+                    var files = self.romUpload[0].files;
+                    if (!files) {
+                        alert("Your browser doesn't support reading local files (FileAPI).");
+                        return;
+                    }
+                    startRomFromFileBlob(files[0]);
+                })
+
+                function startRomFromFileBlob(file) {
+                    var reader = new FileReader();
+                    reader.readAsBinaryString(file);
+                    reader.onload = function(evt) {
+                        self.nes.loadRom(evt.target.result);
+                        self.nes.start();
+                        self.enable();
+                    }
+                }
                 
                 /*
                  * Buttons
@@ -158,15 +194,15 @@ if (typeof jQuery !== 'undefined') {
                  * Keyboard
                  */
                 $(document).
-                    bind('keydown', function(evt) {
-                        self.nes.keyboard.keyDown(evt); 
-                    }).
-                    bind('keyup', function(evt) {
-                        self.nes.keyboard.keyUp(evt); 
-                    }).
-                    bind('keypress', function(evt) {
-                        self.nes.keyboard.keyPress(evt);
-                    });
+                bind('keydown', function(evt) {
+                    self.nes.keyboard.keyDown(evt); 
+                }).
+                bind('keyup', function(evt) {
+                    self.nes.keyboard.keyUp(evt); 
+                }).
+                bind('keypress', function(evt) {
+                    self.nes.keyboard.keyPress(evt);
+                });
             
                 /*
                  * Sound
@@ -196,11 +232,11 @@ if (typeof jQuery !== 'undefined') {
                             if (JSNES.Utils.isIE()) {
                                 var charCodes = JSNESBinaryToArray(
                                     xhr.responseBody
-                                ).toArray();
+                                    ).toArray();
                                 data = String.fromCharCode.apply(
                                     undefined, 
                                     charCodes
-                                );
+                                    );
                             }
                             else {
                                 data = xhr.responseText;
@@ -253,11 +289,11 @@ if (typeof jQuery !== 'undefined') {
                     for (var groupName in roms) {
                         if (roms.hasOwnProperty(groupName)) {
                             var optgroup = $('<optgroup></optgroup>').
-                                attr("label", groupName);
+                            attr("label", groupName);
                             for (var i = 0; i < roms[groupName].length; i++) {
                                 $('<option>'+roms[groupName][i][0]+'</option>')
-                                    .attr("value", roms[groupName][i][1])
-                                    .appendTo(optgroup);
+                                .attr("value", roms[groupName][i][1])
+                                .appendTo(optgroup);
                             }
                             this.romSelect.append(optgroup);
                         }

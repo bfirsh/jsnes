@@ -3,3 +3,5 @@
 jsnes.tmproj
 ._*
 .DS_Store
+/nbproject/private/
+/nbproject/

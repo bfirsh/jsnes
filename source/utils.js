@@ -47,6 +47,11 @@ JSNES.Utils = {
     
     isIE: function() {
         return (/msie/i.test(navigator.userAgent) && !/opera/i.test(navigator.userAgent));
+    },
+
+    cancelEvent: function(e) {
+        e.stopPropagation();  
+        e.preventDefault();  
     }
 };
 
