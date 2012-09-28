@@ -1189,7 +1189,6 @@ JSNES.Mappers[11].prototype.write = function(address, value) {
  */
 JSNES.Mappers[34] = function(nes) {
     this.nes = nes;
-    console.log('mapper 034 used');
 };
 
 JSNES.Mappers[34].prototype = new JSNES.Mappers[0]();
@@ -1200,5 +1199,35 @@ JSNES.Mappers[34].prototype.write = function(address, value) {
         return;
     } else {
         this.load32kRomBank(value, 0x8000);
+    }
+}
+
+
+
+/**
+ * Mapper 066 (GxROM)
+ * 
+ * @description http://wiki.nesdev.com/w/index.php/INES_Mapper_066
+ * @example Doraemon, Dragon Power, Gumshoe, Thunder & Lightning, 
+ * Super Mario Bros. + Duck Hunt
+ * @constructor
+ */
+JSNES.Mappers[66] = function(nes) {
+    this.nes = nes;
+    console.log('Mapper 66');
+};
+
+JSNES.Mappers[66].prototype = new JSNES.Mappers[0]();
+
+JSNES.Mappers[66].prototype.write = function(address, value) {
+    if (address < 0x8000) {
+        JSNES.Mappers[0].prototype.write.apply(this, arguments);
+        return;
+    } else {
+        // Swap in the given PRG-ROM bank at 0x8000:
+        this.load32kRomBank((value >> 4) & 3, 0x8000);
+
+        // Swap in the given VROM bank at 0x0000:
+        this.load8kVromBank((value & 3) * 2, 0x0000);
     }
 }
