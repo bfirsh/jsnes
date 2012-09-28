@@ -1,3 +1,9 @@
+/**
+* Gamepad support for JSNES
+*
+* @license <http://www.gnu.org/licenses/>.
+*/
+
 var gamepads = navigator.webkitGamepads || navigator.MozGamepads;
 
 window.frames = (function(){
@@ -17,7 +23,7 @@ function runAnimation()
 {
     window.frames(runAnimation);
     
-    if(gamepads) {
+    if(gamepads && gamepads[0]) {
         var axes = gamepads[0].axes;
         var buttons = gamepads[0].buttons;
         for(var i=0;i<nes.keyboard.state1.length;i++){
