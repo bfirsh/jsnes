@@ -45,6 +45,7 @@ JSNES.Keyboard.prototype = {
     setKey: function(key, value) {
         switch (key) {
             case 88: this.state1[this.keys.KEY_A] = value; break;      // X
+            case 89: this.state1[this.keys.KEY_B] = value; break;      // Y (Central European keyboard)
             case 90: this.state1[this.keys.KEY_B] = value; break;      // Z
             case 17: this.state1[this.keys.KEY_SELECT] = value; break; // Right Ctrl
             case 13: this.state1[this.keys.KEY_START] = value; break;  // Enter
