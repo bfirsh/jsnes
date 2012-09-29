@@ -138,7 +138,7 @@ JSNES.CPU.prototype = {
                         ////System.out.println("Interrupt was masked.");
                         break;
                     }
-                    doIrq(temp);
+                    this.doIrq(temp);
                     ////System.out.println("Did normal IRQ. I="+this.F_INTERRUPT);
                     break;
                 }case 1:{
