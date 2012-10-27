@@ -284,7 +284,7 @@ JSNES.Mappers[0].prototype = {
             case 5:
             case 6:
             case 7:
-                ret = this.nes.keyboard.state1[this.joy1StrobeState];
+                ret = this.nes.input.state1[this.joy1StrobeState];
                 break;
             case 8:
             case 9:
@@ -326,7 +326,7 @@ JSNES.Mappers[0].prototype = {
             case 5:
             case 6:
             case 7:
-                ret = this.nes.keyboard.state2[this.joy2StrobeState];
+                ret = this.nes.input.state2[this.joy2StrobeState];
                 break;
             case 8:
             case 9:

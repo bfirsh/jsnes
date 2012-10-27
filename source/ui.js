@@ -157,16 +157,107 @@ if (typeof jQuery !== 'undefined') {
                 /*
                  * Keyboard
                  */
+
+				 var translateKeyCodeToButtons = function () {
+				     return [{
+				         88: self.nes.input.keys.KEY_A, // X
+				         89: self.nes.input.keys.KEY_B, // Y (Central European keyboard)
+				         90: self.nes.input.keys.KEY_B, // Z
+				         17: self.nes.input.keys.KEY_SELECT, // Right Ctrl
+				         13: self.nes.input.keys.KEY_START, // Enter
+				         38: self.nes.input.keys.KEY_UP, // Up
+				         40: self.nes.input.keys.KEY_DOWN, // Down
+				         37: self.nes.input.keys.KEY_LEFT, // Left
+				         39: self.nes.input.keys.KEY_RIGHT // Right
+				     }, {
+				         103: self.nes.input.keys.KEY_A, // Num-7
+				         105: self.nes.input.keys.KEY_B, // Num-9
+				         99: self.nes.input.keys.KEY_SELECT, // Num-3
+				         97: self.nes.input.keys.KEY_START, // Num-1
+				         104: self.nes.input.keys.KEY_UP, // Num-8
+				         98: self.nes.input.keys.KEY_DOWN, // Num-2
+				         100: self.nes.input.keys.KEY_LEFT, // Num-4
+				         102: self.nes.input.keys.KEY_RIGHT // Num-6
+				     }];
+				 };
+				
                 $(document).
                     bind('keydown', function(evt) {
-                        self.nes.keyboard.keyDown(evt); 
+						var match, i, keyCodes = translateKeyCodeToButtons();
+						for (i = 0; i < keyCodes.length; i++) {
+							match = keyCodes[i][evt.keyCode];
+							if (match !== undefined) {
+								self.nes.input.setKey(match, true, i);
+								break;
+							}
+						}
                     }).
                     bind('keyup', function(evt) {
-                        self.nes.keyboard.keyUp(evt); 
-                    }).
-                    bind('keypress', function(evt) {
-                        self.nes.keyboard.keyPress(evt);
+						var match, i, keyCodes = translateKeyCodeToButtons();
+						for (i = 0; i < keyCodes.length; i++) {
+							match = keyCodes[i][evt.keyCode];
+							if (match !== undefined) {
+								self.nes.input.setKey(match, false, i);
+								break;
+							}
+						}
                     });
+
+	            /*
+	             * Gamepad
+	             */
+					 					
+				var gamepadPoll = {
+					running: false,
+					start: function() {
+						this.running = true;
+						this.tick();
+					},
+					tick: function() {
+						var i, buttons, axes;
+						
+						if ( ! this.running) {
+							return;
+						}
+						
+						var gamepads = navigator.webkitGetGamepads();
+						
+						if (gamepads && self.nes.input instanceof JSNES.Input) {
+						
+							for (i = 0; i < 2; i++) {
+								if ( ! gamepads[i]) {
+									continue;
+								}
+								
+								buttons = gamepads[i].buttons;
+								axes = gamepads[i].axes;
+															
+								self.nes.input.setKey(self.nes.input.keys.KEY_A, buttons[1], i);
+								self.nes.input.setKey(self.nes.input.keys.KEY_B, buttons[2], i);
+								self.nes.input.setKey(self.nes.input.keys.KEY_SELECT, buttons[8], i);
+								self.nes.input.setKey(self.nes.input.keys.KEY_START, buttons[9]);
+								
+								self.nes.input.setKey(self.nes.input.keys.KEY_RIGHT, axes[0] == 1, i);
+								self.nes.input.setKey(self.nes.input.keys.KEY_LEFT, axes[0] == -1, i);
+								self.nes.input.setKey(self.nes.input.keys.KEY_UP, axes[1] == 1, i);
+								self.nes.input.setKey(self.nes.input.keys.KEY_DOWN, axes[1] == -1);
+								
+							}
+						
+						}
+						
+						webkitRequestAnimationFrame($.proxy(this.tick, this), 1000);
+					
+					},
+					stop: function() {
+						this.running = false;
+					}
+				
+				};
+				
+				if (navigator.webkitGetGamepads) {
+					gamepadPoll.start();
+				}
             
                 /*
                  * Sound
