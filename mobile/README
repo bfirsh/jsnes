@@ -1,0 +1,19 @@
+The files in this directory are an example of using JSNes with multitouch.
+
+All you need is a web page that loads jquery, hammer.js, jquery.hammer.js, and jsnes.js (only tested with jsnes-source.js)
+
+Caveat: JSNes is really slow on iOS and android.
+
+The way to get the touch buttons on the screen are to provide html elements with the following ids:
+a_button
+b_button
+start_button
+select_button
+up_button
+down_button
+left_button
+right_button
+
+newing up the JSNES object will automatically install the tap/hold/release functions for the above html elements.
+
+Enjoy!
