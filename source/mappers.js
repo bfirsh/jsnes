@@ -1090,6 +1090,18 @@ JSNES.Mappers[4].prototype.loadROM = function(rom) {
     this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
 };
 
+JSNES.Mappers[4].prototype.clockIrqCounter = function() {
+    if (this.irqEnable == 1) {
+        this.irqCounter--;
+        if (this.irqCounter < 0) {
+            // Trigger IRQ:
+            //nes.getCpu().doIrq();
+            this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NORMAL);
+            this.irqCounter = this.irqLatchValue;
+        }
+    }
+};
+
 JSNES.Mappers[4].prototype.toJSON = function() {
     var s = JSNES.Mappers[0].prototype.toJSON.apply(this);
     s.command = this.command;
