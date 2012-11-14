@@ -232,7 +232,7 @@ if (typeof jQuery !== 'undefined') {
 								buttons = gamepads[i].buttons;
 								axes = gamepads[i].axes;
 															
-								self.nes.input.setKey(self.nes.input.keys.KEY_A, buttons[2], i);
+								self.nes.input.setKey(self.nes.input.keys.KEY_A, buttons[0], i);
 								self.nes.input.setKey(self.nes.input.keys.KEY_B, buttons[1], i);
 								self.nes.input.setKey(self.nes.input.keys.KEY_SELECT, buttons[8], i);
 								self.nes.input.setKey(self.nes.input.keys.KEY_START, buttons[9]);
