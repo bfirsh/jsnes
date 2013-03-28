@@ -48,6 +48,7 @@ var JSNES = function(opts) {
     this.papu = new JSNES.PAPU(this);
     this.mmap = null; // set in loadRom()
     this.keyboard = new JSNES.Keyboard();
+    this.gamepad = new JSNES.Gamepad();
     
     this.ui.updateStatus("Ready to load a ROM.");
 };
@@ -247,5 +248,9 @@ JSNES.prototype = {
         this.cpu.fromJSON(s.cpu);
         this.mmap.fromJSON(s.mmap);
         this.ppu.fromJSON(s.ppu);
+    },
+
+    gamepad: function() {
+        return this.gamepad;
     }
 };
