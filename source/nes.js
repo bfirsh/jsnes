@@ -57,7 +57,6 @@ JSNES.VERSION = "<%= version %>";
 JSNES.prototype = {
     isRunning: false,
     fpsFrameCount: 0,
-    limitFrames: true,
     romData: null,
     
     // Resets the system
@@ -80,7 +79,7 @@ JSNES.prototype = {
                 
                 this.frameInterval = setInterval(function() {
                     self.frame();
-                }, this.frameTime / 2);
+                }, this.frameTime);
                 this.resetFps();
                 this.printFps();
                 this.fpsInterval = setInterval(function() {
@@ -147,13 +146,6 @@ JSNES.prototype = {
                 if (ppu.curX === 341) {
                     ppu.curX = 0;
                     ppu.endScanline();
-                }
-            }
-        }
-        if (this.limitFrames) {
-            if (this.lastFrameTime) {
-                while (+new Date() - this.lastFrameTime < this.frameTime) {
-                    // twiddle thumbs
                 }
             }
         }
@@ -226,11 +218,6 @@ JSNES.prototype = {
         this.opts.preferredFrameRate = rate;
         this.frameTime = 1000 / rate;
         this.papu.setSampleRate(this.opts.sampleRate, false);
-    },
-    
-    setLimitFrames: function(limit) {
-        this.limitFrames = limit;
-        this.lastFrameTime = null;
     },
     
     toJSON: function() {
