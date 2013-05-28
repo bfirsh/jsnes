@@ -6,18 +6,20 @@ A JavaScript NES emulator.
 Build
 -----
 
-To build a distribution, you will need [jake](http://github.com/jcoglan/jake):
+To build a distribution, you will [Grunt](http://gruntjs.com):
 
-    $ sudo gem install jake
+    $ sudo npm install -g grunt-cli
 
 Then run:
 
-    $ jake
+    $ npm install
+    $ grunt
 
-This will create ``jsnes-min.js`` and ``jsnes-src.js`` in ``build/``.
+This will create ``jsnes.js`` and ``jsnes-min.js`` in ``build/``.
 
 Benchmark
 ---------
 
 The benchmark in ``test/benchmark.js`` is intended for testing JavaScript 
 engines. It does not depend on a DOM or Canvas element etc.
+

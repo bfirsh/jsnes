@@ -1,0 +1,16 @@
+{
+  "name": "jsnes",
+  "version": "0.0.0",
+  "description": "A JavaScript NES emulator",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/bfirsh/jsnes.git"
+  },
+  "license": "BSD",
+  "devDependencies": {
+    "grunt": "~0.4.1",
+    "grunt-contrib-concat": "~0.3.0",
+    "grunt-contrib-uglify": "~0.2.1",
+    "grunt-contrib-jshint": "~0.5.4"
+  }
+}
