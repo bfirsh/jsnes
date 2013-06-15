@@ -250,7 +250,7 @@ JSNES.Mappers[0].prototype = {
             
             case 0x4016:
                 // Joystick 1 + Strobe
-                if (value === 0 && this.joypadLastWrite === 1) {
+                if ((value&1) === 0 && (this.joypadLastWrite&1) === 1) {
                     this.joy1StrobeState = 0;
                     this.joy2StrobeState = 0;
                 }
