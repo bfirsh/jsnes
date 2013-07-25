@@ -3,7 +3,7 @@ module.exports = (grunt) ->
     pkg: grunt.file.readJSON('package.json')
     concat:
       source:
-        src: "source/*.js"
+        src: ["source/nes.js", "source/utils.js", "source/cpu.js", "source/keyboard.js", "source/mappers.js", "source/papu.js", "source/ppu.js", "source/rom.js", "source/ui.js"]
         dest: "build/jsnes.js"
     uglify:
       source:
