@@ -224,6 +224,17 @@ if (typeof jQuery !== 'undefined') {
                 },
                 
                 /*
+                *
+                * nes.ui.screenshot() --> return <img> element :)
+                */
+                screenshot: function() {
+                    var data = this.screen[0].toDataURL("image/png"),
+                        img = new Image();
+                    img.src = data;
+                    return img;
+                },
+                
+                /*
                  * Enable and reset UI elements
                  */
                 enable: function() {
