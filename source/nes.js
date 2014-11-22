@@ -79,9 +79,9 @@ JSNES.prototype = {
       if (!this.isRunning) {
         this.isRunning = true;
 
-        this.frameInterval = setInterval(function() {
+        requestAnimationFrame(function() {
           self.frame();
-        }, this.frameTime);
+        });
         this.resetFps();
         this.printFps();
         this['fpsInterval'] = setInterval(function() {
@@ -95,6 +95,7 @@ JSNES.prototype = {
 
   frame: function() {
     this.ppu.startFrame();
+    var self = this;
     var cycles = 0;
     var emulateSound = this.opts['emulateSound'];
     var cpu = this.cpu;
@@ -150,6 +151,12 @@ JSNES.prototype = {
     }
     this.fpsFrameCount++;
     this.lastFrameTime = +new Date();
+
+    if (this.isRunning) {
+      requestAnimationFrame(function() {
+        self.frame();
+      });
+    }
   },
 
   printFps: function() {
@@ -166,7 +173,6 @@ JSNES.prototype = {
   },
 
   stop: function() {
-    clearInterval(this.frameInterval);
     clearInterval(this['fpsInterval']);
     this.isRunning = false;
   },
