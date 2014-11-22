@@ -16,6 +16,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+'use strict';
+
 JSNES.Utils = {
   copyArrayElements: function(src, srcPos, dest, destPos, length) {
     for (var i = 0; i < length; ++i) {

@@ -26,6 +26,7 @@
                 <arg line="--externs ${closure-compiler.dir}/contrib/externs/jquery-1.4.4.js" />
                 <arg line="--externs ${basedir}/build/externs.js" />
                 <arg line="--compilation_level=@{compilationlevel}" />
+                <arg line="--language_in ECMASCRIPT5_STRICT" />
                 <arg line="--summary_detail_level @{summarydetaillevel}" />
                 <arg line="--warning_level @{warninglevel}" />
                 <extraflags />
