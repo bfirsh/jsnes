@@ -95,7 +95,6 @@ JSNES.PPU = function(nes) {
   this.vramMirrorTable = null;
   this.palTable = null;
 
-
   // Rendering Options:
   this.showSpr0Hit = false;
   this.clipToTvSize = true;
@@ -323,9 +322,7 @@ JSNES.PPU.prototype = {
       this.ntable1[3] = 3;
 
     }
-
   },
-
 
   // Define a mirrored area in the address lookup table.
   // Assumes the regions don't overlap.
@@ -337,14 +334,13 @@ JSNES.PPU.prototype = {
   },
 
   startVBlank: function() {
-
     // Do NMI:
     this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NMI);
 
     // Make sure everything is rendered:
     if (this.lastRenderedScanline < 239) {
       this.renderFramePartially(
-          this.lastRenderedScanline + 1, 240 - this.lastRenderedScanline
+        this.lastRenderedScanline + 1, 240 - this.lastRenderedScanline
       );
     }
 
@@ -438,11 +434,9 @@ JSNES.PPU.prototype = {
             // Check for sprite 0 (next scanline):
             if (!this.hitSpr0 && this.f_spVisibility == 1) {
               if (this.sprX[0] >= -7 &&
-                                    this.sprX[0] < 256 &&
-                                    this.sprY[0] + 1 <= (this.scanline - 20) &&
-                                    (this.sprY[0] + 1 + (
-                                        this.f_spriteSize === 0 ? 8 : 16
-                                    )) >= (this.scanline - 20)) {
+                this.sprX[0] < 256 &&
+                this.sprY[0] + 1 <= (this.scanline - 20) &&
+                (this.sprY[0] + 1 + ( this.f_spriteSize === 0 ? 8 : 16 )) >= (this.scanline - 20)) {
                 if (this.checkSprite0(this.scanline - 20)) {
                   this.hitSpr0 = true;
                 }
@@ -461,7 +455,6 @@ JSNES.PPU.prototype = {
     this.scanline++;
     this.regsToAddress();
     this.cntsToAddress();
-
   },
 
   startFrame: function() {
@@ -473,8 +466,7 @@ JSNES.PPU.prototype = {
       // f_color determines color emphasis.
       // Use first entry of image palette as BG color.
       bgColor = this.imgPalette[0];
-    }
-    else {
+    } else {
       // Monochrome display.
       // f_color determines the bg color.
       switch (this.f_color) {
@@ -523,7 +515,7 @@ JSNES.PPU.prototype = {
     if (this.showSpr0Hit) {
       // Spr 0 position:
       if (this.sprX[0] >= 0 && this.sprX[0] < 256 &&
-          this.sprY[0] >= 0 && this.sprY[0] < 240) {
+        this.sprY[0] >= 0 && this.sprY[0] < 240) {
         for (i = 0; i < 256; i++) {
           buffer[(this.sprY[0] << 8) + i] = 0xFF5555;
         }
@@ -533,7 +525,7 @@ JSNES.PPU.prototype = {
       }
       // Hit position:
       if (this.spr0HitX >= 0 && this.spr0HitX < 256 &&
-          this.spr0HitY >= 0 && this.spr0HitY < 240) {
+        this.spr0HitY >= 0 && this.spr0HitY < 240) {
         for (i = 0; i < 256; i++) {
           buffer[(this.spr0HitY << 8) + i] = 0x55FF55;
         }
@@ -580,7 +572,6 @@ JSNES.PPU.prototype = {
   },
 
   updateControlReg1: function(value) {
-
     this.triggerRendering();
 
     this.f_nmiOnVblank = (value >> 7) & 1;
@@ -593,11 +584,9 @@ JSNES.PPU.prototype = {
     this.regV = (value >> 1) & 1;
     this.regH = value & 1;
     this.regS = (value >> 4) & 1;
-
   },
 
   updateControlReg2: function(value) {
-
     this.triggerRendering();
 
     this.f_color = (value >> 5) & 7;
@@ -616,13 +605,12 @@ JSNES.PPU.prototype = {
   setStatusFlag: function(flag, value) {
     var n = 1 << flag;
     this.nes.cpu.mem[0x2002] =
-        ((this.nes.cpu.mem[0x2002] & (255 - n)) | (value ? n : 0));
+      ((this.nes.cpu.mem[0x2002] & (255 - n)) | (value ? n : 0));
   },
 
   // CPU Register $2002:
   // Read the Status Register.
   readStatusRegister: function() {
-
     var tmp = this.nes.cpu.mem[0x2002];
 
     // Reset scroll & VRAM Address toggle:
@@ -633,7 +621,6 @@ JSNES.PPU.prototype = {
 
     // Fetch status data:
     return tmp;
-
   },
 
   // CPU Register $2003:
@@ -683,14 +670,12 @@ JSNES.PPU.prototype = {
 
     }
     this.firstWrite = !this.firstWrite;
-
   },
 
   // CPU Register $2006:
   // Sets the adress used when reading/writing from/to VRAM.
   // The first write sets the high byte, the second the low byte.
   writeVRAMAddress: function(address) {
-
     if (this.firstWrite) {
 
       this.regFV = (address >> 4) & 3;
@@ -738,11 +723,10 @@ JSNES.PPU.prototype = {
       // Update buffered value:
       if (this.vramAddress < 0x2000) {
         this.vramBufferedReadValue = this.vramMem[this.vramAddress];
-      }
-      else {
+      } else {
         this.vramBufferedReadValue = this.mirroredLoad(
-            this.vramAddress
-            );
+          this.vramAddress
+        );
       }
 
       // Mapper latch access:
@@ -941,8 +925,8 @@ JSNES.PPU.prototype = {
     if (this.scanline >= 21 && this.scanline <= 260) {
       // Render sprites, and combine:
       this.renderFramePartially(
-          this.lastRenderedScanline + 1,
-          this.scanline - 21 - this.lastRenderedScanline
+        this.lastRenderedScanline + 1,
+        this.scanline - 21 - this.lastRenderedScanline
       );
 
       // Set last rendered scanline:
@@ -1032,8 +1016,8 @@ JSNES.PPU.prototype = {
             if (t.opaque[this.cntFV]) {
               for (; sx < 8; sx++) {
                 targetBuffer[destIndex] = imgPalette[
-                    tpix[tscanoffset + sx] + att
-                    ];
+                tpix[tscanoffset + sx] + att
+                  ];
                 pixrendered[destIndex] |= 256;
                 destIndex++;
               }
@@ -1042,8 +1026,8 @@ JSNES.PPU.prototype = {
                 col = tpix[tscanoffset + sx];
                 if (col !== 0) {
                   targetBuffer[destIndex] = imgPalette[
-                                        col + att
-                      ];
+                  col + att
+                    ];
                   pixrendered[destIndex] |= 256;
                 }
                 destIndex++;
@@ -1095,8 +1079,8 @@ JSNES.PPU.prototype = {
 
       for (var i = 0; i < 64; i++) {
         if (this.bgPriority[i] == bgPri && this.sprX[i] >= 0 &&
-            this.sprX[i] < 256 && this.sprY[i] + 8 >= startscan &&
-            this.sprY[i] < startscan + scancount) {
+          this.sprX[i] < 256 && this.sprY[i] + 8 >= startscan &&
+          this.sprY[i] < startscan + scancount) {
           // Show sprite.
           if (this.f_spriteSize === 0) {
             // 8x8 sprites
@@ -1114,10 +1098,10 @@ JSNES.PPU.prototype = {
 
             if (this.f_spPatternTable === 0) {
               this.ptTile[this.sprTile[i]].render(this.buffer,
-                  0, this.srcy1, 8, this.srcy2, this.sprX[i],
-                  this.sprY[i] + 1, this.sprCol[i], this.sprPalette,
-                  this.horiFlip[i], this.vertFlip[i], i,
-                  this.pixrendered
+                0, this.srcy1, 8, this.srcy2, this.sprX[i],
+                this.sprY[i] + 1, this.sprCol[i], this.sprPalette,
+                this.horiFlip[i], this.vertFlip[i], i,
+                this.pixrendered
               );
             } else {
               this.ptTile[this.sprTile[i] + 256].render(this.buffer, 0, this.srcy1, 8, this.srcy2, this.sprX[i], this.sprY[i] + 1, this.sprCol[i], this.sprPalette, this.horiFlip[i], this.vertFlip[i], i, this.pixrendered);
@@ -1141,19 +1125,19 @@ JSNES.PPU.prototype = {
             }
 
             this.ptTile[top + (this.vertFlip[i] ? 1 : 0)].render(
-                this.buffer,
-                0,
-                srcy1,
-                8,
-                srcy2,
-                this.sprX[i],
-                this.sprY[i] + 1,
-                this.sprCol[i],
-                this.sprPalette,
-                this.horiFlip[i],
-                this.vertFlip[i],
-                i,
-                this.pixrendered
+              this.buffer,
+              0,
+              srcy1,
+              8,
+              srcy2,
+              this.sprX[i],
+              this.sprY[i] + 1,
+              this.sprCol[i],
+              this.sprPalette,
+              this.horiFlip[i],
+              this.vertFlip[i],
+              i,
+              this.pixrendered
             );
 
             srcy1 = 0;
@@ -1168,19 +1152,19 @@ JSNES.PPU.prototype = {
             }
 
             this.ptTile[top + (this.vertFlip[i] ? 0 : 1)].render(
-                this.buffer,
-                0,
-                srcy1,
-                8,
-                srcy2,
-                this.sprX[i],
-                this.sprY[i] + 1 + 8,
-                this.sprCol[i],
-                this.sprPalette,
-                this.horiFlip[i],
-                this.vertFlip[i],
-                i,
-                this.pixrendered
+              this.buffer,
+              0,
+              srcy1,
+              8,
+              srcy2,
+              this.sprX[i],
+              this.sprY[i] + 1 + 8,
+              this.sprCol[i],
+              this.sprPalette,
+              this.horiFlip[i],
+              this.vertFlip[i],
+              i,
+              this.pixrendered
             );
 
           }
@@ -1190,7 +1174,6 @@ JSNES.PPU.prototype = {
   },
 
   checkSprite0: function(scan) {
-
     this.spr0HitX = -1;
     this.spr0HitY = -1;
 
@@ -1218,8 +1201,7 @@ JSNES.PPU.prototype = {
 
         if (this.vertFlip[0]) {
           toffset = 7 - (scan - y);
-        }
-        else {
+        } else {
           toffset = scan - y;
         }
         toffset *= 8;
@@ -1229,7 +1211,7 @@ JSNES.PPU.prototype = {
           for (i = 7; i >= 0; i--) {
             if (x >= 0 && x < 256) {
               if (bufferIndex >= 0 && bufferIndex < 61440 &&
-                                    this.pixrendered[bufferIndex] !== 0) {
+                this.pixrendered[bufferIndex] !== 0) {
                 if (t.pix[toffset + i] !== 0) {
                   this.spr0HitX = bufferIndex % 256;
                   this.spr0HitY = scan;
@@ -1240,12 +1222,11 @@ JSNES.PPU.prototype = {
             x++;
             bufferIndex++;
           }
-        }
-        else {
+        } else {
           for (i = 0; i < 8; i++) {
             if (x >= 0 && x < 256) {
               if (bufferIndex >= 0 && bufferIndex < 61440 &&
-                                    this.pixrendered[bufferIndex] !== 0) {
+                this.pixrendered[bufferIndex] !== 0) {
                 if (t.pix[toffset + i] !== 0) {
                   this.spr0HitX = bufferIndex % 256;
                   this.spr0HitY = scan;
@@ -1258,8 +1239,7 @@ JSNES.PPU.prototype = {
           }
         }
       }
-    }
-    else {
+    } else {
       // 8x16 sprites:
 
       // Check range:
@@ -1281,8 +1261,7 @@ JSNES.PPU.prototype = {
           t = this.ptTile[this.sprTile[0] + (this.vertFlip[0] ? 0 : 1) + ((this.sprTile[0] & 1) !== 0 ? 255 : 0)];
           if (this.vertFlip[0]) {
             toffset = 15 - toffset;
-          }
-          else {
+          } else {
             toffset -= 8;
           }
         }
@@ -1306,8 +1285,7 @@ JSNES.PPU.prototype = {
             bufferIndex++;
           }
 
-        }
-        else {
+        } else {
 
           for (i = 0; i < 8; i++) {
             if (x >= 0 && x < 256) {
@@ -1342,32 +1320,23 @@ JSNES.PPU.prototype = {
     if (address < 0x2000) {
       this.vramMem[address] = value;
       this.patternWrite(address, value);
-    }
-    else if (address >= 0x2000 && address < 0x23c0) {
+    } else if (address >= 0x2000 && address < 0x23c0) {
       this.nameTableWrite(this.ntable1[0], address - 0x2000, value);
-    }
-    else if (address >= 0x23c0 && address < 0x2400) {
+    } else if (address >= 0x23c0 && address < 0x2400) {
       this.attribTableWrite(this.ntable1[0], address - 0x23c0, value);
-    }
-    else if (address >= 0x2400 && address < 0x27c0) {
+    } else if (address >= 0x2400 && address < 0x27c0) {
       this.nameTableWrite(this.ntable1[1], address - 0x2400, value);
-    }
-    else if (address >= 0x27c0 && address < 0x2800) {
+    } else if (address >= 0x27c0 && address < 0x2800) {
       this.attribTableWrite(this.ntable1[1], address - 0x27c0, value);
-    }
-    else if (address >= 0x2800 && address < 0x2bc0) {
+    } else if (address >= 0x2800 && address < 0x2bc0) {
       this.nameTableWrite(this.ntable1[2], address - 0x2800, value);
-    }
-    else if (address >= 0x2bc0 && address < 0x2c00) {
+    } else if (address >= 0x2bc0 && address < 0x2c00) {
       this.attribTableWrite(this.ntable1[2], address - 0x2bc0, value);
-    }
-    else if (address >= 0x2c00 && address < 0x2fc0) {
+    } else if (address >= 0x2c00 && address < 0x2fc0) {
       this.nameTableWrite(this.ntable1[3], address - 0x2c00, value);
-    }
-    else if (address >= 0x2fc0 && address < 0x3000) {
+    } else if (address >= 0x2fc0 && address < 0x3000) {
       this.attribTableWrite(this.ntable1[3], address - 0x2fc0, value);
-    }
-    else if (address >= 0x3f00 && address < 0x3f20) {
+    } else if (address >= 0x3f00 && address < 0x3f20) {
       this.updatePalettes();
     }
   },
@@ -1380,25 +1349,24 @@ JSNES.PPU.prototype = {
     for (i = 0; i < 16; i++) {
       if (this.f_dispType === 0) {
         this.imgPalette[i] = this.palTable.getEntry(
-            this.vramMem[0x3f00 + i] & 63
-            );
-      }
-      else {
+          this.vramMem[0x3f00 + i] & 63
+        );
+      } else {
         this.imgPalette[i] = this.palTable.getEntry(
-            this.vramMem[0x3f00 + i] & 32
-            );
+          this.vramMem[0x3f00 + i] & 32
+        );
       }
     }
+
     for (i = 0; i < 16; i++) {
       if (this.f_dispType === 0) {
         this.sprPalette[i] = this.palTable.getEntry(
-            this.vramMem[0x3f10 + i] & 63
-            );
-      }
-      else {
+          this.vramMem[0x3f10 + i] & 63
+        );
+      } else {
         this.sprPalette[i] = this.palTable.getEntry(
-            this.vramMem[0x3f10 + i] & 32
-            );
+          this.vramMem[0x3f10 + i] & 32
+        );
       }
     }
   },
@@ -1411,16 +1379,15 @@ JSNES.PPU.prototype = {
     var leftOver = address % 16;
     if (leftOver < 8) {
       this.ptTile[tileIndex].setScanline(
-          leftOver,
-          value,
-          this.vramMem[address + 8]
+        leftOver,
+        value,
+        this.vramMem[address + 8]
       );
-    }
-    else {
+    } else {
       this.ptTile[tileIndex].setScanline(
-          leftOver - 8,
-          this.vramMem[address - 8],
-          value
+        leftOver - 8,
+        this.vramMem[address - 8],
+        value
       );
     }
   },
@@ -1455,20 +1422,16 @@ JSNES.PPU.prototype = {
     if (address % 4 === 0) {
       // Y coordinate
       this.sprY[tIndex] = value;
-    }
-    else if (address % 4 == 1) {
+    } else if (address % 4 == 1) {
       // Tile index
       this.sprTile[tIndex] = value;
-    }
-    else if (address % 4 == 2) {
+    } else if (address % 4 == 2) {
       // Attributes
       this.vertFlip[tIndex] = ((value & 0x80) !== 0);
       this.horiFlip[tIndex] = ((value & 0x40) !== 0);
       this.bgPriority[tIndex] = ((value & 0x20) !== 0);
       this.sprCol[tIndex] = (value & 3) << 2;
-
-    }
-    else if (address % 4 == 3) {
+    } else if (address % 4 == 3) {
       // X coordinate
       this.sprX[tIndex] = value;
     }
@@ -1483,35 +1446,70 @@ JSNES.PPU.prototype = {
 
   JSON_PROPERTIES: {
     // Memory
-    vramMem: 'vramMem', spriteMem: 'spriteMem',
+    vramMem: 'vramMem',
+    spriteMem: 'spriteMem',
     // Counters
-    cntFV: 'cntFV', cntV: 'cntV', cntH: 'cntH', cntVT: 'cntVT', cntHT: 'cntHT',
+    cntFV: 'cntFV',
+    cntV: 'cntV',
+    cntH: 'cntH',
+    cntVT: 'cntVT',
+    cntHT: 'cntHT',
     // Registers
-    regFV: 'regFV', regV: 'regV', regH: 'regH', regVT: 'regVT', regHT: 'regHT', regFH: 'regFH', regS: 'regS',
+    regFV: 'regFV',
+    regV: 'regV',
+    regH: 'regH',
+    regVT: 'regVT',
+    regHT: 'regHT',
+    regFH: 'regFH',
+    regS: 'regS',
     // VRAM addr
-    vramAddress: 'vramAddress', vramTmpAddress: 'vramTmpAddress',
+    vramAddress: 'vramAddress',
+    vramTmpAddress: 'vramTmpAddress',
     // Control/Status registers
-    f_nmiOnVblank: 'f_nmiOnVblank', f_spriteSize: 'f_spriteSize', f_bgPatternTable: 'f_bgPatternTable', f_spPatternTable: 'f_spPatternTable',
-    f_addrInc: 'f_addrInc', f_nTblAddress: 'f_nTblAddress', f_color: 'f_color', f_spVisibility: 'f_spVisibility',
-    f_bgVisibility: 'f_bgVisibility', f_spClipping: 'f_spClipping', f_bgClipping: 'f_bgClipping', f_dispType: 'f_dispType',
+    f_nmiOnVblank: 'f_nmiOnVblank',
+    f_spriteSize: 'f_spriteSize',
+    f_bgPatternTable: 'f_bgPatternTable',
+    f_spPatternTable: 'f_spPatternTable',
+    f_addrInc: 'f_addrInc',
+    f_nTblAddress: 'f_nTblAddress',
+    f_color: 'f_color',
+    f_spVisibility: 'f_spVisibility',
+    f_bgVisibility: 'f_bgVisibility',
+    f_spClipping: 'f_spClipping',
+    f_bgClipping: 'f_bgClipping',
+    f_dispType: 'f_dispType',
     // VRAM I/O
-    vramBufferedReadValue: 'vramBufferedReadValue', firstWrite: 'firstWrite',
+    vramBufferedReadValue: 'vramBufferedReadValue',
+    firstWrite: 'firstWrite',
     // Mirroring
-    currentMirroring: 'currentMirroring', vramMirrorTable: 'vramMirrorTable', ntable1: 'ntable1',
+    currentMirroring: 'currentMirroring',
+    vramMirrorTable: 'vramMirrorTable',
+    ntable1: 'ntable1',
     // SPR-RAM I/O
     sramAddress: 'sramAddress',
     // Sprites. Most sprite data is rebuilt from spriteMem
     hitSpr0: 'hitSpr0',
     // Palettes
-    sprPalette: 'sprPalette', imgPalette: 'imgPalette',
+    sprPalette: 'sprPalette',
+    imgPalette: 'imgPalette',
     // Rendering progression
     // Can't find an elegant way to im/export scantile. Removing it seems fine though
-    curX: 'curX', scanline: 'scanline', lastRenderedScanline: 'lastRenderedScanline', curNt: 'curNt', /*scantile: 'scantile', */
+    curX: 'curX',
+    scanline: 'scanline',
+    lastRenderedScanline: 'lastRenderedScanline',
+    curNt: 'curNt', /*scantile: 'scantile', */
     // Used during rendering
-    attrib: 'attrib', buffer: 'buffer', bgbuffer: 'bgbuffer', pixrendered: 'pixrendered',
+    attrib: 'attrib',
+    buffer: 'buffer',
+    bgbuffer: 'bgbuffer',
+    pixrendered: 'pixrendered',
     // Misc
-    requestEndFrame: 'requestEndFrame', nmiOk: 'nmiOk', dummyCycleToggle: 'dummyCycleToggle', nmiCounter: 'nmiCounter',
-    validTileData: 'validTileData', scanlineAlreadyRendered: 'scanlineAlreadyRendered'
+    requestEndFrame: 'requestEndFrame',
+    nmiOk: 'nmiOk',
+    dummyCycleToggle: 'dummyCycleToggle',
+    nmiCounter: 'nmiCounter',
+    validTileData: 'validTileData',
+    scanlineAlreadyRendered: 'scanlineAlreadyRendered'
   },
 
   toJSON: function() {
@@ -1796,14 +1794,15 @@ JSNES.PPU.Tile.prototype = {
     this.tIndex = sline << 3;
     for (this.x = 0; this.x < 8; this.x++) {
       this.pix[this.tIndex + this.x] = ((b1 >> (7 - this.x)) & 1) +
-          (((b2 >> (7 - this.x)) & 1) << 1);
+      (((b2 >> (7 - this.x)) & 1) << 1);
       if (this.pix[this.tIndex + this.x] === 0) {
         this.opaque[sline] = false;
       }
     }
   },
 
-  render: function(buffer, srcx1, srcy1, srcx2, srcy2, dx, dy, palAdd, palette, flipHorizontal, flipVertical, pri, priTable) {
+  render: function(buffer, srcx1, srcy1, srcx2, srcy2, dx, dy, palAdd, palette,
+    flipHorizontal, flipVertical, pri, priTable) {
 
     if (dx < -7 || dx >= 256 || dy < -7 || dy >= 240) {
       return;
@@ -1872,8 +1871,7 @@ JSNES.PPU.Tile.prototype = {
         this.tIndex += 16;
       }
 
-    }
-    else if (flipVertical && !flipHorizontal) {
+    } else if (flipVertical && !flipHorizontal) {
 
       this.fbIndex = (dy << 8) + dx;
       this.tIndex = 56;
@@ -1896,8 +1894,7 @@ JSNES.PPU.Tile.prototype = {
         this.tIndex -= 16;
       }
 
-    }
-    else {
+    } else {
       this.fbIndex = (dy << 8) + dx;
       this.tIndex = 63;
       for (this.y = 0; this.y < 8; this.y++) {
@@ -1919,7 +1916,6 @@ JSNES.PPU.Tile.prototype = {
       }
 
     }
-
   },
 
   isTransparent: function(x, y) {

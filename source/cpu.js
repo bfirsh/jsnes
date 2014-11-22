@@ -64,13 +64,13 @@ JSNES.CPU.prototype = {
       this.mem[i] = 0xFF;
     }
     for (var p = 0; p < 4; p++) {
-      var i = p * 0x800;
+      i = p * 0x800;
       this.mem[i + 0x008] = 0xF7;
       this.mem[i + 0x009] = 0xEF;
       this.mem[i + 0x00A] = 0xDF;
       this.mem[i + 0x00F] = 0xBF;
     }
-    for (var i = 0x2001; i < this.mem.length; i++) {
+    for (i = 0x2001; i < this.mem.length; i++) {
       this.mem[i] = 0;
     }
 
@@ -122,19 +122,19 @@ JSNES.CPU.prototype = {
     // Check interrupts:
     if (this.irqRequested) {
       temp =
-          (this.F_CARRY) |
-          ((this.F_ZERO === 0 ? 1 : 0) << 1) |
-          (this.F_INTERRUPT << 2) |
-          (this.F_DECIMAL << 3) |
-          (this.F_BRK << 4) |
-          (this.F_NOTUSED << 5) |
-          (this.F_OVERFLOW << 6) |
-          (this.F_SIGN << 7);
+        (this.F_CARRY) |
+        ((this.F_ZERO === 0 ? 1 : 0) << 1) |
+        (this.F_INTERRUPT << 2) |
+        (this.F_DECIMAL << 3) |
+        (this.F_BRK << 4) |
+        (this.F_NOTUSED << 5) |
+        (this.F_OVERFLOW << 6) |
+        (this.F_SIGN << 7);
 
       this.REG_PC_NEW = this.REG_PC;
       this.F_INTERRUPT_NEW = this.F_INTERRUPT;
       switch (this.irqType) {
-        case 0: {
+        case 0:
           // Normal IRQ:
           if (this.F_INTERRUPT != 0) {
             ////System.out.println("Interrupt was masked.");
@@ -143,16 +143,16 @@ JSNES.CPU.prototype = {
           this.doIrq(temp);
           ////System.out.println("Did normal IRQ. I="+this.F_INTERRUPT);
           break;
-        }case 1: {
+
+        case 1:
           // NMI:
           this.doNonMaskableInterrupt(temp);
           break;
 
-        }case 2: {
+        case 2:
           // Reset:
           this.doResetInterrupt();
           break;
-        }
       }
 
       this.REG_PC = this.REG_PC_NEW;
@@ -174,13 +174,12 @@ JSNES.CPU.prototype = {
 
     var addr = 0;
     switch (addrMode) {
-      case 0: {
+      case 0:
         // Zero Page mode. Use the address given after the opcode,
         // but without high byte.
         addr = this.load(opaddr + 2);
         break;
-
-      }case 1: {
+      case 1:
         // Relative mode.
         addr = this.load(opaddr + 2);
         if (addr < 0x80) {
@@ -189,36 +188,36 @@ JSNES.CPU.prototype = {
           addr += this.REG_PC - 256;
         }
         break;
-      }case 2: {
+      case 2:
         // Ignore. Address is implied in instruction.
         break;
-      }case 3: {
+      case 3:
         // Absolute mode. Use the two bytes following the opcode as
         // an address.
         addr = this.load16bit(opaddr + 2);
         break;
-      }case 4: {
+      case 4:
         // Accumulator mode. The address is in the accumulator
         // register.
         addr = this.REG_ACC;
         break;
-      }case 5: {
+      case 5:
         // Immediate mode. The value is given after the opcode.
         addr = this.REG_PC;
         break;
-      }case 6: {
+      case 6:
         // Zero Page Indexed mode, X as index. Use the address given
         // after the opcode, then add the
         // X register to it to get the final address.
         addr = (this.load(opaddr + 2) + this.REG_X) & 0xFF;
         break;
-      }case 7: {
+      case 7:
         // Zero Page Indexed mode, Y as index. Use the address given
         // after the opcode, then add the
         // Y register to it to get the final address.
         addr = (this.load(opaddr + 2) + this.REG_Y) & 0xFF;
         break;
-      }case 8: {
+      case 8:
         // Absolute Indexed Mode, X as index. Same as zero page
         // indexed, but with the high byte.
         addr = this.load16bit(opaddr + 2);
@@ -227,7 +226,7 @@ JSNES.CPU.prototype = {
         }
         addr += this.REG_X;
         break;
-      }case 9: {
+      case 9:
         // Absolute Indexed Mode, Y as index. Same as zero page
         // indexed, but with the high byte.
         addr = this.load16bit(opaddr + 2);
@@ -236,7 +235,7 @@ JSNES.CPU.prototype = {
         }
         addr += this.REG_Y;
         break;
-      }case 10: {
+      case 10:
         // Pre-indexed Indirect mode. Find the 16-bit address
         // starting at the given location plus
         // the current X register. The value is the contents of that
@@ -249,7 +248,7 @@ JSNES.CPU.prototype = {
         addr &= 0xFF;
         addr = this.load16bit(addr);
         break;
-      }case 11: {
+      case 11:
         // Post-indexed Indirect mode. Find the 16-bit address
         // contained in the given location
         // (and the one following). Add to that address the contents
@@ -261,21 +260,18 @@ JSNES.CPU.prototype = {
         }
         addr += this.REG_Y;
         break;
-      }case 12: {
+      case 12:
         // Indirect Absolute mode. Find the 16-bit address contained
         // at the given location.
         addr = this.load16bit(opaddr + 2);// Find op
         if (addr < 0x1FFF) {
           addr = this.mem[addr] + (this.mem[(addr & 0xFF00) | (((addr & 0xFF) + 1) & 0xFF)] << 8);// Read from address given in op
-        }
-        else {
+        } else {
           addr = this.nes.mmap.load(addr) + (this.nes.mmap.load((addr & 0xFF00) | (((addr & 0xFF) + 1) & 0xFF)) << 8);
         }
         break;
-
-      }
-
     }
+
     // Wrap around for addresses above 0xFFFF:
     addr &= 0xFFFF;
 
@@ -285,7 +281,7 @@ JSNES.CPU.prototype = {
 
     // This should be compiled to a jump table.
     switch (opinf & 0xFF) {
-      case 0: {
+      case 0:
         // *******
         // * ADC *
         // *******
@@ -300,7 +296,7 @@ JSNES.CPU.prototype = {
         cycleCount += cycleAdd;
         break;
 
-      }case 1: {
+      case 1:
         // *******
         // * AND *
         // *******
@@ -310,9 +306,12 @@ JSNES.CPU.prototype = {
         this.F_SIGN = (this.REG_ACC >> 7) & 1;
         this.F_ZERO = this.REG_ACC;
         //this.REG_ACC = temp;
-        if (addrMode != 11)cycleCount += cycleAdd; // PostIdxInd = 11
+        if (addrMode != 11) {
+          cycleCount += cycleAdd;
+        } // PostIdxInd = 11
         break;
-      }case 2: {
+
+      case 2:
         // *******
         // * ASL *
         // *******
@@ -337,8 +336,7 @@ JSNES.CPU.prototype = {
         }
         break;
 
-      }case 3: {
-
+      case 3:
         // *******
         // * BCC *
         // *******
@@ -350,8 +348,7 @@ JSNES.CPU.prototype = {
         }
         break;
 
-      }case 4: {
-
+      case 4:
         // *******
         // * BCS *
         // *******
@@ -363,8 +360,7 @@ JSNES.CPU.prototype = {
         }
         break;
 
-      }case 5: {
-
+      case 5:
         // *******
         // * BEQ *
         // *******
@@ -376,8 +372,7 @@ JSNES.CPU.prototype = {
         }
         break;
 
-      }case 6: {
-
+      case 6:
         // *******
         // * BIT *
         // *******
@@ -389,8 +384,7 @@ JSNES.CPU.prototype = {
         this.F_ZERO = temp;
         break;
 
-      }case 7: {
-
+      case 7:
         // *******
         // * BMI *
         // *******
@@ -402,8 +396,7 @@ JSNES.CPU.prototype = {
         }
         break;
 
-      }case 8: {
-
+      case 8:
         // *******
         // * BNE *
         // *******
@@ -415,8 +408,7 @@ JSNES.CPU.prototype = {
         }
         break;
 
-      }case 9: {
-
+      case 9:
         // *******
         // * BPL *
         // *******
@@ -428,8 +420,7 @@ JSNES.CPU.prototype = {
         }
         break;
 
-      }case 10: {
-
+      case 10:
         // *******
         // * BRK *
         // *******
@@ -440,14 +431,14 @@ JSNES.CPU.prototype = {
         this.F_BRK = 1;
 
         this.push(
-            (this.F_CARRY) |
-            ((this.F_ZERO == 0 ? 1 : 0) << 1) |
-                    (this.F_INTERRUPT << 2) |
-                    (this.F_DECIMAL << 3) |
-                    (this.F_BRK << 4) |
-                    (this.F_NOTUSED << 5) |
-                    (this.F_OVERFLOW << 6) |
-                    (this.F_SIGN << 7)
+          (this.F_CARRY) |
+          ((this.F_ZERO == 0 ? 1 : 0) << 1) |
+          (this.F_INTERRUPT << 2) |
+          (this.F_DECIMAL << 3) |
+          (this.F_BRK << 4) |
+          (this.F_NOTUSED << 5) |
+          (this.F_OVERFLOW << 6) |
+          (this.F_SIGN << 7)
         );
 
         this.F_INTERRUPT = 1;
@@ -456,8 +447,7 @@ JSNES.CPU.prototype = {
         this.REG_PC--;
         break;
 
-      }case 11: {
-
+      case 11:
         // *******
         // * BVC *
         // *******
@@ -469,8 +459,7 @@ JSNES.CPU.prototype = {
         }
         break;
 
-      }case 12: {
-
+      case 12:
         // *******
         // * BVS *
         // *******
@@ -482,8 +471,7 @@ JSNES.CPU.prototype = {
         }
         break;
 
-      }case 13: {
-
+      case 13:
         // *******
         // * CLC *
         // *******
@@ -492,8 +480,7 @@ JSNES.CPU.prototype = {
         this.F_CARRY = 0;
         break;
 
-      }case 14: {
-
+      case 14:
         // *******
         // * CLD *
         // *******
@@ -502,8 +489,7 @@ JSNES.CPU.prototype = {
         this.F_DECIMAL = 0;
         break;
 
-      }case 15: {
-
+      case 15:
         // *******
         // * CLI *
         // *******
@@ -512,8 +498,7 @@ JSNES.CPU.prototype = {
         this.F_INTERRUPT = 0;
         break;
 
-      }case 16: {
-
+      case 16:
         // *******
         // * CLV *
         // *******
@@ -522,8 +507,7 @@ JSNES.CPU.prototype = {
         this.F_OVERFLOW = 0;
         break;
 
-      }case 17: {
-
+      case 17:
         // *******
         // * CMP *
         // *******
@@ -536,8 +520,7 @@ JSNES.CPU.prototype = {
         cycleCount += cycleAdd;
         break;
 
-      }case 18: {
-
+      case 18:
         // *******
         // * CPX *
         // *******
@@ -549,8 +532,7 @@ JSNES.CPU.prototype = {
         this.F_ZERO = temp & 0xFF;
         break;
 
-      }case 19: {
-
+      case 19:
         // *******
         // * CPY *
         // *******
@@ -562,8 +544,7 @@ JSNES.CPU.prototype = {
         this.F_ZERO = temp & 0xFF;
         break;
 
-      }case 20: {
-
+      case 20:
         // *******
         // * DEC *
         // *******
@@ -575,8 +556,7 @@ JSNES.CPU.prototype = {
         this.write(addr, temp);
         break;
 
-      }case 21: {
-
+      case 21:
         // *******
         // * DEX *
         // *******
@@ -587,8 +567,7 @@ JSNES.CPU.prototype = {
         this.F_ZERO = this.REG_X;
         break;
 
-      }case 22: {
-
+      case 22:
         // *******
         // * DEY *
         // *******
@@ -599,21 +578,19 @@ JSNES.CPU.prototype = {
         this.F_ZERO = this.REG_Y;
         break;
 
-      }case 23: {
-
+      case 23:
         // *******
         // * EOR *
         // *******
 
         // XOR Memory with accumulator, store in accumulator:
-        this.REG_ACC = (this.load(addr)^this.REG_ACC) & 0xFF;
+        this.REG_ACC = (this.load(addr) ^ this.REG_ACC) & 0xFF;
         this.F_SIGN = (this.REG_ACC >> 7) & 1;
         this.F_ZERO = this.REG_ACC;
         cycleCount += cycleAdd;
         break;
 
-      }case 24: {
-
+      case 24:
         // *******
         // * INC *
         // *******
@@ -625,8 +602,7 @@ JSNES.CPU.prototype = {
         this.write(addr, temp & 0xFF);
         break;
 
-      }case 25: {
-
+      case 25:
         // *******
         // * INX *
         // *******
@@ -637,8 +613,7 @@ JSNES.CPU.prototype = {
         this.F_ZERO = this.REG_X;
         break;
 
-      }case 26: {
-
+      case 26:
         // *******
         // * INY *
         // *******
@@ -650,8 +625,7 @@ JSNES.CPU.prototype = {
         this.F_ZERO = this.REG_Y;
         break;
 
-      }case 27: {
-
+      case 27:
         // *******
         // * JMP *
         // *******
@@ -660,8 +634,7 @@ JSNES.CPU.prototype = {
         this.REG_PC = addr - 1;
         break;
 
-      }case 28: {
-
+      case 28:
         // *******
         // * JSR *
         // *******
@@ -673,8 +646,7 @@ JSNES.CPU.prototype = {
         this.REG_PC = addr - 1;
         break;
 
-      }case 29: {
-
+      case 29:
         // *******
         // * LDA *
         // *******
@@ -686,8 +658,7 @@ JSNES.CPU.prototype = {
         cycleCount += cycleAdd;
         break;
 
-      }case 30: {
-
+      case 30:
         // *******
         // * LDX *
         // *******
@@ -699,8 +670,7 @@ JSNES.CPU.prototype = {
         cycleCount += cycleAdd;
         break;
 
-      }case 31: {
-
+      case 31:
         // *******
         // * LDY *
         // *******
@@ -712,8 +682,7 @@ JSNES.CPU.prototype = {
         cycleCount += cycleAdd;
         break;
 
-      }case 32: {
-
+      case 32:
         // *******
         // * LSR *
         // *******
@@ -738,8 +707,7 @@ JSNES.CPU.prototype = {
         this.F_ZERO = temp;
         break;
 
-      }case 33: {
-
+      case 33:
         // *******
         // * NOP *
         // *******
@@ -748,8 +716,7 @@ JSNES.CPU.prototype = {
         // Ignore.
         break;
 
-      }case 34: {
-
+      case 34:
         // *******
         // * ORA *
         // *******
@@ -759,11 +726,12 @@ JSNES.CPU.prototype = {
         this.F_SIGN = (temp >> 7) & 1;
         this.F_ZERO = temp;
         this.REG_ACC = temp;
-        if (addrMode != 11)cycleCount += cycleAdd; // PostIdxInd = 11
+        if (addrMode != 11) {
+          cycleCount += cycleAdd;
+        } // PostIdxInd = 11
         break;
 
-      }case 35: {
-
+      case 35:
         // *******
         // * PHA *
         // *******
@@ -772,8 +740,7 @@ JSNES.CPU.prototype = {
         this.push(this.REG_ACC);
         break;
 
-      }case 36: {
-
+      case 36:
         // *******
         // * PHP *
         // *******
@@ -781,19 +748,18 @@ JSNES.CPU.prototype = {
         // Push processor status on stack
         this.F_BRK = 1;
         this.push(
-            (this.F_CARRY) |
-            ((this.F_ZERO == 0 ? 1 : 0) << 1) |
-                    (this.F_INTERRUPT << 2) |
-                    (this.F_DECIMAL << 3) |
-                    (this.F_BRK << 4) |
-                    (this.F_NOTUSED << 5) |
-                    (this.F_OVERFLOW << 6) |
-                    (this.F_SIGN << 7)
+          (this.F_CARRY) |
+          ((this.F_ZERO == 0 ? 1 : 0) << 1) |
+          (this.F_INTERRUPT << 2) |
+          (this.F_DECIMAL << 3) |
+          (this.F_BRK << 4) |
+          (this.F_NOTUSED << 5) |
+          (this.F_OVERFLOW << 6) |
+          (this.F_SIGN << 7)
         );
         break;
 
-      }case 37: {
-
+      case 37:
         // *******
         // * PLA *
         // *******
@@ -804,8 +770,7 @@ JSNES.CPU.prototype = {
         this.F_ZERO = this.REG_ACC;
         break;
 
-      }case 38: {
-
+      case 38:
         // *******
         // * PLP *
         // *******
@@ -824,8 +789,7 @@ JSNES.CPU.prototype = {
         this.F_NOTUSED = 1;
         break;
 
-      }case 39: {
-
+      case 39:
         // *******
         // * ROL *
         // *******
@@ -852,8 +816,7 @@ JSNES.CPU.prototype = {
         this.F_ZERO = temp;
         break;
 
-      }case 40: {
-
+      case 40:
         // *******
         // * ROR *
         // *******
@@ -879,8 +842,7 @@ JSNES.CPU.prototype = {
         this.F_ZERO = temp;
         break;
 
-      }case 41: {
-
+      case 41:
         // *******
         // * RTI *
         // *******
@@ -906,8 +868,7 @@ JSNES.CPU.prototype = {
         this.F_NOTUSED = 1;
         break;
 
-      }case 42: {
-
+      case 42:
         // *******
         // * RTS *
         // *******
@@ -922,8 +883,7 @@ JSNES.CPU.prototype = {
         }
         break;
 
-      }case 43: {
-
+      case 43:
         // *******
         // * SBC *
         // *******
@@ -931,14 +891,15 @@ JSNES.CPU.prototype = {
         temp = this.REG_ACC - this.load(addr) - (1 - this.F_CARRY);
         this.F_SIGN = (temp >> 7) & 1;
         this.F_ZERO = temp & 0xFF;
-        this.F_OVERFLOW = ((((this.REG_ACC^temp) & 0x80) != 0 && ((this.REG_ACC^this.load(addr)) & 0x80) != 0) ? 1 : 0);
+        this.F_OVERFLOW = ((((this.REG_ACC ^ temp) & 0x80) != 0 && ((this.REG_ACC ^ this.load(addr)) & 0x80) != 0) ? 1 : 0);
         this.F_CARRY = (temp < 0 ? 0 : 1);
         this.REG_ACC = (temp & 0xFF);
-        if (addrMode != 11)cycleCount += cycleAdd; // PostIdxInd = 11
+        if (addrMode != 11) {
+          cycleCount += cycleAdd;
+        } // PostIdxInd = 11
         break;
 
-      }case 44: {
-
+      case 44:
         // *******
         // * SEC *
         // *******
@@ -947,8 +908,7 @@ JSNES.CPU.prototype = {
         this.F_CARRY = 1;
         break;
 
-      }case 45: {
-
+      case 45:
         // *******
         // * SED *
         // *******
@@ -957,8 +917,7 @@ JSNES.CPU.prototype = {
         this.F_DECIMAL = 1;
         break;
 
-      }case 46: {
-
+      case 46:
         // *******
         // * SEI *
         // *******
@@ -967,8 +926,7 @@ JSNES.CPU.prototype = {
         this.F_INTERRUPT = 1;
         break;
 
-      }case 47: {
-
+      case 47:
         // *******
         // * STA *
         // *******
@@ -977,8 +935,7 @@ JSNES.CPU.prototype = {
         this.write(addr, this.REG_ACC);
         break;
 
-      }case 48: {
-
+      case 48:
         // *******
         // * STX *
         // *******
@@ -987,8 +944,7 @@ JSNES.CPU.prototype = {
         this.write(addr, this.REG_X);
         break;
 
-      }case 49: {
-
+      case 49:
         // *******
         // * STY *
         // *******
@@ -997,8 +953,7 @@ JSNES.CPU.prototype = {
         this.write(addr, this.REG_Y);
         break;
 
-      }case 50: {
-
+      case 50:
         // *******
         // * TAX *
         // *******
@@ -1009,8 +964,7 @@ JSNES.CPU.prototype = {
         this.F_ZERO = this.REG_ACC;
         break;
 
-      }case 51: {
-
+      case 51:
         // *******
         // * TAY *
         // *******
@@ -1021,8 +975,7 @@ JSNES.CPU.prototype = {
         this.F_ZERO = this.REG_ACC;
         break;
 
-      }case 52: {
-
+      case 52:
         // *******
         // * TSX *
         // *******
@@ -1033,8 +986,7 @@ JSNES.CPU.prototype = {
         this.F_ZERO = this.REG_X;
         break;
 
-      }case 53: {
-
+      case 53:
         // *******
         // * TXA *
         // *******
@@ -1045,8 +997,7 @@ JSNES.CPU.prototype = {
         this.F_ZERO = this.REG_X;
         break;
 
-      }case 54: {
-
+      case 54:
         // *******
         // * TXS *
         // *******
@@ -1056,8 +1007,7 @@ JSNES.CPU.prototype = {
         this.stackWrap();
         break;
 
-      }case 55: {
-
+      case 55:
         // *******
         // * TYA *
         // *******
@@ -1068,8 +1018,7 @@ JSNES.CPU.prototype = {
         this.F_ZERO = this.REG_Y;
         break;
 
-      }default: {
-
+      default:
         // *******
         // * ??? *
         // *******
@@ -1077,20 +1026,15 @@ JSNES.CPU.prototype = {
         this.nes.stop();
         this.nes.crashMessage = 'Game crashed, invalid opcode at address $' + opaddr.toString(16);
         break;
-
-      }
-
     }// end of switch
 
     return cycleCount;
-
   },
 
   load: function(addr) {
     if (addr < 0x2000) {
       return this.mem[addr & 0x7FF];
-    }
-    else {
+    } else {
       return this.nes.mmap.load(addr);
     }
   },
@@ -1098,9 +1042,8 @@ JSNES.CPU.prototype = {
   load16bit: function(addr) {
     if (addr < 0x1FFF) {
       return this.mem[addr & 0x7FF]
-                | (this.mem[(addr + 1) & 0x7FF] << 8);
-    }
-    else {
+        | (this.mem[(addr + 1) & 0x7FF] << 8);
+    } else {
       return this.nes.mmap.load(addr) | (this.nes.mmap.load(addr + 1) << 8);
     }
   },
@@ -1108,8 +1051,7 @@ JSNES.CPU.prototype = {
   write: function(addr, val) {
     if (addr < 0x2000) {
       this.mem[addr & 0x7FF] = val;
-    }
-    else {
+    } else {
       this.nes.mmap.write(addr, val);
     }
   },
@@ -1181,14 +1123,14 @@ JSNES.CPU.prototype = {
   },
 
   getStatus: function() {
-    return (this.F_CARRY)
-                | (this.F_ZERO << 1)
-                | (this.F_INTERRUPT << 2)
-                | (this.F_DECIMAL << 3)
-                | (this.F_BRK << 4)
-                | (this.F_NOTUSED << 5)
-                | (this.F_OVERFLOW << 6)
-                | (this.F_SIGN << 7);
+    return (this.F_CARRY) |
+      (this.F_ZERO << 1) |
+      (this.F_INTERRUPT << 2) |
+      (this.F_DECIMAL << 3) |
+      (this.F_BRK << 4) |
+      (this.F_NOTUSED << 5) |
+      (this.F_OVERFLOW << 6) |
+      (this.F_SIGN << 7);
   },
 
   setStatus: function(st) {
@@ -1203,13 +1145,30 @@ JSNES.CPU.prototype = {
   },
 
   JSON_PROPERTIES: {
-    mem: 'mem', cyclesToHalt: 'cyclesToHalt', irqRequested: 'irqRequested', irqType: 'irqType',
+    mem: 'mem',
+    cyclesToHalt: 'cyclesToHalt',
+    irqRequested: 'irqRequested',
+    irqType: 'irqType',
     // Registers
-    REG_ACC: 'REG_ACC', REG_X: 'REG_X', REG_Y: 'REG_Y', REG_SP: 'REG_SP', REG_PC: 'REG_PC', REG_PC_NEW: 'REG_PC_NEW',
+    REG_ACC: 'REG_ACC',
+    REG_X: 'REG_X',
+    REG_Y: 'REG_Y',
+    REG_SP: 'REG_SP',
+    REG_PC: 'REG_PC',
+    REG_PC_NEW: 'REG_PC_NEW',
     REG_STATUS: 'REG_STATUS',
     // Status
-    F_CARRY: 'F_CARRY', F_DECIMAL: 'F_DECIMAL', F_INTERRUPT: 'F_INTERRUPT', F_INTERRUPT_NEW: 'F_INTERRUPT_NEW', F_OVERFLOW: 'F_OVERFLOW',
-    F_SIGN: 'F_SIGN', F_ZERO: 'F_ZERO', F_NOTUSED: 'F_NOTUSED', F_NOTUSED_NEW: 'F_NOTUSED_NEW', F_BRK: 'F_BRK', F_BRK_NEW: 'F_BRK_NEW'
+    F_CARRY: 'F_CARRY',
+    F_DECIMAL: 'F_DECIMAL',
+    F_INTERRUPT: 'F_INTERRUPT',
+    F_INTERRUPT_NEW: 'F_INTERRUPT_NEW',
+    F_OVERFLOW: 'F_OVERFLOW',
+    F_SIGN: 'F_SIGN',
+    F_ZERO: 'F_ZERO',
+    F_NOTUSED: 'F_NOTUSED',
+    F_NOTUSED_NEW: 'F_NOTUSED_NEW',
+    F_BRK: 'F_BRK',
+    F_BRK_NEW: 'F_BRK_NEW'
   },
 
   toJSON: function() {
@@ -1226,7 +1185,9 @@ JSNES.CPU.OpData = function() {
   this.opdata = new Array(256);
 
   // Set all to invalid instruction (to detect crashes):
-  for (var i = 0; i < 256; i++) this.opdata[i] = 0xFF;
+  for (var i = 0; i < 256; i++) {
+    this.opdata[i] = 0xFF;
+  }
 
   // Now fill in all valid opcodes:
 
@@ -1494,24 +1455,24 @@ JSNES.CPU.OpData = function() {
   // TYA:
   this.setOp(this.INS_TYA, 0x98, this.ADDR_IMP, 1, 2);
 
-  this.cycTable = new Array(
-      /*0x00*/ 7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
-      /*0x10*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-      /*0x20*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6,
-      /*0x30*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-      /*0x40*/ 6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6,
-      /*0x50*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-      /*0x60*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6,
-      /*0x70*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-      /*0x80*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
-      /*0x90*/ 2, 6, 2, 6, 4, 4, 4, 4, 2, 5, 2, 5, 5, 5, 5, 5,
-      /*0xA0*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
-      /*0xB0*/ 2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4,
-      /*0xC0*/ 2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
-      /*0xD0*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
-      /*0xE0*/ 2, 6, 3, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
-      /*0xF0*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7
-      );
+  this.cycTable = [
+    /*0x00*/ 7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
+    /*0x10*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    /*0x20*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6,
+    /*0x30*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    /*0x40*/ 6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6,
+    /*0x50*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    /*0x60*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6,
+    /*0x70*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    /*0x80*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
+    /*0x90*/ 2, 6, 2, 6, 4, 4, 4, 4, 2, 5, 2, 5, 5, 5, 5, 5,
+    /*0xA0*/ 2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
+    /*0xB0*/ 2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4,
+    /*0xC0*/ 2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
+    /*0xD0*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+    /*0xE0*/ 2, 6, 3, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
+    /*0xF0*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7
+  ];
 
 
   this.instname = new Array(56);
@@ -1574,21 +1535,21 @@ JSNES.CPU.OpData = function() {
   this.instname[54] = 'TXS';
   this.instname[55] = 'TYA';
 
-  this.addrDesc = new Array(
-      'Zero Page           ',
-      'Relative            ',
-      'Implied             ',
-      'Absolute            ',
-      'Accumulator         ',
-      'Immediate           ',
-      'Zero Page,X         ',
-      'Zero Page,Y         ',
-      'Absolute,X          ',
-      'Absolute,Y          ',
-      'Preindexed Indirect ',
-      'Postindexed Indirect',
-      'Indirect Absolute   '
-      );
+  this.addrDesc = [
+    'Zero Page           ',
+    'Relative            ',
+    'Implied             ',
+    'Absolute            ',
+    'Accumulator         ',
+    'Immediate           ',
+    'Zero Page,X         ',
+    'Zero Page,Y         ',
+    'Absolute,X          ',
+    'Absolute,Y          ',
+    'Preindexed Indirect ',
+    'Postindexed Indirect',
+    'Indirect Absolute   '
+  ];
 };
 
 JSNES.CPU.OpData.prototype = {
@@ -1683,9 +1644,9 @@ JSNES.CPU.OpData.prototype = {
 
   setOp: function(inst, op, addr, size, cycles) {
     this.opdata[op] =
-        ((inst & 0xFF)) |
-        ((addr & 0xFF) << 8) |
-        ((size & 0xFF) << 16) |
-        ((cycles & 0xFF) << 24);
+      ((inst & 0xFF)) |
+      ((addr & 0xFF) << 8) |
+      ((size & 0xFF) << 16) |
+      ((cycles & 0xFF) << 24);
   }
 };

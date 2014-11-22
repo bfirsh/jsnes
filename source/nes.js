@@ -88,8 +88,7 @@ JSNES.prototype = {
           self.printFps();
         }, this.opts['fpsInterval']);
       }
-    }
-    else {
+    } else {
       this['ui'].updateStatus('There is no ROM loaded, or it is invalid.');
     }
   },
@@ -101,7 +100,7 @@ JSNES.prototype = {
     var cpu = this.cpu;
     var ppu = this.ppu;
     var papu = this.papu;
-    FRAMELOOP: for (;;) {
+    FRAMELOOP: for (; ;) {
       if (cpu.cyclesToHalt === 0) {
         // Execute a CPU instruction
         cycles = cpu.emulate();
@@ -109,16 +108,14 @@ JSNES.prototype = {
           papu.clockFrameCounter(cycles);
         }
         cycles *= 3;
-      }
-      else {
+      } else {
         if (cpu.cyclesToHalt > 8) {
           cycles = 24;
           if (emulateSound) {
             papu.clockFrameCounter(8);
           }
           cpu.cyclesToHalt -= 8;
-        }
-        else {
+        } else {
           cycles = cpu.cyclesToHalt * 3;
           if (emulateSound) {
             papu.clockFrameCounter(cpu.cyclesToHalt);
@@ -129,8 +126,8 @@ JSNES.prototype = {
 
       for (; cycles > 0; cycles--) {
         if (ppu.curX === ppu.spr0HitX &&
-            ppu.f_spVisibility === 1 &&
-            ppu.scanline - 21 === ppu.spr0HitY) {
+          ppu.f_spVisibility === 1 &&
+          ppu.scanline - 21 === ppu.spr0HitY) {
           // Set sprite 0 hit flag:
           ppu.setStatusFlag(ppu.STATUS_SPRITE0HIT, true);
         }
@@ -160,8 +157,8 @@ JSNES.prototype = {
     var s = 'Running';
     if (this.lastFpsTime) {
       s += ': ' + (
-          this.fpsFrameCount / ((now - this.lastFpsTime) / 1000)
-          ).toFixed(2) + ' FPS';
+      this.fpsFrameCount / ((now - this.lastFpsTime) / 1000)
+      ).toFixed(2) + ' FPS';
     }
     this['ui'].updateStatus(s);
     this.fpsFrameCount = 0;
@@ -204,8 +201,7 @@ JSNES.prototype = {
       this.romData = data;
 
       this['ui'].updateStatus('Successfully loaded. Ready to be started.');
-    }
-    else {
+    } else {
       this['ui'].updateStatus('Invalid ROM!');
     }
     return this.rom.valid;

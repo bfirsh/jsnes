@@ -166,16 +166,15 @@ JSNES.ROM.prototype = {
         leftOver = i % 16;
         if (leftOver < 8) {
           this.vromTile[v][tileIndex].setScanline(
-              leftOver,
-              this.vrom[v][i],
-              this.vrom[v][i + 8]
+            leftOver,
+            this.vrom[v][i],
+            this.vrom[v][i + 8]
           );
-        }
-        else {
+        } else {
           this.vromTile[v][tileIndex].setScanline(
-              leftOver - 8,
-              this.vrom[v][i - 8],
-              this.vrom[v][i]
+            leftOver - 8,
+            this.vrom[v][i - 8],
+            this.vrom[v][i]
           );
         }
       }
@@ -208,8 +207,7 @@ JSNES.ROM.prototype = {
   createMapper: function() {
     if (this.mapperSupported()) {
       return new JSNES.Mappers[this.mapperType](this.nes);
-    }
-    else {
+    } else {
       this.nes['ui'].updateStatus('This ROM uses a mapper not supported by JSNES: ' + this.getMapperName() + '(' + this.mapperType + ')');
       return null;
     }

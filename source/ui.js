@@ -20,10 +20,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 JSNES.DummyUI = function(nes) {
   this.nes = nes;
-  this.enable = function() {};
-  this.updateStatus = function() {};
-  this.writeAudio = function() {};
-  this.writeFrame = function() {};
+  this.enable = function() {
+  };
+  this.updateStatus = function() {
+  };
+  this.writeAudio = function() {
+  };
+  this.writeFrame = function() {
+  };
 };
 
 if (typeof jQuery !== 'undefined') {
@@ -73,8 +77,7 @@ if (typeof jQuery !== 'undefined') {
             self.nes.stop();
             self.updateStatus('Paused');
             self.buttons.pause.attr('value', 'resume');
-          }
-          else {
+          } else {
             self.nes.start();
             self.buttons.pause.attr('value', 'pause');
           }
@@ -89,8 +92,7 @@ if (typeof jQuery !== 'undefined') {
           if (self.nes.opts['emulateSound']) {
             self.nes.opts['emulateSound'] = false;
             self.buttons.sound.attr('value', 'enable sound');
-          }
-          else {
+          } else {
             self.nes.opts['emulateSound'] = true;
             self.buttons.sound.attr('value', 'disable sound');
           }
@@ -105,8 +107,7 @@ if (typeof jQuery !== 'undefined') {
             });
             self.buttons.zoom.attr('value', 'zoom in');
             self.zoomed = false;
-          }
-          else {
+          } else {
             self.screen.animate({
               width: '512px',
               height: '480px'
@@ -160,15 +161,15 @@ if (typeof jQuery !== 'undefined') {
          * Keyboard
          */
         $(document).
-            bind('keydown', function(evt) {
-              self.nes.keyboard.keyDown(evt);
-            }).
-            bind('keyup', function(evt) {
-              self.nes.keyboard.keyUp(evt);
-            }).
-                    bind('keypress', function(evt) {
-              self.nes.keyboard.keyPress(evt);
-                    });
+          bind('keydown', function(evt) {
+            self.nes.keyboard.keyDown(evt);
+          }).
+          bind('keyup', function(evt) {
+            self.nes.keyboard.keyUp(evt);
+          }).
+          bind('keypress', function(evt) {
+            self.nes.keyboard.keyPress(evt);
+          });
 
         /*
          * Sound
@@ -201,15 +202,9 @@ if (typeof jQuery !== 'undefined') {
             complete: function(xhr, status) {
               var i, data;
               if (JSNES.Utils.isIE()) {
-                var charCodes = JSNESBinaryToArray(
-                    xhr.responseBody
-                                ).toArray();
-                data = String.fromCharCode.apply(
-                    undefined,
-                    charCodes
-                    );
-              }
-              else {
+                var charCodes = JSNESBinaryToArray(xhr.responseBody).toArray();
+                data = String.fromCharCode.apply(undefined, charCodes);
+              } else {
                 data = xhr.responseText;
               }
               self.nes.loadRom(data);
@@ -247,15 +242,13 @@ if (typeof jQuery !== 'undefined') {
           this.buttons.pause.attr('disabled', null);
           if (this.nes.isRunning) {
             this.buttons.pause.attr('value', 'pause');
-          }
-          else {
+          } else {
             this.buttons.pause.attr('value', 'resume');
           }
           this.buttons.restart.attr('disabled', null);
           if (this.nes.opts['emulateSound']) {
             this.buttons.sound.attr('value', 'disable sound');
-          }
-          else {
+          } else {
             this.buttons.sound.attr('value', 'enable sound');
           }
         },
@@ -270,11 +263,11 @@ if (typeof jQuery !== 'undefined') {
           for (var groupName in roms) {
             if (roms.hasOwnProperty(groupName)) {
               var optgroup = $('<optgroup></optgroup>').
-                                attr('label', groupName);
+                attr('label', groupName);
               for (var i = 0; i < roms[groupName].length; i++) {
                 $('<option>' + roms[groupName][i][0] + '</option>')
-                                    .attr('value', roms[groupName][i][1])
-                                    .appendTo(optgroup);
+                  .attr('value', roms[groupName][i][1])
+                  .appendTo(optgroup);
               }
               this.romSelect.append(optgroup);
             }
