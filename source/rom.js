@@ -97,7 +97,7 @@ JSNES.ROM.prototype = {
       this.nes['ui'].updateStatus('Not a valid NES ROM.');
       return;
     }
-    this.header = new Array(16);
+    this.header = new Uint8Array(16);
     for (i = 0; i < 16; i++) {
       this.header[i] = data.charCodeAt(i) & 0xFF;
     }
@@ -126,26 +126,26 @@ JSNES.ROM.prototype = {
     this.rom = new Array(this.romCount);
     var offset = 16;
     for (i = 0; i < this.romCount; i++) {
-      this.rom[i] = new Array(16384);
-      for (j = 0; j < 16384; j++) {
+      this.rom[i] = new Uint8Array(0x4000);
+      for (j = 0; j < 0x4000; j++) {
         if (offset + j >= data.length) {
           break;
         }
         this.rom[i][j] = data.charCodeAt(offset + j) & 0xFF;
       }
-      offset += 16384;
+      offset += 0x4000;
     }
     // Load CHR-ROM banks:
     this.vrom = new Array(this.vromCount);
     for (i = 0; i < this.vromCount; i++) {
-      this.vrom[i] = new Array(4096);
-      for (j = 0; j < 4096; j++) {
+      this.vrom[i] = new Uint8Array(0x1000);
+      for (j = 0; j < 0x1000; j++) {
         if (offset + j >= data.length) {
           break;
         }
         this.vrom[i][j] = data.charCodeAt(offset + j) & 0xFF;
       }
-      offset += 4096;
+      offset += 0x1000;
     }
 
     // Create VROM tiles:
@@ -161,7 +161,7 @@ JSNES.ROM.prototype = {
     var tileIndex;
     var leftOver;
     for (v = 0; v < this.vromCount; v++) {
-      for (i = 0; i < 4096; i++) {
+      for (i = 0; i < 0x1000; i++) {
         tileIndex = i >> 4;
         leftOver = i % 16;
         if (leftOver < 8) {

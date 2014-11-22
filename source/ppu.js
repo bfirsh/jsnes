@@ -113,8 +113,8 @@ JSNES.PPU.prototype = {
     var i;
 
     // Memory
-    this.vramMem = new Array(0x8000);
-    this.spriteMem = new Array(0x100);
+    this.vramMem = new Uint8Array(0x8000);
+    this.spriteMem = new Uint8Array(0x100);
     for (i = 0; i < this.vramMem.length; i++) {
       this.vramMem[i] = 0;
     }

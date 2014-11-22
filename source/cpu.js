@@ -58,7 +58,7 @@ JSNES.CPU.prototype = {
 
   reset: function() {
     // Main memory
-    this.mem = new Array(0x10000);
+    this.mem = new Uint8Array(0x10000);
 
     for (var i = 0; i < 0x2000; i++) {
       this.mem[i] = 0xFF;
@@ -1182,10 +1182,10 @@ JSNES.CPU.prototype = {
 
 // Generates and provides an array of details about instructions
 JSNES.CPU.OpData = function() {
-  this.opdata = new Array(256);
+  this.opdata = new Uint32Array(0xFF);
 
   // Set all to invalid instruction (to detect crashes):
-  for (var i = 0; i < 256; i++) {
+  for (var i = 0; i < 0xFF; i++) {
     this.opdata[i] = 0xFF;
   }
 
@@ -1455,7 +1455,7 @@ JSNES.CPU.OpData = function() {
   // TYA:
   this.setOp(this.INS_TYA, 0x98, this.ADDR_IMP, 1, 2);
 
-  this.cycTable = [
+  this.cycTable = new Uint8Array([
     /*0x00*/ 7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
     /*0x10*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
     /*0x20*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6,
@@ -1472,8 +1472,7 @@ JSNES.CPU.OpData = function() {
     /*0xD0*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
     /*0xE0*/ 2, 6, 3, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
     /*0xF0*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7
-  ];
-
+  ]);
 
   this.instname = new Array(56);
 
