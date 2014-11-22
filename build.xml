@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <project name="jsnes" default="build">
-    <property name="closure-compiler.dir" value="./build" />
-    <property name="closure-compiler.jar" value="${closure-compiler.dir}/compiler.jar" />
+    <property name="closure-compiler.dir" value="/dev/closure-compiler" />
+    <property name="closure-compiler.jar" value="${closure-compiler.dir}/build/compiler.jar" />
     <property name="build.dir" value="${basedir}/min" />
     <macrodef name="closure-compile">
         <attribute name="outputfile" />
@@ -23,8 +23,8 @@
                 <arg line="--js source/rom.js" />
                 <arg line="--js source/ui.js" />
                 <arg line="--js_output_file @{outputfile}" />
-                <arg line="--externs ${closure-compiler.dir}/jquery-1.4.4.externs.js" />
-                <arg line="--externs ${closure-compiler.dir}/externs.js" />
+                <arg line="--externs ${closure-compiler.dir}/contrib/externs/jquery-1.4.4.js" />
+                <arg line="--externs ${basedir}/build/externs.js" />
                 <arg line="--compilation_level=@{compilationlevel}" />
                 <arg line="--summary_detail_level @{summarydetaillevel}" />
                 <arg line="--warning_level @{warninglevel}" />
@@ -76,7 +76,7 @@
         <mkdir dir="${build.dir}" />
         <closure-compile outputfile="${build.dir}/tmp.js" compilationlevel="ADVANCED_OPTIMIZATIONS" summarydetaillevel="3" warninglevel="VERBOSE">
             <extraflags>
-                <arg line="--js ${closure-compiler.dir}/exports.js" />
+                <arg line="--js ${basedir}/build/exports.js" />
             </extraflags>
         </closure-compile>
         <replace file="${build.dir}/tmp.js" token="{%= version %}" value="${build.commit}" />
