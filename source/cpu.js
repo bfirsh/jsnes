@@ -1474,65 +1474,65 @@ JSNES.CPU.OpData = function() {
     /*0xF0*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7
   ]);
 
-  this.instname = new Array(56);
-
   // Instruction Names:
-  this.instname[0] = 'ADC';
-  this.instname[1] = 'AND';
-  this.instname[2] = 'ASL';
-  this.instname[3] = 'BCC';
-  this.instname[4] = 'BCS';
-  this.instname[5] = 'BEQ';
-  this.instname[6] = 'BIT';
-  this.instname[7] = 'BMI';
-  this.instname[8] = 'BNE';
-  this.instname[9] = 'BPL';
-  this.instname[10] = 'BRK';
-  this.instname[11] = 'BVC';
-  this.instname[12] = 'BVS';
-  this.instname[13] = 'CLC';
-  this.instname[14] = 'CLD';
-  this.instname[15] = 'CLI';
-  this.instname[16] = 'CLV';
-  this.instname[17] = 'CMP';
-  this.instname[18] = 'CPX';
-  this.instname[19] = 'CPY';
-  this.instname[20] = 'DEC';
-  this.instname[21] = 'DEX';
-  this.instname[22] = 'DEY';
-  this.instname[23] = 'EOR';
-  this.instname[24] = 'INC';
-  this.instname[25] = 'INX';
-  this.instname[26] = 'INY';
-  this.instname[27] = 'JMP';
-  this.instname[28] = 'JSR';
-  this.instname[29] = 'LDA';
-  this.instname[30] = 'LDX';
-  this.instname[31] = 'LDY';
-  this.instname[32] = 'LSR';
-  this.instname[33] = 'NOP';
-  this.instname[34] = 'ORA';
-  this.instname[35] = 'PHA';
-  this.instname[36] = 'PHP';
-  this.instname[37] = 'PLA';
-  this.instname[38] = 'PLP';
-  this.instname[39] = 'ROL';
-  this.instname[40] = 'ROR';
-  this.instname[41] = 'RTI';
-  this.instname[42] = 'RTS';
-  this.instname[43] = 'SBC';
-  this.instname[44] = 'SEC';
-  this.instname[45] = 'SED';
-  this.instname[46] = 'SEI';
-  this.instname[47] = 'STA';
-  this.instname[48] = 'STX';
-  this.instname[49] = 'STY';
-  this.instname[50] = 'TAX';
-  this.instname[51] = 'TAY';
-  this.instname[52] = 'TSX';
-  this.instname[53] = 'TXA';
-  this.instname[54] = 'TXS';
-  this.instname[55] = 'TYA';
+  this.instname = [
+    'ADC',
+    'AND',
+    'ASL',
+    'BCC',
+    'BCS',
+    'BEQ',
+    'BIT',
+    'BMI',
+    'BNE',
+    'BPL',
+    'BRK',
+    'BVC',
+    'BVS',
+    'CLC',
+    'CLD',
+    'CLI',
+    'CLV',
+    'CMP',
+    'CPX',
+    'CPY',
+    'DEC',
+    'DEX',
+    'DEY',
+    'EOR',
+    'INC',
+    'INX',
+    'INY',
+    'JMP',
+    'JSR',
+    'LDA',
+    'LDX',
+    'LDY',
+    'LSR',
+    'NOP',
+    'ORA',
+    'PHA',
+    'PHP',
+    'PLA',
+    'PLP',
+    'ROL',
+    'ROR',
+    'RTI',
+    'RTS',
+    'SBC',
+    'SEC',
+    'SED',
+    'SEI',
+    'STA',
+    'STX',
+    'STY',
+    'TAX',
+    'TAY',
+    'TSX',
+    'TXA',
+    'TXS',
+    'TYA'
+  ];
 
   this.addrDesc = [
     'Zero Page           ',
