@@ -205,7 +205,7 @@ JSNES.ROM.prototype = {
   },
 
   mapperSupported: function() {
-    return typeof JSNES.Mappers[this.mapperType] !== 'undefined';
+    return JSNES.Mappers[this.mapperType] !== undefined;
   },
 
   createMapper: function() {

@@ -148,7 +148,7 @@ if (typeof jQuery !== 'undefined') {
           });
         }
 
-        if (typeof roms != 'undefined') {
+        if (roms != undefined) {
           self.setRoms(roms);
         }
 
@@ -195,7 +195,7 @@ if (typeof jQuery !== 'undefined') {
             url: escape(self.romSelect.val()),
             'xhr': function() {
               var xhr = $['ajaxSettings']['xhr']();
-              if (typeof xhr.overrideMimeType !== 'undefined') {
+              if (xhr.overrideMimeType !== undefined) {
                 // Download as binary
                 xhr.overrideMimeType('text/plain; charset=x-user-defined');
               }
