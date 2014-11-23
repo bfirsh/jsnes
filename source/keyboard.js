@@ -28,6 +28,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /** @const **/ var KEY_RIGHT = 7;
 
 // Keyboard events are bound in the UI
+/**
+ * @constructor
+ */
 JSNES.Keyboard = function() {
   var i = 0;
 

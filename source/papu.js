@@ -18,6 +18,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 'use strict';
 
+/**
+ * @param nes
+ * @constructor
+ */
 JSNES.PAPU = function(nes) {
   this.nes = nes;
 
@@ -780,6 +784,10 @@ JSNES.PAPU.prototype = {
 };
 
 
+/**
+ * @param papu
+ * @constructor
+ */
 JSNES.PAPU.ChannelDM = function(papu) {
   this.papu = papu;
 
@@ -986,6 +994,10 @@ JSNES.PAPU.ChannelDM.prototype = {
 };
 
 
+/**
+ * @param papu
+ * @constructor
+ */
 JSNES.PAPU.ChannelNoise = function(papu) {
   this.papu = papu;
 
@@ -1106,6 +1118,11 @@ JSNES.PAPU.ChannelNoise.prototype = {
 };
 
 
+/**
+ * @param papu
+ * @param square1
+ * @constructor
+ */
 JSNES.PAPU.ChannelSquare = function(papu, square1) {
   this.papu = papu;
 
@@ -1296,6 +1313,10 @@ JSNES.PAPU.ChannelSquare.prototype = {
 };
 
 
+/**
+ * @param papu
+ * @constructor
+ */
 JSNES.PAPU.ChannelTriangle = function(papu) {
   this.papu = papu;
 

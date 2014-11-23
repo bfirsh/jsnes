@@ -57,4 +57,3 @@ JSNES.Utils = {
     return (/msie/i.test(navigator.userAgent) && !/opera/i.test(navigator.userAgent));
   }
 };
-

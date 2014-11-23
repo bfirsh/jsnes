@@ -22,6 +22,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * @todo: Define custom JSON methods for ppu.scantile.
  */
 
+/**
+ * @param nes
+ * @constructor
+ */
 JSNES.PPU = function(nes) {
   this.nes = nes;
 
@@ -1549,6 +1553,13 @@ JSNES.PPU.prototype = {
   }
 };
 
+
+/**
+ * @param width
+ * @param height
+ * @param name
+ * @constructor
+ */
 JSNES.PPU.NameTable = function(width, height, name) {
   this.width = width;
   this.height = height;
@@ -1603,6 +1614,9 @@ JSNES.PPU.NameTable.prototype = {
 };
 
 
+/**
+ * @constructor
+ */
 JSNES.PPU.PaletteTable = function() {
   this.curTable = new Array(64);
   this.emphTable = new Array(8);
@@ -1763,6 +1777,10 @@ JSNES.PPU.PaletteTable.prototype = {
   }
 };
 
+
+/**
+ * @constructor
+ */
 JSNES.PPU.Tile = function() {
   // Tile data:
   this.pix = new Array(64);

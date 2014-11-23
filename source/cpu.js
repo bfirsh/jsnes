@@ -18,6 +18,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 'use strict';
 
+/**
+ * @param nes
+ * @constructor
+ */
 JSNES.CPU = function(nes) {
   this.nes = nes;
 
@@ -1180,7 +1184,11 @@ JSNES.CPU.prototype = {
   }
 };
 
-// Generates and provides an array of details about instructions
+/**
+ * Generates and provides an array of details about instructions.
+ *
+ * @constructor
+ */
 JSNES.CPU.OpData = function() {
   this.opdata = new Uint32Array(0xFF);
 

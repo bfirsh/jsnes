@@ -18,6 +18,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 'use strict';
 
+/**
+ * @param nes
+ * @constructor
+ */
 JSNES.ROM = function(nes) {
   this.nes = nes;
 

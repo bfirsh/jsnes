@@ -20,6 +20,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 JSNES.Mappers = {};
 
+/**
+ * @param nes
+ * @constructor
+ */
 JSNES.Mappers[0] = function(nes) {
   this.nes = nes;
 };
@@ -514,6 +518,10 @@ JSNES.Mappers[0].prototype = {
 };
 
 
+/**
+ * @param nes
+ * @constructor
+ */
 JSNES.Mappers[1] = function(nes) {
   this.nes = nes;
 };
@@ -792,6 +800,11 @@ JSNES.Mappers[1].prototype.fromJSON = function(s) {
   this.regBufferCounter = s['regBufferCounter'];
 };
 
+
+/**
+ * @param nes
+ * @constructor
+ */
 JSNES.Mappers[2] = function(nes) {
   this.nes = nes;
 };
@@ -827,6 +840,10 @@ JSNES.Mappers[2].prototype.loadROM = function() {
 };
 
 
+/**
+ * @param nes
+ * @constructor
+ */
 JSNES.Mappers[4] = function(nes) {
   this.nes = nes;
 

@@ -18,6 +18,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 'use strict';
 
+/**
+ * @param nes
+ * @constructor
+ */
 JSNES.DummyUI = function(nes) {
   this.nes = nes;
   this.enable = function() {
@@ -34,7 +38,11 @@ if (typeof jQuery !== 'undefined') {
   (function($) {
     $['fn'].JSNESUI = function(roms) {
       var parent = this;
-      var UI = function(nes) {
+      /**
+       * @param nes
+       * @constructor
+       */
+      function UI(nes) {
         var self = this;
         self.nes = nes;
 

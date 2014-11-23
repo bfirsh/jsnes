@@ -18,6 +18,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 'use strict';
 
+/**
+ * @param opts
+ * @constructor
+ */
 var JSNES = function(opts) {
   this.opts = {
     'ui': JSNES.DummyUI,
