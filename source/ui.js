@@ -38,6 +38,7 @@ if (typeof jQuery !== 'undefined') {
   (function($) {
     $['fn'].JSNESUI = function(roms) {
       var parent = this;
+
       /**
        * @param nes
        * @constructor
@@ -185,7 +186,7 @@ if (typeof jQuery !== 'undefined') {
         self.dynamicaudio = new DynamicAudio({
           'swf': nes.opts['swfPath'] + 'dynamicaudio.swf'
         });
-      };
+      }
 
       UI.prototype = {
         loadROM: function() {
