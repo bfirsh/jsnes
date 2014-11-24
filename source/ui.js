@@ -16,6 +16,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/* global DynamicAudio, JSNESBinaryToArray, jQuery */
+
 'use strict';
 
 /**
@@ -149,7 +151,7 @@ if (typeof jQuery !== 'undefined') {
           });
         }
 
-        if (roms != undefined) {
+        if (roms !== undefined) {
           self.setRoms(roms);
         }
 
@@ -193,7 +195,7 @@ if (typeof jQuery !== 'undefined') {
           var self = this;
           self.updateStatus('Downloading...');
           $.ajax({
-            url: escape(self.romSelect.val()),
+            url: encodeURI(self.romSelect.val()),
             'xhr': function() {
               var xhr = $['ajaxSettings']['xhr']();
               if (xhr.overrideMimeType !== undefined) {
@@ -294,7 +296,7 @@ if (typeof jQuery !== 'undefined') {
           for (i = 0; i < 256 * 240; i++) {
             pixel = buffer[i];
 
-            if (pixel != prevBuffer[i]) {
+            if (pixel !== prevBuffer[i]) {
               j = i * 4;
               imageData[j] = pixel & 0xFF;
               imageData[j + 1] = (pixel >> 8) & 0xFF;

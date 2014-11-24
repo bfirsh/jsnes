@@ -1,0 +1,10 @@
+{
+  "globalstrict": true,
+  "sub": true,
+  // Environments
+  "browser": true,
+  "devel": true,
+  "globals": {
+    "JSNES": false
+  }
+}

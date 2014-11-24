@@ -16,6 +16,8 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/* global -JSNES */
+
 'use strict';
 
 /**
@@ -37,10 +39,10 @@ var JSNES = function(opts) {
     'CPU_FREQ_NTSC': 1789772.5, //1789772.72727272d;
     'CPU_FREQ_PAL': 1773447.4
   };
-  if (opts != undefined) {
+  if (opts !== undefined) {
     var key;
     for (key in this.opts) {
-      if (opts[key] != undefined) {
+      if (opts[key] !== undefined) {
         this.opts[key] = opts[key];
       }
     }
