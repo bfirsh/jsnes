@@ -158,7 +158,9 @@ if (typeof jQuery !== 'undefined') {
         /*
          * Canvas
          */
-        self.canvasContext = self.screen[0].getContext('2d');
+        self.canvasContext = self.screen[0].getContext('2d', {
+          'alpha': false // See http://wiki.whatwg.org/wiki/CanvasOpaque
+        });
 
         if (!self.canvasContext.getImageData) {
           parent.html("Your browser doesn't support writing pixels directly to the <code>&lt;canvas&gt;</code> tag. Try the latest versions of Google Chrome, Safari, Opera or Firefox!");
@@ -229,11 +231,6 @@ if (typeof jQuery !== 'undefined') {
           this.canvasContext.fillStyle = 'black';
           // set alpha to opaque
           this.canvasContext.fillRect(0, 0, 256, 240);
-
-          // Set alpha
-          for (var i = 3; i < this.canvasImageData.data.length - 3; i += 4) {
-            this.canvasImageData.data[i] = 0xFF;
-          }
         },
 
         /*
