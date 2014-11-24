@@ -32,16 +32,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * @constructor
  */
 JSNES.Keyboard = function() {
-  var i = 0;
-
-  this.state1 = new Uint8Array(8);
-  for (i = 0; i < 8; i++) {
-    this.state1[i] = 0x40;
-  }
-  this.state2 = new Uint8Array(8);
-  for (i = 0; i < 8; i++) {
-    this.state2[i] = 0x40;
-  }
+  this.state1 = new Uint8Array([0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40]);
+  this.state2 = new Uint8Array([0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40]);
 };
 
 JSNES.Keyboard.prototype = {
