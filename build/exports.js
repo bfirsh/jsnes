@@ -27,10 +27,8 @@ JSNES['Keyboard'].prototype['keyPress'] = JSNES.Keyboard.prototype.keyPress;
 // Optional exports
 JSNES.prototype['isRunning'] = JSNES.prototype.isRunning;
 JSNES.prototype['fpsFrameCount'] = JSNES.prototype.fpsFrameCount;
-JSNES.prototype['limitFrames'] = JSNES.prototype.limitFrames;
 JSNES.prototype['romData'] = JSNES.prototype.romData;
 JSNES.prototype['reset'] = JSNES.prototype.reset;
 JSNES.prototype['printFps'] = JSNES.prototype.printFps;
 JSNES.prototype['resetFps'] = JSNES.prototype.resetFps;
 JSNES.prototype['setFramerate'] = JSNES.prototype.setFramerate;
-JSNES.prototype['setLimitFrames'] = JSNES.prototype.setLimitFrames;
