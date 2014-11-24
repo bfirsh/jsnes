@@ -1465,7 +1465,7 @@ JSNES.CPU.OpData = function() {
   // TYA:
   this.setOp(this.INS_TYA, 0x98, this.ADDR_IMP, 1, 2);
 
-  this.cycTable = new Uint8Array([
+  this.cycTable = [
     /*0x00*/ 7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
     /*0x10*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
     /*0x20*/ 6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6,
@@ -1482,7 +1482,7 @@ JSNES.CPU.OpData = function() {
     /*0xD0*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
     /*0xE0*/ 2, 6, 3, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
     /*0xF0*/ 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7
-  ]);
+  ];
 
   // Instruction Names:
   this.instname = [
