@@ -38,7 +38,14 @@ JSNES.Utils = {
       if (!obj.JSON_PROPERTIES.hasOwnProperty(i)) {
         continue;
       }
-      obj[i] = state[obj.JSON_PROPERTIES[i]];
+      var prop = state[obj.JSON_PROPERTIES[i]];
+      if (Array.isArray(state[obj.JSON_PROPERTIES[i]])) {
+        var type = obj[i].constructor.name;
+        if (type === 'Uint8Array') {
+          prop = new Uint8Array(state[obj.JSON_PROPERTIES[i]]);
+        }
+      }
+      obj[i] = prop;
     }
   },
 
@@ -48,7 +55,14 @@ JSNES.Utils = {
       if (!obj.JSON_PROPERTIES.hasOwnProperty(i)) {
         continue;
       }
-      state[obj.JSON_PROPERTIES[i]] = obj[i];
+      var prop = obj[i];
+      if (obj[i] instanceof Uint8Array) {
+        prop = new Array(obj[i].length);
+        for (var j = 0; j < obj[i].length; j++) {
+          prop[j] = obj[i][j];
+        }
+      }
+      state[obj.JSON_PROPERTIES[i]] = prop;
     }
     return state;
   },
