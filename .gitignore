@@ -1,7 +1,8 @@
-/build/
+.idea
 /local-roms/
 jsnes.tmproj
 ._*
 .DS_Store
+.jar
 /tmp
 /node_modules

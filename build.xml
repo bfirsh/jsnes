@@ -1,0 +1,88 @@
+<?xml version="1.0"?>
+<project name="jsnes" default="build">
+    <property name="closure-compiler.dir" value="/dev/closure-compiler" />
+    <property name="closure-compiler.jar" value="${closure-compiler.dir}/build/compiler.jar" />
+    <property name="build.dir" value="${basedir}/min" />
+    <macrodef name="closure-compile">
+        <attribute name="outputfile" />
+        <attribute name="compilerjarfile" default="${closure-compiler.jar}" />
+        <attribute name="compilationlevel" default="SIMPLE_OPTIMIZATIONS" />
+        <attribute name="summarydetaillevel" default="1" />
+        <attribute name="warninglevel" default="DEFAULT" />
+        <element name="extraflags" optional="yes" />
+        <element name="extrapaths" optional="yes" />
+        <sequential>
+            <java jar="${closure-compiler.jar}" fork="true" failonerror="true" logError="true">
+                <arg line="--js source/nes.js" />
+                <arg line="--js source/utils.js" />
+                <arg line="--js source/cpu.js" />
+                <arg line="--js source/keyboard.js" />
+                <arg line="--js source/mappers.js" />
+                <arg line="--js source/papu.js" />
+                <arg line="--js source/ppu.js" />
+                <arg line="--js source/rom.js" />
+                <arg line="--js source/ui.js" />
+                <arg line="--js_output_file @{outputfile}" />
+                <arg line="--externs ${closure-compiler.dir}/contrib/externs/jquery-1.9.js" />
+                <arg line="--externs ${basedir}/build/externs.js" />
+                <arg line="--compilation_level=@{compilationlevel}" />
+                <arg line="--language_in ECMASCRIPT5_STRICT" />
+                <arg line="--summary_detail_level @{summarydetaillevel}" />
+                <arg line="--warning_level @{warninglevel}" />
+                <extraflags />
+            </java>
+        </sequential>
+    </macrodef>
+    <macrodef name="prepend-header">
+        <attribute name="srcfile" />
+        <attribute name="destfile" />
+        <sequential>
+            <concat destfile="@{destfile}" append="false">
+                <header file="source/header.js" />
+                <path path="@{srcfile}" />
+            </concat>
+        </sequential>
+    </macrodef>
+    <exec executable="git" outputproperty="build.commit">
+        <arg value="rev-parse" />
+        <arg value="HEAD" />
+    </exec>
+    <scriptdef name="substring" language="javascript">
+        <attribute name="text" />
+        <attribute name="property" />
+        <![CDATA[
+        var text = attributes.get("text");
+        project.setProperty(attributes.get("property"), text.substring(0, 20));
+        ]]>
+    </scriptdef>
+    <substring text="${build.commit}" property="build.commit" />
+    <target name="clean" description="deletes all files created by this script">
+        <delete dir="${build.dir}" />
+    </target>
+    <target name="jsnes-concat" description="generates a concatenated version of JSNES">
+        <mkdir dir="${build.dir}" />
+        <closure-compile outputfile="${build.dir}/tmp.js" compilationlevel="WHITESPACE_ONLY" summarydetaillevel="3" />
+        <replace file="${build.dir}/tmp.js" token="{%= version %}" value="${build.commit}" />
+        <prepend-header srcfile="${build.dir}/tmp.js" destfile="${build.dir}/jsnes-src.js" />
+        <delete file="${build.dir}/tmp.js" />
+    </target>
+    <target name="jsnes-simple" description="generates a lightly minified version of JSNES">
+        <mkdir dir="${build.dir}" />
+        <closure-compile outputfile="${build.dir}/tmp.js" compilationlevel="SIMPLE_OPTIMIZATIONS" summarydetaillevel="3" warninglevel="VERBOSE" />
+        <replace file="${build.dir}/tmp.js" token="{%= version %}" value="${build.commit}" />
+        <prepend-header srcfile="${build.dir}/tmp.js" destfile="${build.dir}/jsnes.simple.js" />
+        <delete file="${build.dir}/tmp.js" />
+    </target>
+    <target name="jsnes-min" description="generates a minified version of JSNES">
+        <mkdir dir="${build.dir}" />
+        <closure-compile outputfile="${build.dir}/tmp.js" compilationlevel="ADVANCED_OPTIMIZATIONS" summarydetaillevel="3" warninglevel="VERBOSE">
+            <extraflags>
+                <arg line="--js ${basedir}/build/exports.js" />
+            </extraflags>
+        </closure-compile>
+        <replace file="${build.dir}/tmp.js" token="{%= version %}" value="${build.commit}" />
+        <prepend-header srcfile="${build.dir}/tmp.js" destfile="${build.dir}/jsnes-min.js" />
+        <delete file="${build.dir}/tmp.js" />
+    </target>
+    <target name="build" depends="jsnes-concat,jsnes-simple,jsnes-min" />
+</project>
