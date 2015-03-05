@@ -1,0 +1,114 @@
+﻿
+varying vec2 vUv;
+uniform sampler2D map;
+uniform vec2 invScreenSize;
+uniform vec2 srcSize;
+uniform vec2 scale;
+
+float LUM(vec3 color){	
+	//Y = 0.375 R + 0.5 G + 0.125 B
+	//Y = (R+R+B+G+G+G)/6
+	//Y = (R+R+R+B+G+G+G+G)>>3
+	return (color.x+ color.x+ color.z+ 
+			color.y +color.y+ color.y) / 6.0;
+}
+void main() {
+    vec2 T = gl_FragCoord.xy;
+	vec2 TF= vec2(floor(T.x), floor(T.y));    
+	vec2 ST = mod(TF, scale);
+
+    //Find neighboring textels:
+    vec3 N = texture2D(map, vec2(T.x,T.y+1.0)*invScreenSize).xyz;
+    vec3 S = texture2D(map, vec2(T.x,T.y-1.0)*invScreenSize).xyz;
+    vec3 E = texture2D(map, vec2(T.x+1.0,T.y)*invScreenSize).xyz; 
+    vec3 W = texture2D(map, vec2(T.x-1.0,T.y)*invScreenSize).xyz; 
+	vec3 SSE = texture2D(map, vec2(T.x+1.0,T.y-2.0)*invScreenSize).xyz; 
+    vec3 NE = texture2D(map, vec2(T.x+1.0,T.y+1.0)*invScreenSize).xyz;
+    vec3 SE = texture2D(map, vec2(T.x+1.0,T.y-1.0)*invScreenSize).xyz;
+    vec3 SW = texture2D(map, vec2(T.x-1.0,T.y-1.0)*invScreenSize).xyz; 	
+    vec3 NW = texture2D(map, vec2(T.x-1.0,T.y+1.0)*invScreenSize).xyz; 
+	vec3 C = texture2D(map, vUv).xyz;
+
+	// calculate simple luminance
+	float N_LUM = LUM(N);
+	float S_LUM = LUM(S);
+	float C_LUM = LUM(C);
+
+	//default
+	gl_FragColor = vec4(C,1.0);
+	
+	//SE
+	if (ST.x==1.0 && ST.y==1.0)
+	{	
+		bool eqa = all(equal(S,E));
+		bool eqb = all(equal(C,SE));	
+
+		if (eqa && eqb){
+			if (C_LUM < N_LUM) {
+				gl_FragColor = vec4(C,1.0);
+			}
+			else {
+				gl_FragColor = vec4(S,1.0);
+			}
+		}
+		else if (eqa) {
+			gl_FragColor = vec4(S,1.0);
+		}
+	}
+	//NW
+	if (ST.x==0.0 && ST.y==1.0)
+	{
+		bool eqa = all(equal(N,W));
+		bool eqb = all(equal(C,NW));
+
+		if (eqa && eqb){
+			if (C_LUM < N_LUM) {
+				gl_FragColor = vec4(C,1.0);
+			}
+			else {
+				gl_FragColor = vec4(N,1.0);
+			}
+		}
+		else if (eqa) {
+			gl_FragColor = vec4(N,1.0);
+		}
+	}
+	//SW
+	if (ST.x==0.0 && ST.y==0.0)
+	{
+		bool eqa = all(equal(S,W));
+		bool eqb = all(equal(SW,C));
+		bool eqc = all(equal(S,SSE));
+		
+		if (eqa && eqb){
+			if ((C_LUM < S_LUM) || (eqc && (C_LUM > S_LUM))) {
+				gl_FragColor = vec4(C,1.0);
+			}
+			else {
+				gl_FragColor = vec4(S,1.0);		
+			}
+		}
+		else if (eqa) {
+			gl_FragColor = vec4(S,1.0);		
+		}
+	}
+
+	//NE
+	if (ST.x==1.0 && ST.y==0.0)
+	{
+		bool eqa = all(equal(N,E));
+		bool eqb = all(equal(C,NE));
+
+		if (eqa && eqb){
+			if (C_LUM < N_LUM) {
+				gl_FragColor = vec4(C,1.0);
+			}
+			else {
+				gl_FragColor = vec4(N,1.0);
+			}
+		}
+		else if (eqa ) {
+			gl_FragColor = vec4(N,1.0);
+		}
+	}
+}
