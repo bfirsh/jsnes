@@ -7,56 +7,71 @@
 
 <body>
     <h1>JSNES</h1>
-    
+
     <div id="emulator"></div>
-    
+
     <h2>Controls</h2>
     <table id="controls">
         <tr>
             <th>Button</th>
             <th>Player 1</th>
             <th>Player 2</th>
+            <th>Gamepad</th>
         </tr>
         <tr>
             <td>Left</td>
             <td>Left</td>
             <td>Num-4</td>
+            <td>D-pad Left</td>
         <tr>
             <td>Right</td>
             <td>Right</td>
             <td>Num-6</td>
+            <td>D-pad Right</td>
         </tr>
         <tr>
             <td>Up</td>
             <td>Up</td>
             <td>Num-8</td>
+            <td>D-pad Up</td>
         </tr>
         <tr>
             <td>Down</td>
             <td>Down</td>
             <td>Num-2</td>
+            <td>D-pad Down</td>
         </tr>
         <tr>
             <td>A</td>
             <td>X</td>
             <td>Num-7</td>
+            <td>Button 1 (usually "A")</td>
         </tr>
         <tr>
             <td>B</td>
             <td>Z/Y</td>
             <td>Num-9</td>
+            <td>Button 2 (usually "B")</td>
         </tr>
         <tr>
             <td>Start</td>
             <td>Enter</td>
             <td>Num-1</td>
+            <td>Start</td>
         </tr>
         <tr>
             <td>Select</td>
             <td>Ctrl</td>
             <td>Num-3</td>
+            <td>Select (sometimes "back")</td>
         </tr>
     </table>
+    
+    <p>Note: The gamepad API is currently experimental, Firefox and Chrome 
+    currently support it.</p>
+    
+    <p>In Firefox some controllers are improperly mapped. 
+    Try using Chrome if you experience issues.</p>
 
     <script src="lib/jquery-1.4.2.min.js" type="text/javascript" charset="utf-8"></script>
     <script src="lib/dynamicaudio-min.js" type="text/javascript" charset="utf-8"></script>
@@ -64,6 +79,8 @@
     <script src="source/utils.js" type="text/javascript" charset="utf-8"></script>
     <script src="source/cpu.js" type="text/javascript" charset="utf-8"></script>
     <script src="source/keyboard.js" type="text/javascript" charset="utf-8"></script>
+    <script src="source/gamepad_keyboard.js" type="text/javascript" charset="utf-8"></script>
+    <script src="lib/gamepad.js" type="text/javascript" charset="utf-8"></script>
     <script src="source/mappers.js" type="text/javascript" charset="utf-8"></script>
     <script src="source/papu.js" type="text/javascript" charset="utf-8"></script>
     <script src="source/ppu.js" type="text/javascript" charset="utf-8"></script>
@@ -80,7 +97,7 @@
                     ],
                     "Working": [
                         ['Bubble Bobble', 'local-roms/Bubble Bobble (U).nes'],
-                        
+
                         ['Contra', 'local-roms/Contra (U) [!].nes'],
                         ['Donkey Kong', 'local-roms/Donkey Kong (JU).nes'],
                         ['Dr. Mario', 'local-roms/Dr. Mario (JU).nes'],
@@ -88,7 +105,7 @@
                         ['The Legend of Zelda', 'local-roms/Legend of Zelda, The (U) (PRG1).nes'],
                         ['Lemmings', 'local-roms/Lemmings (U).nes'],
                         ['Lifeforce', 'local-roms/Lifeforce (U).nes'],
-                        
+
                         ['Mario Bros.', 'local-roms/Mario Bros. (JU) [!].nes'],
                         ['Mega Man', 'local-roms/Mega Man (U).nes'],
                         ['Pac-Man', 'local-roms/Pac-Man (U) [!].nes'],
