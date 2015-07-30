@@ -150,7 +150,6 @@ JSNES.prototype = {
             }
         }
         this.fpsFrameCount++;
-        this.lastFrameTime = +new Date();
     },
     
     printFps: function() {
