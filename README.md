@@ -1,7 +1,7 @@
 JSNES
 =====
 
-A JavaScript NES emulator.
+A JavaScript NES emulator that includes support for saving using localstorage and gamepads.
 
 Build
 -----

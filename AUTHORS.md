@@ -11,3 +11,4 @@ Thanks to:
  * Jens Lindstrom for some optimisations.
  * Rafal Chlodnicki for an Opera fix.
  * Ecin Krispie for fixing player 2 controls.
+ * Joseph Lewis for adding gamepad support.
