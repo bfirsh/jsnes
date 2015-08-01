@@ -1,0 +1,23 @@
+﻿
+varying vec2 vUv;
+uniform sampler2D map;
+uniform vec2 invScreenSize;
+uniform vec2 srcSize;
+uniform vec2 scale;
+
+void main() {
+    vec2 T = gl_FragCoord.xy;
+	vec2 TF= vec2(floor(gl_FragCoord.x), floor(gl_FragCoord.y));    
+	vec2 ST = mod(TF, scale);
+
+    //Find neighboring textels:
+    vec3 N = texture2D(map, vec2(T.x,T.y+1.0)*invScreenSize).xyz;
+    vec3 S = texture2D(map, vec2(T.x,T.y-1.0)*invScreenSize).xyz;
+    vec3 E = texture2D(map, vec2(T.x+1.0,T.y)*invScreenSize).xyz; 
+    vec3 W = texture2D(map, vec2(T.x-1.0,T.y)*invScreenSize).xyz; 
+	vec3 C = texture2D(map, vUv).xyz;
+
+	gl_FragColor = vec4(
+		((C * 8.0) + N + S + E + W ) / 12.0
+		,1.0);
+}
