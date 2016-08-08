@@ -1003,11 +1003,17 @@ JSNES.PPU.prototype = {
                     if (this.validTileData) {
                         // Get data from array:
                         t = scantile[tile];
+                        if (typeof t === 'undefined') {
+                            continue;
+                        }
                         tpix = t.pix;
                         att = attrib[tile];
                     }else {
                         // Fetch data:
                         t = ptTile[baseTile+nameTable[this.curNt].getTileIndex(this.cntHT,this.cntVT)];
+                        if (typeof t === 'undefined') {
+                            continue;
+                        }
                         tpix = t.pix;
                         att = nameTable[this.curNt].getAttrib(this.cntHT,this.cntVT);
                         scantile[tile] = t;
