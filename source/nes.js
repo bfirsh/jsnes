@@ -25,7 +25,7 @@ var JSNES = function(opts) {
         fpsInterval: 500, // Time between updating FPS in ms
         showDisplay: true,
 
-        emulateSound: false,
+        emulateSound: true,
         sampleRate: 44100, // Sound sample rate in hz
         
         CPU_FREQ_NTSC: 1789772.5, //1789772.72727272d;
