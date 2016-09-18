@@ -6,14 +6,15 @@ A JavaScript NES emulator.
 Build
 -----
 
-To build a distribution, you will [Grunt](http://gruntjs.com):
+To run locally:
 
-    $ sudo npm install -g grunt-cli
+    $ docker-compose up
 
-Then run:
+And it'll be available at http://localhost
 
-    $ npm install
-    $ grunt
+To build a distribution:
+
+    $ docker-compose run build grunt
 
 This will create ``jsnes.js`` and ``jsnes-min.js`` in ``build/``.
 
