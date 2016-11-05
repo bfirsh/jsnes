@@ -137,6 +137,23 @@ function convert(file_name){
     new_lines.push('module.exports = ' + classname.replace('.', '_').replace('.', '_').replace('.', '_'))
   }
 
+  // require() all the other files that aren't this file
+  file_names.forEach(function(_filename){
+    if(_filename === 'JSNES.js'){
+      return
+    }
+    if(_filename !== file_name){
+      var line_to_push = ['var ', _filename.split('.')[0], ' = require(\'./', _filename, '\')']
+      if(_filename === 'JSNES_Utils.js'){
+        line_to_push.push('()')
+      }
+      new_lines.push(line_to_push.join(''))
+    }
+  })
+
+  new_lines.push(' ')
+
+  // JSNES_ROM.js needs special care
   if(file_name === 'JSNES_ROM.js'){
     console.log('\t\t\t sup')
     // write in the mappers lines
@@ -145,18 +162,6 @@ function convert(file_name){
   }
 
 
-  // require() all the other files that aren't this file
-  file_names.forEach(function(_filename){
-    if(_filename === 'JSNES.js'){
-      return
-    }
-    if(_filename !== file_name){
-      // console.log(['var ', _filename.split('.')[0], ' = require(\'./', _filename, '\')'].join(''))
-      new_lines.push(['var ', _filename.split('.')[0], ' = require(\'./', _filename, '\')'].join(''))
-    }
-  })
-
-  new_lines.push(' ')
 
 
   // write the first line of the constructor
