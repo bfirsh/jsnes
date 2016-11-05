@@ -13,21 +13,21 @@ var state = JSON.parse(JSON.parse(fs.readFileSync('./runs/test.json').toString('
 state.romData = fs.readFileSync('./local-roms/Super Mario Bros. (JU) (PRG0) [!].nes').toString('ascii')
 
 nes.fromJSON(state)
-nes.reset()
+// nes.reset()
 // nes.loadRom(state.romData)
 
 // nes.reloadRom()
 
-nes.frame()
-console.log('frame done')
-process.exit()
+// nes.frame()
+// console.log('frame done')
+// process.exit()
 
 var test = []
 for(var i = 0; i < 1000; i++){
   console.log('begin frame')
   nes.frame()
-  nes.keyboard.state1[6] = 0x41
-  // nes.keyboard.state1[7] = 0x41
+  // nes.keyboard.state1[6] = 0x41
+  nes.keyboard.state1[7] = 0x41
   console.log('end frame')
 
 }
