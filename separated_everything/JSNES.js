@@ -1,5 +1,5 @@
 var JSNES = function(opts) {
-    if (!(this instanceof JSNES)) return new JSNES()
+    if (!(this instanceof JSNES)) return new JSNES(opts)
     this.opts = {
         ui: JSNES.DummyUI,
         swfPath: 'lib/',
@@ -32,7 +32,7 @@ var JSNES = function(opts) {
     this.mmap = null; // set in loadRom()
     this.keyboard = new JSNES.Keyboard();
 
-    // this.ui.updateStatus("Ready to load a ROM.");
+    // console.log("Ready to load a ROM.");
 };
 
 JSNES.VERSION = "<%= version %>";
@@ -71,7 +71,8 @@ JSNES.prototype = {
             }
         }
         else {
-            this.ui.updateStatus("There is no ROM loaded, or it is invalid.");
+
+            console.log("There is no ROM loaded, or it is invalid.");
         }
     },
 
@@ -144,7 +145,7 @@ JSNES.prototype = {
                 this.fpsFrameCount / ((now - this.lastFpsTime) / 1000)
             ).toFixed(2)+' FPS';
         }
-        this.ui.updateStatus(s);
+        console.log(s);
         this.fpsFrameCount = 0;
         this.lastFpsTime = now;
     },
@@ -168,7 +169,7 @@ JSNES.prototype = {
             this.stop();
         }
 
-        this.ui.updateStatus("Loading ROM...");
+        console.log("Loading ROM...");
 
         // Load ROM file:
         this.rom = new JSNES.ROM(this);
@@ -184,10 +185,10 @@ JSNES.prototype = {
             this.ppu.setMirroring(this.rom.getMirroringType());
             this.romData = data;
 
-            this.ui.updateStatus("Successfully loaded. Ready to be started.");
+            console.log("Successfully loaded. Ready to be started.");
         }
         else {
-            this.ui.updateStatus("Invalid ROM!");
+            console.log("Invalid ROM!");
         }
         return this.rom.valid;
     },
