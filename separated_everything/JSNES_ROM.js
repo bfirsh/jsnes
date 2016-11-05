@@ -75,7 +75,9 @@ JSNES.ROM.prototype = {
         var i, j, v;
 
         if (data.indexOf("NES\x1a") === -1) {
-            this.nes.ui.updateStatus("Not a valid NES ROM.");
+
+            console.log("Not a valid NES ROM.");
+            process.exit(0)
             return;
         }
         this.header = new Array(16);

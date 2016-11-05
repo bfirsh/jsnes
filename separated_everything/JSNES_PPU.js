@@ -552,7 +552,7 @@ JSNES.PPU.prototype = {
         }
 
         if (this.nes.opts.showDisplay) {
-            this.nes.ui.writeFrame(buffer, this.prevBuffer);
+            // this.nes.ui.writeFrame(buffer, this.prevBuffer);
         }
     },
 

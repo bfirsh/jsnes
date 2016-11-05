@@ -46,6 +46,17 @@ JSNES.CPU = function(nes) {
     this.irqRequested = null;
     this.irqType = null;
 
+    this.JSON_PROPERTIES = [
+        'mem', 'cyclesToHalt', 'irqRequested', 'irqType',
+        // Registers
+        'REG_ACC', 'REG_X', 'REG_Y', 'REG_SP', 'REG_PC', 'REG_PC_NEW',
+        'REG_STATUS',
+        // Status
+        'F_CARRY', 'F_DECIMAL', 'F_INTERRUPT', 'F_INTERRUPT_NEW', 'F_OVERFLOW',
+        'F_SIGN', 'F_ZERO', 'F_NOTUSED', 'F_NOTUSED_NEW', 'F_BRK', 'F_BRK_NEW'
+    ],
+
+
     this.reset();
 };
 
@@ -159,6 +170,9 @@ JSNES.CPU.prototype = {
             this.F_BRK = this.F_BRK_NEW;
             this.irqRequested = false;
         }
+
+        // console.log(this.opdata)
+        // console.log(this.nes.mmap)
 
         var opinf = this.opdata[this.nes.mmap.load(this.REG_PC+1)];
         var cycleCount = (opinf>>24);
@@ -1073,6 +1087,8 @@ JSNES.CPU.prototype = {
                 // * ??? *
                 // *******
 
+                console.error("Game crashed, invalid opcode at address $"+opaddr.toString(16))
+                process.exit(0)
                 this.nes.stop();
                 this.nes.crashMessage = "Game crashed, invalid opcode at address $"+opaddr.toString(16);
                 break;
@@ -1200,16 +1216,6 @@ JSNES.CPU.prototype = {
         this.F_OVERFLOW  = (st>>6)&1;
         this.F_SIGN      = (st>>7)&1;
     },
-
-    JSON_PROPERTIES: [
-        'mem', 'cyclesToHalt', 'irqRequested', 'irqType',
-        // Registers
-        'REG_ACC', 'REG_X', 'REG_Y', 'REG_SP', 'REG_PC', 'REG_PC_NEW',
-        'REG_STATUS',
-        // Status
-        'F_CARRY', 'F_DECIMAL', 'F_INTERRUPT', 'F_INTERRUPT_NEW', 'F_OVERFLOW',
-        'F_SIGN', 'F_ZERO', 'F_NOTUSED', 'F_NOTUSED_NEW', 'F_BRK', 'F_BRK_NEW'
-    ],
 
     toJSON: function() {
         return JSNES.Utils.toJSON(this);
