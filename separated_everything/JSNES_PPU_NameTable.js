@@ -1,4 +1,5 @@
 JSNES.PPU.NameTable = function(width, height, name) {
+    if (!(this instanceof JSNES.PPU.NameTable)) return new JSNES.PPU.NameTable(width, height, name)
     this.width = width;
     this.height = height;
     this.name = name;

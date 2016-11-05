@@ -1,4 +1,5 @@
 JSNES.PPU.PaletteTable = function() {
+    if (!(this instanceof JSNES.PPU.PaletteTable)) return new JSNES.PPU.PaletteTable()
     this.curTable = new Array(64);
     this.emphTable = new Array(8);
     this.currentEmph = -1;

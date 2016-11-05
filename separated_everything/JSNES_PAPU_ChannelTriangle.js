@@ -1,4 +1,5 @@
 JSNES.PAPU.ChannelTriangle = function(papu) {
+    if (!(this instanceof JSNES.PAPU.ChannelTriangle)) return new JSNES.PAPU.ChannelTriangle(papu)
     this.papu = papu;
 
     this.isEnabled = null;

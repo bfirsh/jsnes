@@ -1,5 +1,5 @@
-
 JSNES.PPU.Tile = function() {
+    if (!(this instanceof JSNES.PPU.Tile)) return new JSNES.PPU.Tile()
     // Tile data:
     this.pix = new Array(64);
 

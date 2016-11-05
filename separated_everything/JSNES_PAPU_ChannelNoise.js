@@ -1,4 +1,5 @@
 JSNES.PAPU.ChannelNoise = function(papu) {
+    if (!(this instanceof JSNES.PAPU.ChannelNoise)) return new JSNES.PAPU.ChannelNoise(papu)
     this.papu = papu;
 
     this.isEnabled = null;

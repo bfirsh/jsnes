@@ -1,4 +1,5 @@
 JSNES.PAPU.ChannelSquare = function(papu, square1) {
+    if (!(this instanceof JSNES.PAPU.ChannelSquare)) return new JSNES.PAPU.ChannelSquare(papu, square1)
     this.papu = papu;
 
     this.dutyLookup = [

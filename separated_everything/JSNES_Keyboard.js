@@ -1,5 +1,6 @@
 // Keyboard events are bound in the UI
 JSNES.Keyboard = function() {
+  if (!(this instanceof JSNES.Keyboard)) return new JSNES.Keyboard()
     var i;
 
     this.keys = {

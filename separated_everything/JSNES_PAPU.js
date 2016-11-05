@@ -1,4 +1,5 @@
 JSNES.PAPU = function(nes) {
+    if (!(this instanceof JSNES.PAPU)) return new JSNES.PAPU(nes)
     this.nes = nes;
 
     this.square1 = new JSNES.PAPU.ChannelSquare(this, true);

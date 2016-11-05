@@ -1,4 +1,5 @@
 var JSNES = function(opts) {
+    if (!(this instanceof JSNES)) return new JSNES()
     this.opts = {
         ui: JSNES.DummyUI,
         swfPath: 'lib/',
@@ -24,14 +25,14 @@ var JSNES = function(opts) {
 
     this.frameTime = 1000 / this.opts.preferredFrameRate;
 
-    this.ui = new this.opts.ui(this);
+    // this.ui = new this.opts.ui(this);
     this.cpu = new JSNES.CPU(this);
     this.ppu = new JSNES.PPU(this);
     this.papu = new JSNES.PAPU(this);
     this.mmap = null; // set in loadRom()
     this.keyboard = new JSNES.Keyboard();
 
-    this.ui.updateStatus("Ready to load a ROM.");
+    // this.ui.updateStatus("Ready to load a ROM.");
 };
 
 JSNES.VERSION = "<%= version %>";

@@ -6,6 +6,7 @@ var output_directory = './exported_source/'
 var file_name = 'rom.js'
 
 var file_names = [
+  'JSNES_CPU_OpData.js',
   'JSNES_CPU.js',
   'JSNES_Keyboard.js',
   'JSNES_PAPU_ChannelDM.js',
@@ -22,10 +23,8 @@ var file_names = [
 ]
 
 var token_remapper = [
-  ['JSNES.ROM', 'JSNES_ROM'],
-  ['JSNES.PPU', 'JSNES_PPU'],
-  ['JSNES.PAPU', 'JSNES_PAPU'],
-  ['JSNES.CPU', 'JSNES_CPU'],
+  ['JSNES.CPU.OpData', 'JSNES_CPU_OpData'],
+  ['JSNES_CPU.OpData', 'JSNES_CPU_OpData'],
   ['JSNES.Keyboard', 'JSNES_Keyboard'],
   ['JSNES.PPU.Tile', 'JSNES_PPU_Tile'],
   ['JSNES.PPU.PaletteTable', 'JSNES_PPU_PaletteTable'],
@@ -33,7 +32,11 @@ var token_remapper = [
   ['JSNES.PAPU.ChannelTriangle', 'JSNES_PAPU_ChannelTriangle'],
   ['JSNES.PAPU.ChannelDM', 'JSNES_PAPU_ChannelDM'],
   ['JSNES.PAPU.ChannelNoise', 'JSNES_PAPU_ChannelNoise'],
-  ['JSNES.PAPU.ChannelSquare', 'JSNES_PAPU_ChannelSquare']
+  ['JSNES.PAPU.ChannelSquare', 'JSNES_PAPU_ChannelSquare'],
+  ['JSNES.ROM', 'JSNES_ROM'],
+  ['JSNES.PPU', 'JSNES_PPU'],
+  ['JSNES.PAPU', 'JSNES_PAPU'],
+  ['JSNES.CPU', 'JSNES_CPU']
 ]
 
 var includes = [
@@ -124,24 +127,44 @@ function convert(file_name){
   // change the ':' to an '='
   //
 
-
   // write the constructor
   var new_lines = []
 
-  new_lines.push('module.exports = ' + classname.replace('.', '_'))
+  if(classname !== 'JSNES'){
+    new_lines.push('module.exports = ' + classname.replace('.', '_').replace('.', '_').replace('.', '_'))
+  }
 
-  // include all the stuff that isn't this file
+  // require() all the other files that aren't this file
   file_names.forEach(function(_filename){
     if(_filename !== file_name){
-      console.log(['var ', _filename.split('.')[0], ' = require(\'./', _filename, '\')'].join(''))
+      // console.log(['var ', _filename.split('.')[0], ' = require(\'./', _filename, '\')'].join(''))
       new_lines.push(['var ', _filename.split('.')[0], ' = require(\'./', _filename, '\')'].join(''))
     }
   })
 
-  file_lines.slice(beginning_constructor_line,closing_brace_idx[0]).forEach(function(l,idx){
-    // console.log(idx,l)
-    new_lines.push(l)
-  })
+  new_lines.push(' ')
+
+
+  // write the first line of the constructor
+  if(file_lines[beginning_constructor_line].indexOf('var') === -1){
+    // console.log(file_lines[beginning_constructor_line])
+    // rewrite from
+    // bar = function(foo) {
+    // to
+    // funciton bar(foo)
+
+    // new_lines.push('var ' + file_lines[beginning_constructor_line])
+    var split = file_lines[beginning_constructor_line].split('(')
+    var change = 'function '+classname+'(' + split[split.length-1]
+    new_lines.push(change)
+
+  } else {
+    new_lines.push(file_lines[beginning_constructor_line])
+
+  }
+  // write the second line to the file
+  console.log(file_lines[beginning_constructor_line])
+  new_lines.push(file_lines[beginning_constructor_line+1])
 
   // write the prototype variables
   prototype_vars.forEach(function(l,idx){
@@ -162,31 +185,61 @@ function convert(file_name){
     new_lines.push(file_lines[k].replace(',', ''))
   }
 
+  // write the rest of the constructor
+  file_lines.slice(beginning_constructor_line + 2,closing_brace_idx[0]).forEach(function(l,idx){
+    // console.log(idx,l)
+    if(idx === 0){
+      // console.log(idx, l)
+    }
+    new_lines.push(l)
+  })
+
   // close the constructor
   new_lines.push(file_lines[closing_brace_idx[0]])
 
   // console.log(new_lines.join('\n'))
 
+  if(classname === 'JSNES'){
+    new_lines.push('module.exports = ' + classname.replace('.', '_').replace('.', '_').replace('.', '_'))
+  }
+
+
   var rewritten_newlines = []
   new_lines.forEach(function(l, newline_idx){
     var rewritten_line = l
-    if(l.indexOf('JSNES') !== -1){
-      token_remapper.forEach(function(t){
-        if(l.indexOf(t[0]) !== -1){
-          // console.log(l.trim(), l.replace(t[0], t[1]).trim())
-          rewritten_line = l.replace(t[0], t[1])
-        }
-      })
-      // // find the token to replace
-      // var split_line = l.split(' ')
-      // split_line.forEach(function(s,idx){
-      //   token_remapper.forEach(function(token_map){
-      //     if(s === token_map[0]){
-      //       console.log(s, token_map[1], newline_idx)
-      //     }
-      //   })
-      // })
-    }
+    // if(l.indexOf('JSNES') !== -1){
+    //   token_remapper.forEach(function(t){
+    //     if(l.indexOf(t[0]) !== -1){
+    //       // console.log(l.trim(), l.replace(t[0], t[1]).trim())
+    //       rewritten_line = l.replace(t[0], t[1])
+    //     }
+    //   })
+    // }
+
+
+      if(rewritten_line.indexOf('JSNES') !== -1){
+        token_remapper.forEach(function(t){
+          if(rewritten_line.indexOf(t[0]) !== -1){
+            // console.log(l.trim(), l.replace(t[0], t[1]).trim())
+            rewritten_line = rewritten_line.replace(t[0], t[1])
+            // return
+          }
+        })
+      }
+
+      if(rewritten_line.indexOf('JSNES') !== -1){
+        token_remapper.forEach(function(t){
+          if(rewritten_line.indexOf(t[0]) !== -1){
+            console.log('second hit', rewritten_line)
+            // console.log(l.trim(), l.replace(t[0], t[1]).trim())
+            rewritten_line = rewritten_line.replace(t[0], t[1])
+            console.log('second hit', rewritten_line)
+            // return
+          }
+        })
+      }
+
+
     rewritten_newlines.push(rewritten_line)
   })
 

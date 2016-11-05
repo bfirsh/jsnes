@@ -1,5 +1,6 @@
 
 JSNES.PAPU.ChannelDM = function(papu) {
+  if (!(this instanceof JSNES.PAPU.ChannelDM)) return new JSNES.PAPU.ChannelDM(papu)
     this.papu = papu;
 
     this.MODE_NORMAL = 0;
