@@ -192,9 +192,20 @@ JSNES.ROM.prototype = {
     createMapper: function() {
         if (this.mapperSupported() || true) {
             // var m = new JSNES.Mappers[this.mapperType](this.nes);
-            var m = new JSNES_Mappers_0(this.nes)
+            var mapper
+            if(this.mapperType === 0){
+              mapper = new JSNES_Mappers_0(this.nes)
+            } else if(this.mapperType === 1){
+              mapper = new JSNES_Mappers_1(this.nes)
+            } else if(this.mapperType === 2){
+              mapper = new JSNES_Mappers_2(this.nes)
+            } else if(this.mapperType === 4){
+              mapper = new JSNES_Mappers_4(this.nes)
+            }
+
+            // var m = new JSNES_Mappers_0(this.nes)
             console.log('mapper type', this.mapperType)
-            return m
+            return mapper
         }
         else {
             console.log("This ROM uses a mapper not supported by JSNES: "+this.getMapperName()+"("+this.mapperType+")");
