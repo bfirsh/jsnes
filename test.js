@@ -8,13 +8,21 @@ var nes = require('./exported_source/JSNES.js')({
   }
 })
 
-var state = JSON.parse(JSON.parse(fs.readFileSync('./runs/test.json').toString('utf-8')).nes_state)
-// state.romData = fs.readFileSync('./local-roms/Super Mario Bros. (JU) (PRG0) [!].nes').toString('utf-8')
-state.romData = fs.readFileSync('./local-roms/Super Mario Bros. (JU) (PRG0) [!].nes').toString('ascii')
+// var state = JSON.parse(JSON.parse(fs.readFileSync('./runs/test.json').toString('utf-8')).nes_state)
+// state.romData =
+// state.romData = fs.readFileSync('./local-roms/Super Mario Bros. (JU) (PRG0) [!].nes').toString('ascii')
+// console.log('rom length', state.romData.length)
 
-nes.fromJSON(state)
+// var romData = fs.readFileSync('./local-roms/Mega Man (U).nes', 'binary').toString('utf-8')
+// var romData = fs.readFileSync('./local-roms/Super Mario Bros. 3 (U) (PRG1) [!].nes', 'binary').toString('utf-8')
+// var romData = fs.readFileSync('./local-roms/Tetris (U) [!].nes', 'binary').toString('utf-8')
+// var romData = fs.readFileSync('./local-roms/Super Mario Bros. (JU) (PRG0) [!].nes', 'binary').toString('utf-8')
+var romData = fs.readFileSync('./local-roms/Mario Bros. (JU) [!].nes', 'binary').toString('utf-8')
+
+
+// nes.fromJSON(state)
 // nes.reset()
-// nes.loadRom(state.romData)
+nes.loadRom(romData)
 
 // nes.reloadRom()
 
@@ -23,7 +31,7 @@ nes.fromJSON(state)
 // process.exit()
 
 var test = []
-for(var i = 0; i < 1000; i++){
+for(var i = 0; i < 48; i++){
   console.log('begin frame')
   nes.frame()
   // nes.keyboard.state1[6] = 0x41

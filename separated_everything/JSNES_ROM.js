@@ -185,12 +185,14 @@ JSNES.ROM.prototype = {
     },
 
     mapperSupported: function() {
-        return typeof JSNES.Mappers[this.mapperType] !== 'undefined';
+      return true
+        // return typeof JSNES.Mappers[this.mapperType] !== 'undefined';
     },
 
     createMapper: function() {
-        if (this.mapperSupported()) {
-            var m = new JSNES.Mappers[this.mapperType](this.nes);
+        if (this.mapperSupported() || true) {
+            // var m = new JSNES.Mappers[this.mapperType](this.nes);
+            var m = new JSNES_Mappers_0(this.nes)
             console.log('mapper type', this.mapperType)
             return m
         }
