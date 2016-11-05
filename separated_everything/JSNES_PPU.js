@@ -72,6 +72,37 @@ JSNES.PPU = function(nes) {
     this.vramMirrorTable = null;
     this.palTable = null;
 
+    this.JSON_PROPERTIES = [
+        // Memory
+        'vramMem', 'spriteMem',
+        // Counters
+        'cntFV', 'cntV', 'cntH', 'cntVT', 'cntHT',
+        // Registers
+        'regFV', 'regV', 'regH', 'regVT', 'regHT', 'regFH', 'regS',
+        // VRAM addr
+        'vramAddress', 'vramTmpAddress',
+        // Control/Status registers
+        'f_nmiOnVblank', 'f_spriteSize', 'f_bgPatternTable', 'f_spPatternTable',
+        'f_addrInc', 'f_nTblAddress', 'f_color', 'f_spVisibility',
+        'f_bgVisibility', 'f_spClipping', 'f_bgClipping', 'f_dispType',
+        // VRAM I/O
+        'vramBufferedReadValue', 'firstWrite',
+        // Mirroring
+        'currentMirroring', 'vramMirrorTable', 'ntable1',
+        // SPR-RAM I/O
+        'sramAddress',
+        // Sprites. Most sprite data is rebuilt from spriteMem
+        'hitSpr0',
+        // Palettes
+        'sprPalette', 'imgPalette',
+        // Rendering progression
+        'curX', 'scanline', 'lastRenderedScanline', 'curNt', 'scantile',
+        // Used during rendering
+        'attrib', 'buffer', 'bgbuffer', 'pixrendered',
+        // Misc
+        'requestEndFrame', 'nmiOk', 'dummyCycleToggle', 'nmiCounter',
+        'validTileData', 'scanlineAlreadyRendered'
+    ]
 
     // Rendering Options:
     this.showSpr0Hit = false;
@@ -1458,37 +1489,6 @@ JSNES.PPU.prototype = {
         this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NMI);
     },
 
-    JSON_PROPERTIES: [
-        // Memory
-        'vramMem', 'spriteMem',
-        // Counters
-        'cntFV', 'cntV', 'cntH', 'cntVT', 'cntHT',
-        // Registers
-        'regFV', 'regV', 'regH', 'regVT', 'regHT', 'regFH', 'regS',
-        // VRAM addr
-        'vramAddress', 'vramTmpAddress',
-        // Control/Status registers
-        'f_nmiOnVblank', 'f_spriteSize', 'f_bgPatternTable', 'f_spPatternTable',
-        'f_addrInc', 'f_nTblAddress', 'f_color', 'f_spVisibility',
-        'f_bgVisibility', 'f_spClipping', 'f_bgClipping', 'f_dispType',
-        // VRAM I/O
-        'vramBufferedReadValue', 'firstWrite',
-        // Mirroring
-        'currentMirroring', 'vramMirrorTable', 'ntable1',
-        // SPR-RAM I/O
-        'sramAddress',
-        // Sprites. Most sprite data is rebuilt from spriteMem
-        'hitSpr0',
-        // Palettes
-        'sprPalette', 'imgPalette',
-        // Rendering progression
-        'curX', 'scanline', 'lastRenderedScanline', 'curNt', 'scantile',
-        // Used during rendering
-        'attrib', 'buffer', 'bgbuffer', 'pixrendered',
-        // Misc
-        'requestEndFrame', 'nmiOk', 'dummyCycleToggle', 'nmiCounter',
-        'validTileData', 'scanlineAlreadyRendered'
-    ],
 
     toJSON: function() {
         var i;
