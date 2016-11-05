@@ -190,10 +190,12 @@ JSNES.ROM.prototype = {
 
     createMapper: function() {
         if (this.mapperSupported()) {
-            return new JSNES.Mappers[this.mapperType](this.nes);
+            var m = new JSNES.Mappers[this.mapperType](this.nes);
+            console.log('mapper type', this.mapperType)
+            return m
         }
         else {
-            this.nes.ui.updateStatus("This ROM uses a mapper not supported by JSNES: "+this.getMapperName()+"("+this.mapperType+")");
+            console.log("This ROM uses a mapper not supported by JSNES: "+this.getMapperName()+"("+this.mapperType+")");
             return null;
         }
     }

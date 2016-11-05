@@ -44,13 +44,18 @@ JSNES.prototype = {
 
     // Resets the system
     reset: function() {
+        console.log('in nes reset')
         if (this.mmap !== null) {
+          console.log('resetting mmap')
             this.mmap.reset();
         }
-
+        console.log('resetting cpu')
         this.cpu.reset();
+        console.log('resetting ppu')
         this.ppu.reset();
+        console.log('resetting papu')
         this.papu.reset();
+        console.log('done resetting')
     },
 
     start: function() {
@@ -178,7 +183,9 @@ JSNES.prototype = {
         if (this.rom.valid) {
             this.reset();
             this.mmap = this.rom.createMapper();
+            console.log('mmap', Object.keys(this.mmap))
             if (!this.mmap) {
+                console.log('returning early')
                 return;
             }
             this.mmap.loadROM();
