@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>JSNES: A JavaScript NES emulator</title>
+</head>
+
+<body>
+    <h1>JSNES</h1>
+    
+    <div id="emulator"></div>
+    
+    <h2>Controls</h2>
+    <table id="controls">
+        <tr>
+            <th>Button</th>
+            <th>Player 1</th>
+            <th>Player 2</th>
+        </tr>
+        <tr>
+            <td>Left</td>
+            <td>Left</td>
+            <td>Num-4</td>
+        <tr>
+            <td>Right</td>
+            <td>Right</td>
+            <td>Num-6</td>
+        </tr>
+        <tr>
+            <td>Up</td>
+            <td>Up</td>
+            <td>Num-8</td>
+        </tr>
+        <tr>
+            <td>Down</td>
+            <td>Down</td>
+            <td>Num-2</td>
+        </tr>
+        <tr>
+            <td>A</td>
+            <td>X</td>
+            <td>Num-7</td>
+        </tr>
+        <tr>
+            <td>B</td>
+            <td>Z/Y</td>
+            <td>Num-9</td>
+        </tr>
+        <tr>
+            <td>Start</td>
+            <td>Enter</td>
+            <td>Num-1</td>
+        </tr>
+        <tr>
+            <td>Select</td>
+            <td>Ctrl</td>
+            <td>Num-3</td>
+        </tr>
+    </table>
+
+    <script src="lib/jquery-1.4.2.min.js" type="text/javascript" charset="utf-8"></script>
+    <script src="lib/dynamicaudio-min.js" type="text/javascript" charset="utf-8"></script>
+    <script src="source/nes.js" type="text/javascript" charset="utf-8"></script>
+    <script src="source/utils.js" type="text/javascript" charset="utf-8"></script>
+    <script src="source/cpu.js" type="text/javascript" charset="utf-8"></script>
+    <script src="source/keyboard.js" type="text/javascript" charset="utf-8"></script>
+    <script src="source/mappers.js" type="text/javascript" charset="utf-8"></script>
+    <script src="source/papu.js" type="text/javascript" charset="utf-8"></script>
+    <script src="source/ppu.js" type="text/javascript" charset="utf-8"></script>
+    <script src="source/rom.js" type="text/javascript" charset="utf-8"></script>
+    <script src="source/ui.js" type="text/javascript" charset="utf-8"></script>
+    <script type="text/javascript" charset="utf-8">
+        var nes;
+        $(function() {
+            nes = new JSNES({
+                'ui': $('#emulator').JSNESUI({
+                    "Homebrew": [
+                        ['Concentration Room', 'roms/croom/croom.nes'],
+                        ['LJ65', 'roms/lj65/lj65.nes'],
+                    ],
+                    "Working": [
+                        ['Bubble Bobble', 'local-roms/Bubble Bobble (U).nes'],
+                        
+                        ['Contra', 'local-roms/Contra (U) [!].nes'],
+                        ['Donkey Kong', 'local-roms/Donkey Kong (JU).nes'],
+                        ['Dr. Mario', 'local-roms/Dr. Mario (JU).nes'],
+                        ['Golf', 'local-roms/Golf (JU).nes'],
+                        ['The Legend of Zelda', 'local-roms/Legend of Zelda, The (U) (PRG1).nes'],
+                        ['Lemmings', 'local-roms/Lemmings (U).nes'],
+                        ['Lifeforce', 'local-roms/Lifeforce (U).nes'],
+                        
+                        ['Mario Bros.', 'local-roms/Mario Bros. (JU) [!].nes'],
+                        ['Mega Man', 'local-roms/Mega Man (U).nes'],
+                        ['Pac-Man', 'local-roms/Pac-Man (U) [!].nes'],
+                        ['Super Mario Bros.', 'local-roms/Super Mario Bros. (JU) (PRG0) [!].nes'],
+                        ['Tennis', 'local-roms/Tennis (JU) [!].nes'],
+                        ['Tetris', 'local-roms/Tetris (U) [!].nes'],
+                        ['Tetris 2', 'local-roms/Tetris 2 (U) [!].nes'],
+                        ['Zelda II - The Adventure of Link', 'local-roms/Zelda II - The Adventure of Link (U).nes']
+                    ],
+
+                    "Nearly Working": [
+                        ['Duck Hunt', 'local-roms/Duck Hunt (JUE) [!].nes'],
+                        ['Super Mario Bros. 3', 'local-roms/Super Mario Bros. 3 (U) (PRG1) [!].nes']
+                    ]
+                })
+            });
+        });
+    </script>
+    <!--[if IE]>
+        <script type="text/vbscript" src="source/jsnes-ie-hacks.vbscript"></script>
+    <![endif]-->
+
+</body>
+</html>
