@@ -18,11 +18,14 @@ var file_names = [
   'JSNES_PPU_PaletteTable.js',
   'JSNES_PPU_Tile.js',
   'JSNES_PPU.js',
+  'JSNES_Utils.js',
   'JSNES_ROM.js',
-  'JSNES.js',
+  'JSNES.js'
 ]
 
 var token_remapper = [
+  ['JSNES.Utils', 'JSNES_Utils'],
+  ['JSNES.Mappers', 'JSNES_Mappers'],
   ['JSNES.CPU.OpData', 'JSNES_CPU_OpData'],
   ['JSNES_CPU.OpData', 'JSNES_CPU_OpData'],
   ['JSNES.Keyboard', 'JSNES_Keyboard'],
@@ -134,8 +137,19 @@ function convert(file_name){
     new_lines.push('module.exports = ' + classname.replace('.', '_').replace('.', '_').replace('.', '_'))
   }
 
+  if(file_name === 'JSNES_ROM.js'){
+    console.log('\t\t\t sup')
+    // write in the mappers lines
+    var mappers_lines = fs.readFileSync(input_directory + 'mappers.js').toString().split('\n')
+    new_lines = new_lines.concat(mappers_lines)
+  }
+
+
   // require() all the other files that aren't this file
   file_names.forEach(function(_filename){
+    if(_filename === 'JSNES.js'){
+      return
+    }
     if(_filename !== file_name){
       // console.log(['var ', _filename.split('.')[0], ' = require(\'./', _filename, '\')'].join(''))
       new_lines.push(['var ', _filename.split('.')[0], ' = require(\'./', _filename, '\')'].join(''))
@@ -230,10 +244,10 @@ function convert(file_name){
       if(rewritten_line.indexOf('JSNES') !== -1){
         token_remapper.forEach(function(t){
           if(rewritten_line.indexOf(t[0]) !== -1){
-            console.log('second hit', rewritten_line)
+            // console.log('second hit', rewritten_line)
             // console.log(l.trim(), l.replace(t[0], t[1]).trim())
             rewritten_line = rewritten_line.replace(t[0], t[1])
-            console.log('second hit', rewritten_line)
+            // console.log('second hit', rewritten_line)
             // return
           }
         })
