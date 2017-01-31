@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# at least see if it builds
+docker-compose run ci grunt

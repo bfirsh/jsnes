@@ -9,3 +9,6 @@ build:
   command: /bin/true
   volumes:
    - ./:/code
+ci:
+  build: .
+  command: /bin/true
