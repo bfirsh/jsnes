@@ -1,0 +1,5 @@
+sudo: required
+services:
+- docker
+script:
+- script/ci
