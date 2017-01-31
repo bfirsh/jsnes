@@ -191,7 +191,7 @@ JSNES.PAPU.prototype = {
         if (address >= 0x4000 && address < 0x4004) {
             // Square Wave 1 Control
             this.square1.writeReg(address, value);
-            ////System.out.println("Square Write");
+            // console.log("Square Write");
         }
         else if (address >= 0x4004 && address < 0x4008) {
             // Square 2 Control

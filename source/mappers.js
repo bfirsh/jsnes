@@ -264,7 +264,7 @@ JSNES.Mappers[0].prototype = {
             
             default:
                 // Sound registers
-                ////System.out.println("write to sound reg");
+                // console.log("write to sound reg");
                 if (address >= 0x4000 && address <= 0x4017) {
                     this.nes.papu.writeReg(address,value);
                 }
@@ -390,7 +390,7 @@ JSNES.Mappers[0].prototype = {
     },
 
     loadCHRROM: function() {
-        ////System.out.println("Loading CHR ROM..");
+        // console.log("Loading CHR ROM..");
         if (this.nes.rom.vromCount > 0) {
             if (this.nes.rom.vromCount == 1) {
                 this.loadVromBank(0,0x0000);
