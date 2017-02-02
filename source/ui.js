@@ -171,9 +171,16 @@ if (typeof jQuery !== 'undefined') {
                 /*
                  * Sound
                  */
-                self.dynamicaudio = new DynamicAudio({
-                    swf: nes.opts.swfPath+'dynamicaudio.swf'
-                });
+                // Workaround prefixed naming used in Safary 8-9
+                window.AudioContext = window.AudioContext || window.webkitAudioContext;
+                try {
+                    self.audio = new AudioContext();
+                } catch(e) {
+                    // lets fallback to Flash (for Internet Explorer 8-11)
+                    self.dynamicaudio = new DynamicAudio({
+                        swf: nes.opts.swfPath+'dynamicaudio.swf'
+                    });
+                }
             };
         
             UI.prototype = {    
@@ -276,9 +283,39 @@ if (typeof jQuery !== 'undefined') {
                 },
             
                 writeAudio: function(samples) {
-                    return this.dynamicaudio.writeInt(samples);
+                    // Use fallback if available and return early
+                    if (this.dynamicaudio) {
+                        return this.dynamicaudio.writeInt(samples);
+                    }
+
+                    // Create output buffer (planar buffer format)
+                    var buffer = this.audio.createBuffer(2, samples.length, this.audio.sampleRate);
+                    var channelLeft = buffer.getChannelData(0);
+                    var channelRight = buffer.getChannelData(1);
+
+                    // Convert from interleaved buffer format to planar buffer
+                    // by writing right into appropriate channel buffers
+                    var j = 0;
+                    for (var i=0; i < samples.length; i+=2) {
+                        channelLeft[j] = this.intToFloatSample(samples[i]);
+                        channelRight[j] = this.intToFloatSample(samples[i+1]);
+                        j++;
+                    }
+
+                    // Create sound source and play it
+                    var source = this.audio.createBufferSource();
+                    source.buffer = buffer;
+                    source.connect(this.audio.destination); // Output to sound card
+                    source.start();
                 },
-            
+
+                // Local helper function to convert Int output to Float
+                // TODO: remove intToFloat and revise papu.js -> sample()
+                //       to return AudioBuffer/Float32Array output used in HTML5 WebAudio API
+                intToFloatSample: function(value) {
+                    return value / 32767; // from -32767..32768 to -1..1 range
+                },
+
                 writeFrame: function(buffer, prevBuffer) {
                     var imageData = this.canvasImageData.data;
                     var pixel, i, j;
