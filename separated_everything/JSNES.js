@@ -1,22 +1,5 @@
-/*
-JSNES, based on Jamie Sanders' vNES
-Copyright (C) 2010 Ben Firshman
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
 var JSNES = function(opts) {
+    if (!(this instanceof JSNES)) return new JSNES(opts)
     this.opts = {
         ui: JSNES.DummyUI,
         swfPath: 'lib/',
@@ -42,14 +25,14 @@ var JSNES = function(opts) {
 
     this.frameTime = 1000 / this.opts.preferredFrameRate;
 
-    this.ui = new this.opts.ui(this);
+    // this.ui = new this.opts.ui(this);
     this.cpu = new JSNES.CPU(this);
     this.ppu = new JSNES.PPU(this);
     this.papu = new JSNES.PAPU(this);
     this.mmap = null; // set in loadRom()
     this.keyboard = new JSNES.Keyboard();
 
-    this.ui.updateStatus("Ready to load a ROM.");
+    // console.log("Ready to load a ROM.");
 };
 
 JSNES.VERSION = "<%= version %>";
@@ -61,13 +44,18 @@ JSNES.prototype = {
 
     // Resets the system
     reset: function() {
+        console.log('in nes reset')
         if (this.mmap !== null) {
+          console.log('resetting mmap')
             this.mmap.reset();
         }
-
+        console.log('resetting cpu')
         this.cpu.reset();
+        console.log('resetting ppu')
         this.ppu.reset();
+        console.log('resetting papu')
         this.papu.reset();
+        console.log('done resetting')
     },
 
     start: function() {
@@ -88,7 +76,8 @@ JSNES.prototype = {
             }
         }
         else {
-            this.ui.updateStatus("There is no ROM loaded, or it is invalid.");
+
+            console.log("There is no ROM loaded, or it is invalid.");
         }
     },
 
@@ -161,7 +150,7 @@ JSNES.prototype = {
                 this.fpsFrameCount / ((now - this.lastFpsTime) / 1000)
             ).toFixed(2)+' FPS';
         }
-        this.ui.updateStatus(s);
+        console.log(s);
         this.fpsFrameCount = 0;
         this.lastFpsTime = now;
     },
@@ -185,7 +174,7 @@ JSNES.prototype = {
             this.stop();
         }
 
-        this.ui.updateStatus("Loading ROM...");
+        console.log("Loading ROM...");
 
         // Load ROM file:
         this.rom = new JSNES.ROM(this);
@@ -194,17 +183,19 @@ JSNES.prototype = {
         if (this.rom.valid) {
             this.reset();
             this.mmap = this.rom.createMapper();
+            console.log('mmap', Object.keys(this.mmap))
             if (!this.mmap) {
+                console.log('returning early')
                 return;
             }
             this.mmap.loadROM();
             this.ppu.setMirroring(this.rom.getMirroringType());
             this.romData = data;
 
-            this.ui.updateStatus("Successfully loaded. Ready to be started.");
+            console.log("Successfully loaded. Ready to be started.");
         }
         else {
-            this.ui.updateStatus("Invalid ROM!");
+            console.log("Invalid ROM!");
         }
         return this.rom.valid;
     },
