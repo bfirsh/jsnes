@@ -1,11 +1,11 @@
-JSNES.PAPU = function(nes) {
+var PAPU = function(nes) {
   this.nes = nes;
 
-  this.square1 = new JSNES.PAPU.ChannelSquare(this, true);
-  this.square2 = new JSNES.PAPU.ChannelSquare(this, false);
-  this.triangle = new JSNES.PAPU.ChannelTriangle(this);
-  this.noise = new JSNES.PAPU.ChannelNoise(this);
-  this.dmc = new JSNES.PAPU.ChannelDM(this);
+  this.square1 = new ChannelSquare(this, true);
+  this.square2 = new ChannelSquare(this, false);
+  this.triangle = new ChannelTriangle(this);
+  this.noise = new ChannelNoise(this);
+  this.dmc = new ChannelDM(this);
 
   this.frameIrqCounter = null;
   this.frameIrqCounterMax = 4;
@@ -97,7 +97,7 @@ JSNES.PAPU = function(nes) {
   this.reset();
 };
 
-JSNES.PAPU.prototype = {
+PAPU.prototype = {
   reset: function() {
     this.sampleRate = this.nes.opts.sampleRate;
     this.sampleTimerMax = Math.floor(
@@ -729,7 +729,7 @@ JSNES.PAPU.prototype = {
   }
 };
 
-JSNES.PAPU.ChannelDM = function(papu) {
+var ChannelDM = function(papu) {
   this.papu = papu;
 
   this.MODE_NORMAL = 0;
@@ -758,7 +758,7 @@ JSNES.PAPU.ChannelDM = function(papu) {
   this.reset();
 };
 
-JSNES.PAPU.ChannelDM.prototype = {
+ChannelDM.prototype = {
   clockDmc: function() {
     // Only alter DAC value if the sample buffer has data:
     if (this.hasSample) {
@@ -909,7 +909,7 @@ JSNES.PAPU.ChannelDM.prototype = {
   }
 };
 
-JSNES.PAPU.ChannelNoise = function(papu) {
+var ChannelNoise = function(papu) {
   this.papu = papu;
 
   this.isEnabled = null;
@@ -937,7 +937,7 @@ JSNES.PAPU.ChannelNoise = function(papu) {
   this.reset();
 };
 
-JSNES.PAPU.ChannelNoise.prototype = {
+ChannelNoise.prototype = {
   reset: function() {
     this.progTimerCount = 0;
     this.progTimerMax = 0;
@@ -1030,7 +1030,7 @@ JSNES.PAPU.ChannelNoise.prototype = {
   }
 };
 
-JSNES.PAPU.ChannelSquare = function(papu, square1) {
+var ChannelSquare = function(papu, square1) {
   this.papu = papu;
 
   // prettier-ignore
@@ -1078,7 +1078,7 @@ JSNES.PAPU.ChannelSquare = function(papu, square1) {
   this.reset();
 };
 
-JSNES.PAPU.ChannelSquare.prototype = {
+ChannelSquare.prototype = {
   reset: function() {
     this.progTimerCount = 0;
     this.progTimerMax = 0;
@@ -1231,7 +1231,7 @@ JSNES.PAPU.ChannelSquare.prototype = {
   }
 };
 
-JSNES.PAPU.ChannelTriangle = function(papu) {
+var ChannelTriangle = function(papu) {
   this.papu = papu;
 
   this.isEnabled = null;
@@ -1252,7 +1252,7 @@ JSNES.PAPU.ChannelTriangle = function(papu) {
   this.reset();
 };
 
-JSNES.PAPU.ChannelTriangle.prototype = {
+ChannelTriangle.prototype = {
   reset: function() {
     this.progTimerCount = 0;
     this.progTimerMax = 0;
@@ -1362,3 +1362,5 @@ JSNES.PAPU.ChannelTriangle.prototype = {
       this.lengthCounter > 0;
   }
 };
+
+module.exports = PAPU;

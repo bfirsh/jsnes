@@ -1,5 +1,3 @@
-sudo: required
-services:
-- docker
-script:
-- script/ci
+language: node_js
+node_js:
+- "7"

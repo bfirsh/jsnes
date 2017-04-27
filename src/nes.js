@@ -1,7 +1,14 @@
-var JSNES = function(opts) {
+var CPU = require("./cpu");
+var Keyboard = require("./keyboard");
+var PPU = require("./ppu");
+var PAPU = require("./papu");
+var ROM = require("./rom");
+
+var NES = function(opts) {
   this.opts = {
-    ui: JSNES.DummyUI,
-    swfPath: "lib/",
+    onWriteFrame: function() {},
+    onWriteAudio: function() {},
+    onUpdateStatus: function() {},
 
     preferredFrameRate: 60,
     fpsInterval: 500, // Time between updating FPS in ms
@@ -24,19 +31,21 @@ var JSNES = function(opts) {
 
   this.frameTime = 1000 / this.opts.preferredFrameRate;
 
-  this.ui = new this.opts.ui(this);
-  this.cpu = new JSNES.CPU(this);
-  this.ppu = new JSNES.PPU(this);
-  this.papu = new JSNES.PAPU(this);
+  this.ui = {
+    writeFrame: this.opts.onWriteFrame,
+    writeAudio: this.opts.onWriteAudio,
+    updateStatus: this.opts.onUpdateStatus,
+  };
+  this.cpu = new CPU(this);
+  this.ppu = new PPU(this);
+  this.papu = new PAPU(this);
   this.mmap = null; // set in loadRom()
-  this.keyboard = new JSNES.Keyboard();
+  this.keyboard = new Keyboard();
 
   this.ui.updateStatus("Ready to load a ROM.");
 };
 
-JSNES.VERSION = "<%= version %>";
-
-JSNES.prototype = {
+NES.prototype = {
   isRunning: false,
   fpsFrameCount: 0,
   romData: null,
@@ -169,7 +178,7 @@ JSNES.prototype = {
     this.ui.updateStatus("Loading ROM...");
 
     // Load ROM file:
-    this.rom = new JSNES.ROM(this);
+    this.rom = new ROM(this);
     this.rom.load(data);
 
     if (this.rom.valid) {
@@ -216,3 +225,5 @@ JSNES.prototype = {
     this.ppu.fromJSON(s.ppu);
   }
 };
+
+module.exports = NES;

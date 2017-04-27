@@ -1,4 +1,7 @@
-JSNES.PPU = function(nes) {
+var Tile = require('./tile');
+var utils = require('./utils');
+
+var PPU = function(nes) {
   this.nes = nes;
 
   // Keep Chrome happy
@@ -77,7 +80,7 @@ JSNES.PPU = function(nes) {
   this.reset();
 };
 
-JSNES.PPU.prototype = {
+PPU.prototype = {
   // Status flags:
   STATUS_VRAMWRITE: 4,
   STATUS_SLSPRITECOUNT: 5,
@@ -185,7 +188,7 @@ JSNES.PPU.prototype = {
     // Create pattern table tile buffers:
     this.ptTile = new Array(512);
     for (i = 0; i < 512; i++) {
-      this.ptTile[i] = new JSNES.PPU.Tile();
+      this.ptTile[i] = new Tile();
     }
 
     // Create nametable buffers:
@@ -194,7 +197,7 @@ JSNES.PPU.prototype = {
     this.currentMirroring = -1;
     this.nameTable = new Array(4);
     for (i = 0; i < 4; i++) {
-      this.nameTable[i] = new JSNES.PPU.NameTable(32, 32, "Nt" + i);
+      this.nameTable[i] = new NameTable(32, 32, "Nt" + i);
     }
 
     // Initialize mirroring lookup table:
@@ -203,7 +206,7 @@ JSNES.PPU.prototype = {
       this.vramMirrorTable[i] = i;
     }
 
-    this.palTable = new JSNES.PPU.PaletteTable();
+    this.palTable = new PaletteTable();
     this.palTable.loadNTSCPalette();
     //this.palTable.loadDefaultPalette();
 
@@ -1498,7 +1501,7 @@ JSNES.PPU.prototype = {
 
   toJSON: function() {
     var i;
-    var state = JSNES.Utils.toJSON(this);
+    var state = utils.toJSON(this);
 
     state.nameTable = [];
     for (i = 0; i < this.nameTable.length; i++) {
@@ -1516,7 +1519,7 @@ JSNES.PPU.prototype = {
   fromJSON: function(state) {
     var i;
 
-    JSNES.Utils.fromJSON(this, state);
+    utils.fromJSON(this, state);
 
     for (i = 0; i < this.nameTable.length; i++) {
       this.nameTable[i].fromJSON(state.nameTable[i]);
@@ -1533,7 +1536,7 @@ JSNES.PPU.prototype = {
   }
 };
 
-JSNES.PPU.NameTable = function(width, height, name) {
+var NameTable = function(width, height, name) {
   this.width = width;
   this.height = height;
   this.name = name;
@@ -1546,7 +1549,7 @@ JSNES.PPU.NameTable = function(width, height, name) {
   }
 };
 
-JSNES.PPU.NameTable.prototype = {
+NameTable.prototype = {
   getTileIndex: function(x, y) {
     return this.tile[y * this.width + x];
   },
@@ -1590,13 +1593,13 @@ JSNES.PPU.NameTable.prototype = {
   }
 };
 
-JSNES.PPU.PaletteTable = function() {
+var PaletteTable = function() {
   this.curTable = new Array(64);
   this.emphTable = new Array(8);
   this.currentEmph = -1;
 };
 
-JSNES.PPU.PaletteTable.prototype = {
+PaletteTable.prototype = {
   reset: function() {
     this.setEmphasis(0);
   },
@@ -1751,199 +1754,4 @@ JSNES.PPU.PaletteTable.prototype = {
   }
 };
 
-JSNES.PPU.Tile = function() {
-  // Tile data:
-  this.pix = new Array(64);
-
-  this.fbIndex = null;
-  this.tIndex = null;
-  this.x = null;
-  this.y = null;
-  this.w = null;
-  this.h = null;
-  this.incX = null;
-  this.incY = null;
-  this.palIndex = null;
-  this.tpri = null;
-  this.c = null;
-  this.initialized = false;
-  this.opaque = new Array(8);
-};
-
-JSNES.PPU.Tile.prototype = {
-  setBuffer: function(scanline) {
-    for (this.y = 0; this.y < 8; this.y++) {
-      this.setScanline(this.y, scanline[this.y], scanline[this.y + 8]);
-    }
-  },
-
-  setScanline: function(sline, b1, b2) {
-    this.initialized = true;
-    this.tIndex = sline << 3;
-    for (this.x = 0; this.x < 8; this.x++) {
-      this.pix[this.tIndex + this.x] =
-        ((b1 >> (7 - this.x)) & 1) + (((b2 >> (7 - this.x)) & 1) << 1);
-      if (this.pix[this.tIndex + this.x] === 0) {
-        this.opaque[sline] = false;
-      }
-    }
-  },
-
-  render: function(
-    buffer,
-    srcx1,
-    srcy1,
-    srcx2,
-    srcy2,
-    dx,
-    dy,
-    palAdd,
-    palette,
-    flipHorizontal,
-    flipVertical,
-    pri,
-    priTable
-  ) {
-    if (dx < -7 || dx >= 256 || dy < -7 || dy >= 240) {
-      return;
-    }
-
-    this.w = srcx2 - srcx1;
-    this.h = srcy2 - srcy1;
-
-    if (dx < 0) {
-      srcx1 -= dx;
-    }
-    if (dx + srcx2 >= 256) {
-      srcx2 = 256 - dx;
-    }
-
-    if (dy < 0) {
-      srcy1 -= dy;
-    }
-    if (dy + srcy2 >= 240) {
-      srcy2 = 240 - dy;
-    }
-
-    if (!flipHorizontal && !flipVertical) {
-      this.fbIndex = (dy << 8) + dx;
-      this.tIndex = 0;
-      for (this.y = 0; this.y < 8; this.y++) {
-        for (this.x = 0; this.x < 8; this.x++) {
-          if (
-            this.x >= srcx1 &&
-            this.x < srcx2 &&
-            this.y >= srcy1 &&
-            this.y < srcy2
-          ) {
-            this.palIndex = this.pix[this.tIndex];
-            this.tpri = priTable[this.fbIndex];
-            if (this.palIndex !== 0 && pri <= (this.tpri & 0xff)) {
-              //console.log("Rendering upright tile to buffer");
-              buffer[this.fbIndex] = palette[this.palIndex + palAdd];
-              this.tpri = (this.tpri & 0xf00) | pri;
-              priTable[this.fbIndex] = this.tpri;
-            }
-          }
-          this.fbIndex++;
-          this.tIndex++;
-        }
-        this.fbIndex -= 8;
-        this.fbIndex += 256;
-      }
-    } else if (flipHorizontal && !flipVertical) {
-      this.fbIndex = (dy << 8) + dx;
-      this.tIndex = 7;
-      for (this.y = 0; this.y < 8; this.y++) {
-        for (this.x = 0; this.x < 8; this.x++) {
-          if (
-            this.x >= srcx1 &&
-            this.x < srcx2 &&
-            this.y >= srcy1 &&
-            this.y < srcy2
-          ) {
-            this.palIndex = this.pix[this.tIndex];
-            this.tpri = priTable[this.fbIndex];
-            if (this.palIndex !== 0 && pri <= (this.tpri & 0xff)) {
-              buffer[this.fbIndex] = palette[this.palIndex + palAdd];
-              this.tpri = (this.tpri & 0xf00) | pri;
-              priTable[this.fbIndex] = this.tpri;
-            }
-          }
-          this.fbIndex++;
-          this.tIndex--;
-        }
-        this.fbIndex -= 8;
-        this.fbIndex += 256;
-        this.tIndex += 16;
-      }
-    } else if (flipVertical && !flipHorizontal) {
-      this.fbIndex = (dy << 8) + dx;
-      this.tIndex = 56;
-      for (this.y = 0; this.y < 8; this.y++) {
-        for (this.x = 0; this.x < 8; this.x++) {
-          if (
-            this.x >= srcx1 &&
-            this.x < srcx2 &&
-            this.y >= srcy1 &&
-            this.y < srcy2
-          ) {
-            this.palIndex = this.pix[this.tIndex];
-            this.tpri = priTable[this.fbIndex];
-            if (this.palIndex !== 0 && pri <= (this.tpri & 0xff)) {
-              buffer[this.fbIndex] = palette[this.palIndex + palAdd];
-              this.tpri = (this.tpri & 0xf00) | pri;
-              priTable[this.fbIndex] = this.tpri;
-            }
-          }
-          this.fbIndex++;
-          this.tIndex++;
-        }
-        this.fbIndex -= 8;
-        this.fbIndex += 256;
-        this.tIndex -= 16;
-      }
-    } else {
-      this.fbIndex = (dy << 8) + dx;
-      this.tIndex = 63;
-      for (this.y = 0; this.y < 8; this.y++) {
-        for (this.x = 0; this.x < 8; this.x++) {
-          if (
-            this.x >= srcx1 &&
-            this.x < srcx2 &&
-            this.y >= srcy1 &&
-            this.y < srcy2
-          ) {
-            this.palIndex = this.pix[this.tIndex];
-            this.tpri = priTable[this.fbIndex];
-            if (this.palIndex !== 0 && pri <= (this.tpri & 0xff)) {
-              buffer[this.fbIndex] = palette[this.palIndex + palAdd];
-              this.tpri = (this.tpri & 0xf00) | pri;
-              priTable[this.fbIndex] = this.tpri;
-            }
-          }
-          this.fbIndex++;
-          this.tIndex--;
-        }
-        this.fbIndex -= 8;
-        this.fbIndex += 256;
-      }
-    }
-  },
-
-  isTransparent: function(x, y) {
-    return this.pix[(y << 3) + x] === 0;
-  },
-
-  toJSON: function() {
-    return {
-      opaque: this.opaque,
-      pix: this.pix
-    };
-  },
-
-  fromJSON: function(s) {
-    this.opaque = s.opaque;
-    this.pix = s.pix;
-  }
-};
+module.exports = PPU;

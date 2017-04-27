@@ -1,4 +1,6 @@
-JSNES.CPU = function(nes) {
+var utils = require('./utils');
+
+var CPU = function(nes) {
   this.nes = nes;
 
   // Keep Chrome happy
@@ -30,7 +32,7 @@ JSNES.CPU = function(nes) {
   this.reset();
 };
 
-JSNES.CPU.prototype = {
+CPU.prototype = {
   // IRQ Types
   IRQ_NORMAL: 0,
   IRQ_NMI: 1,
@@ -82,7 +84,7 @@ JSNES.CPU.prototype = {
     this.F_BRK = 1;
     this.F_BRK_NEW = 1;
 
-    this.opdata = new JSNES.CPU.OpData().opdata;
+    this.opdata = new OpData().opdata;
     this.cyclesToHalt = 0;
 
     // Reset crash flag:
@@ -1170,16 +1172,16 @@ JSNES.CPU.prototype = {
   ],
 
   toJSON: function() {
-    return JSNES.Utils.toJSON(this);
+    return utils.toJSON(this);
   },
 
   fromJSON: function(s) {
-    JSNES.Utils.fromJSON(this, s);
+    utils.fromJSON(this, s);
   }
 };
 
 // Generates and provides an array of details about instructions
-JSNES.CPU.OpData = function() {
+var OpData = function() {
   this.opdata = new Array(256);
 
   // Set all to invalid instruction (to detect crashes):
@@ -1547,7 +1549,7 @@ JSNES.CPU.OpData = function() {
   );
 };
 
-JSNES.CPU.OpData.prototype = {
+OpData.prototype = {
   INS_ADC: 0,
   INS_AND: 1,
   INS_ASL: 2,
@@ -1645,3 +1647,5 @@ JSNES.CPU.OpData.prototype = {
       ((cycles & 0xff) << 24);
   }
 };
+
+module.exports = CPU;

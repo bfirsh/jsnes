@@ -1,5 +1,5 @@
 // Keyboard events are bound in the UI
-JSNES.Keyboard = function() {
+var Keyboard = function() {
   var i;
 
   this.keys = {
@@ -23,7 +23,7 @@ JSNES.Keyboard = function() {
   }
 };
 
-JSNES.Keyboard.prototype = {
+Keyboard.prototype = {
   setKey: function(key, value) {
     switch (key) {
       // X
@@ -117,3 +117,5 @@ JSNES.Keyboard.prototype = {
     evt.preventDefault();
   }
 };
+
+module.exports = Keyboard;
