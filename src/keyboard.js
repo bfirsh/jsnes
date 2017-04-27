@@ -19,7 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // Keyboard events are bound in the UI
 JSNES.Keyboard = function() {
     var i;
-    
+
     this.keys = {
         KEY_A: 0,
         KEY_B: 1,
@@ -72,13 +72,13 @@ JSNES.Keyboard.prototype = {
             evt.preventDefault();
         }
     },
-    
+
     keyUp: function(evt) {
         if (!this.setKey(evt.keyCode, 0x40) && evt.preventDefault) {
             evt.preventDefault();
         }
     },
-    
+
     keyPress: function(evt) {
         evt.preventDefault();
     }

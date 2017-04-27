@@ -20,14 +20,14 @@ var JSNES = function(opts) {
     this.opts = {
         ui: JSNES.DummyUI,
         swfPath: 'lib/',
-        
+
         preferredFrameRate: 60,
         fpsInterval: 500, // Time between updating FPS in ms
         showDisplay: true,
 
         emulateSound: true,
         sampleRate: 44100, // Sound sample rate in hz
-        
+
         CPU_FREQ_NTSC: 1789772.5, //1789772.72727272d;
         CPU_FREQ_PAL: 1773447.4
     };
@@ -39,16 +39,16 @@ var JSNES = function(opts) {
             }
         }
     }
-    
+
     this.frameTime = 1000 / this.opts.preferredFrameRate;
-    
+
     this.ui = new this.opts.ui(this);
     this.cpu = new JSNES.CPU(this);
     this.ppu = new JSNES.PPU(this);
     this.papu = new JSNES.PAPU(this);
     this.mmap = null; // set in loadRom()
     this.keyboard = new JSNES.Keyboard();
-    
+
     this.ui.updateStatus("Ready to load a ROM.");
 };
 
@@ -58,25 +58,25 @@ JSNES.prototype = {
     isRunning: false,
     fpsFrameCount: 0,
     romData: null,
-    
+
     // Resets the system
     reset: function() {
         if (this.mmap !== null) {
             this.mmap.reset();
         }
-        
+
         this.cpu.reset();
         this.ppu.reset();
         this.papu.reset();
     },
-    
+
     start: function() {
         var self = this;
-        
+
         if (this.rom !== null && this.rom.valid) {
             if (!this.isRunning) {
                 this.isRunning = true;
-                
+
                 this.frameInterval = setInterval(function() {
                     self.frame();
                 }, this.frameTime);
@@ -91,7 +91,7 @@ JSNES.prototype = {
             this.ui.updateStatus("There is no ROM loaded, or it is invalid.");
         }
     },
-    
+
     frame: function() {
         this.ppu.startFrame();
         var cycles = 0;
@@ -124,7 +124,7 @@ JSNES.prototype = {
                     cpu.cyclesToHalt = 0;
                 }
             }
-            
+
             for (; cycles > 0; cycles--) {
                 if(ppu.curX === ppu.spr0HitX &&
                         ppu.f_spVisibility === 1 &&
@@ -151,7 +151,7 @@ JSNES.prototype = {
         }
         this.fpsFrameCount++;
     },
-    
+
     printFps: function() {
         var now = +new Date();
         var s = 'Running';
@@ -164,32 +164,32 @@ JSNES.prototype = {
         this.fpsFrameCount = 0;
         this.lastFpsTime = now;
     },
-    
+
     stop: function() {
         clearInterval(this.frameInterval);
         clearInterval(this.fpsInterval);
         this.isRunning = false;
     },
-    
+
     reloadRom: function() {
         if (this.romData !== null) {
             this.loadRom(this.romData);
         }
     },
-    
+
     // Loads a ROM file into the CPU and PPU.
     // The ROM file is validated first.
     loadRom: function(data) {
         if (this.isRunning) {
             this.stop();
         }
-        
+
         this.ui.updateStatus("Loading ROM...");
-        
+
         // Load ROM file:
         this.rom = new JSNES.ROM(this);
         this.rom.load(data);
-        
+
         if (this.rom.valid) {
             this.reset();
             this.mmap = this.rom.createMapper();
@@ -199,7 +199,7 @@ JSNES.prototype = {
             this.mmap.loadROM();
             this.ppu.setMirroring(this.rom.getMirroringType());
             this.romData = data;
-            
+
             this.ui.updateStatus("Successfully loaded. Ready to be started.");
         }
         else {
@@ -207,18 +207,18 @@ JSNES.prototype = {
         }
         return this.rom.valid;
     },
-    
+
     resetFps: function() {
         this.lastFpsTime = null;
         this.fpsFrameCount = 0;
     },
-    
+
     setFramerate: function(rate){
         this.opts.preferredFrameRate = rate;
         this.frameTime = 1000 / rate;
         this.papu.setSampleRate(this.opts.sampleRate, false);
     },
-    
+
     toJSON: function() {
         return {
             'romData': this.romData,
@@ -227,7 +227,7 @@ JSNES.prototype = {
             'ppu': this.ppu.toJSON()
         };
     },
-    
+
     fromJSON: function(s) {
         this.loadRom(s.romData);
         this.cpu.fromJSON(s.cpu);

@@ -18,9 +18,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 JSNES.ROM = function(nes) {
     this.nes = nes;
-    
+
     this.mapperName = new Array(92);
-    
+
     for (var i=0;i<92;i++) {
         this.mapperName[i] = "Unknown Mapper";
     }
@@ -51,7 +51,7 @@ JSNES.ROM = function(nes) {
     this.mapperName[32] = "Irem G-101 chip";
     this.mapperName[33] = "Taito TC0190/TC0350";
     this.mapperName[34] = "32kB ROM switch";
-    
+
     this.mapperName[64] = "Tengen RAMBO-1 chip";
     this.mapperName[65] = "Irem H-3001 chip";
     this.mapperName[66] = "GNROM switch";
@@ -73,12 +73,12 @@ JSNES.ROM.prototype = {
     SINGLESCREEN_MIRRORING3: 5,
     SINGLESCREEN_MIRRORING4: 6,
     CHRROM_MIRRORING: 7,
-    
+
     header: null,
     rom: null,
     vrom: null,
     vromTile: null,
-    
+
     romCount: null,
     vromCount: null,
     mirroring: null,
@@ -87,10 +87,10 @@ JSNES.ROM.prototype = {
     fourScreen: null,
     mapperType: null,
     valid: false,
-    
+
     load: function(data) {
         var i, j, v;
-        
+
         if (data.indexOf("NES\x1a") === -1) {
             this.nes.ui.updateStatus("Not a valid NES ROM.");
             return;
@@ -145,7 +145,7 @@ JSNES.ROM.prototype = {
             }
             offset += 4096;
         }
-        
+
         // Create VROM tiles:
         this.vromTile = new Array(this.vromCount);
         for (i=0; i < this.vromCount; i++) {
@@ -154,7 +154,7 @@ JSNES.ROM.prototype = {
                 this.vromTile[i][j] = new JSNES.PPU.Tile();
             }
         }
-        
+
         // Convert CHR-ROM banks to tiles:
         var tileIndex;
         var leftOver;
@@ -178,10 +178,10 @@ JSNES.ROM.prototype = {
                 }
             }
         }
-        
+
         this.valid = true;
     },
-    
+
     getMirroringType: function() {
         if (this.fourScreen) {
             return this.FOURSCREEN_MIRRORING;
@@ -191,18 +191,18 @@ JSNES.ROM.prototype = {
         }
         return this.VERTICAL_MIRRORING;
     },
-    
+
     getMapperName: function() {
         if (this.mapperType >= 0 && this.mapperType < this.mapperName.length) {
             return this.mapperName[this.mapperType];
         }
         return "Unknown Mapper, "+this.mapperType;
     },
-    
+
     mapperSupported: function() {
         return typeof JSNES.Mappers[this.mapperType] !== 'undefined';
     },
-    
+
     createMapper: function() {
         if (this.mapperSupported()) {
             return new JSNES.Mappers[this.mapperType](this.nes);

@@ -27,17 +27,17 @@ JSNES.Mappers[0].prototype = {
         this.joy1StrobeState = 0;
         this.joy2StrobeState = 0;
         this.joypadLastWrite = 0;
-        
+
         this.mousePressed = false;
         this.mouseX = null;
         this.mouseY = null;
     },
-    
+
     write: function(address, value) {
         if (address < 0x2000) {
             // Mirroring of RAM:
             this.nes.cpu.mem[address & 0x7FF] = value;
-        
+
         }
         else if (address > 0x4017) {
             this.nes.cpu.mem[address] = value;
@@ -55,7 +55,7 @@ JSNES.Mappers[0].prototype = {
             this.regWrite(address, value);
         }
     },
-    
+
     writelow: function(address, value) {
         if (address < 0x2000) {
             // Mirroring of RAM:
@@ -75,7 +75,7 @@ JSNES.Mappers[0].prototype = {
     load: function(address) {
         // Wrap around:
         address &= 0xFFFF;
-    
+
         // Check address range:
         if (address > 0x4017) {
             // ROM:
@@ -95,10 +95,10 @@ JSNES.Mappers[0].prototype = {
         switch (address >> 12) { // use fourth nibble (0xF000)
             case 0:
                 break;
-            
+
             case 1:
                 break;
-            
+
             case 2:
                 // Fall through to case 3
             case 3:
@@ -112,7 +112,7 @@ JSNES.Mappers[0].prototype = {
                         // PPU as flags):
                         // (not in the real NES)
                         return this.nes.cpu.mem[0x2000];
-                    
+
                     case 0x1:
                         // 0x2001:
                         // PPU Control Register 2.
@@ -121,7 +121,7 @@ JSNES.Mappers[0].prototype = {
                         // PPU as flags):
                         // (not in the real NES)
                         return this.nes.cpu.mem[0x2001];
-                    
+
                     case 0x2:
                         // 0x2002:
                         // PPU Status Register.
@@ -130,20 +130,20 @@ JSNES.Mappers[0].prototype = {
                         // to as flags in the PPU.
                         // (not in the real NES)
                         return this.nes.ppu.readStatusRegister();
-                    
+
                     case 0x3:
                         return 0;
-                    
+
                     case 0x4:
                         // 0x2004:
                         // Sprite Memory read.
                         return this.nes.ppu.sramLoad();
                     case 0x5:
                         return 0;
-                    
+
                     case 0x6:
                         return 0;
-                    
+
                     case 0x7:
                         // 0x2007:
                         // VRAM read:
@@ -157,27 +157,27 @@ JSNES.Mappers[0].prototype = {
                         // 0x4015:
                         // Sound channel enable, DMC Status
                         return this.nes.papu.readReg(address);
-                    
+
                     case 1:
                         // 0x4016:
                         // Joystick 1 + Strobe
                         return this.joy1Read();
-                    
+
                     case 2:
                         // 0x4017:
                         // Joystick 2 + Strobe
                         if (this.mousePressed) {
-                        
+
                             // Check for white pixel nearby:
                             var sx = Math.max(0, this.mouseX - 4);
                             var ex = Math.min(256, this.mouseX + 4);
                             var sy = Math.max(0, this.mouseY - 4);
                             var ey = Math.min(240, this.mouseY + 4);
                             var w = 0;
-                        
+
                             for (var y=sy; y<ey; y++) {
                                 for (var x=sx; x<ex; x++) {
-                               
+
                                     if (this.nes.ppu.buffer[(y<<8)+x] == 0xFFFFFF) {
                                         w |= 0x1<<3;
                                         console.debug("Clicked on white!");
@@ -185,14 +185,14 @@ JSNES.Mappers[0].prototype = {
                                     }
                                 }
                             }
-                        
+
                             w |= (this.mousePressed?(0x1<<4):0);
                             return (this.joy2Read()|w) & 0xFFFF;
                         }
                         else {
                             return this.joy2Read();
                         }
-                    
+
                 }
                 break;
         }
@@ -206,48 +206,48 @@ JSNES.Mappers[0].prototype = {
                 this.nes.cpu.mem[address] = value;
                 this.nes.ppu.updateControlReg1(value);
                 break;
-            
+
             case 0x2001:
                 // PPU Control register 2
                 this.nes.cpu.mem[address] = value;
                 this.nes.ppu.updateControlReg2(value);
                 break;
-            
+
             case 0x2003:
                 // Set Sprite RAM address:
                 this.nes.ppu.writeSRAMAddress(value);
                 break;
-            
+
             case 0x2004:
                 // Write to Sprite RAM:
                 this.nes.ppu.sramWrite(value);
                 break;
-            
+
             case 0x2005:
                 // Screen Scroll offsets:
                 this.nes.ppu.scrollWrite(value);
                 break;
-            
+
             case 0x2006:
                 // Set VRAM address:
                 this.nes.ppu.writeVRAMAddress(value);
                 break;
-            
+
             case 0x2007:
                 // Write to VRAM:
                 this.nes.ppu.vramWrite(value);
                 break;
-            
+
             case 0x4014:
                 // Sprite Memory DMA Access
                 this.nes.ppu.sramDMA(value);
                 break;
-            
+
             case 0x4015:
                 // Sound Channel Switch, DMC Status
                 this.nes.papu.writeReg(address, value);
                 break;
-            
+
             case 0x4016:
                 // Joystick 1 + Strobe
                 if ((value&1) === 0 && (this.joypadLastWrite&1) === 1) {
@@ -256,25 +256,25 @@ JSNES.Mappers[0].prototype = {
                 }
                 this.joypadLastWrite = value;
                 break;
-            
+
             case 0x4017:
                 // Sound channel frame sequencer:
                 this.nes.papu.writeReg(address, value);
                 break;
-            
+
             default:
                 // Sound registers
                 // console.log("write to sound reg");
                 if (address >= 0x4000 && address <= 0x4017) {
                     this.nes.papu.writeReg(address,value);
                 }
-                
+
         }
     },
 
     joy1Read: function() {
         var ret;
-    
+
         switch (this.joy1StrobeState) {
             case 0:
             case 1:
@@ -305,18 +305,18 @@ JSNES.Mappers[0].prototype = {
             default:
                 ret = 0;
         }
-    
+
         this.joy1StrobeState++;
         if (this.joy1StrobeState == 24) {
             this.joy1StrobeState = 0;
         }
-    
+
         return ret;
     },
 
     joy2Read: function() {
         var ret;
-    
+
         switch (this.joy2StrobeState) {
             case 0:
             case 1:
@@ -352,7 +352,7 @@ JSNES.Mappers[0].prototype = {
         if (this.joy2StrobeState == 24) {
             this.joy2StrobeState = 0;
         }
-    
+
         return ret;
       },
 
@@ -361,16 +361,16 @@ JSNES.Mappers[0].prototype = {
             alert("NoMapper: Invalid ROM! Unable to load.");
             return;
         }
-    
+
         // Load ROM into memory:
         this.loadPRGROM();
-    
+
         // Load CHR-ROM:
         this.loadCHRROM();
-    
+
         // Load Battery RAM (if present):
         this.loadBatteryRam();
-    
+
         // Reset IRQ:
         //nes.getCpu().doResetInterrupt();
         this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
@@ -429,10 +429,10 @@ JSNES.Mappers[0].prototype = {
             return;
         }
         this.nes.ppu.triggerRendering();
-    
-        JSNES.Utils.copyArrayElements(this.nes.rom.vrom[bank % this.nes.rom.vromCount], 
+
+        JSNES.Utils.copyArrayElements(this.nes.rom.vrom[bank % this.nes.rom.vromCount],
             0, this.nes.ppu.vramMem, address, 4096);
-    
+
         var vromTile = this.nes.rom.vromTile[bank % this.nes.rom.vromCount];
         JSNES.Utils.copyArrayElements(vromTile, 0, this.nes.ppu.ptTile,address >> 4, 256);
     },
@@ -458,12 +458,12 @@ JSNES.Mappers[0].prototype = {
             return;
         }
         this.nes.ppu.triggerRendering();
-    
+
         var bank4k = Math.floor(bank1k / 4) % this.nes.rom.vromCount;
         var bankoffset = (bank1k % 4) * 1024;
-        JSNES.Utils.copyArrayElements(this.nes.rom.vrom[bank4k], 0, 
+        JSNES.Utils.copyArrayElements(this.nes.rom.vrom[bank4k], 0,
             this.nes.ppu.vramMem, bankoffset, 1024);
-    
+
         // Update tiles:
         var vromTile = this.nes.rom.vromTile[bank4k];
         var baseIndex = address >> 4;
@@ -477,12 +477,12 @@ JSNES.Mappers[0].prototype = {
             return;
         }
         this.nes.ppu.triggerRendering();
-    
+
         var bank4k = Math.floor(bank2k / 2) % this.nes.rom.vromCount;
         var bankoffset = (bank2k % 2) * 2048;
         JSNES.Utils.copyArrayElements(this.nes.rom.vrom[bank4k], bankoffset,
             this.nes.ppu.vramMem, address, 2048);
-    
+
         // Update tiles:
         var vromTile = this.nes.rom.vromTile[bank4k];
         var baseIndex = address >> 4;
@@ -494,9 +494,9 @@ JSNES.Mappers[0].prototype = {
     load8kRomBank: function(bank8k, address) {
         var bank16k = Math.floor(bank8k / 2) % this.nes.rom.romCount;
         var offset = (bank8k % 2) * 8192;
-    
+
         //this.nes.cpu.mem.write(address,this.nes.rom.rom[bank16k],offset,8192);
-        JSNES.Utils.copyArrayElements(this.nes.rom.rom[bank16k], offset, 
+        JSNES.Utils.copyArrayElements(this.nes.rom.rom[bank16k], offset,
                   this.nes.cpu.mem, address, 8192);
     },
 
@@ -507,7 +507,7 @@ JSNES.Mappers[0].prototype = {
     latchAccess: function(address) {
         // Does nothing. This is used by MMC2.
     },
-    
+
     toJSON: function() {
         return {
             'joy1StrobeState': this.joy1StrobeState,
@@ -515,7 +515,7 @@ JSNES.Mappers[0].prototype = {
             'joypadLastWrite': this.joypadLastWrite
         };
     },
-    
+
     fromJSON: function(s) {
         this.joy1StrobeState = s.joy1StrobeState;
         this.joy2StrobeState = s.joy2StrobeState;
@@ -532,7 +532,7 @@ JSNES.Mappers[1].prototype = new JSNES.Mappers[0]();
 
 JSNES.Mappers[1].prototype.reset = function() {
     JSNES.Mappers[0].prototype.reset.apply(this);
-    
+
     // 5-bit buffer:
     this.regBuffer = 0;
     this.regBufferCounter = 0;
@@ -567,26 +567,26 @@ JSNES.Mappers[1].prototype.write = function(address, value) {
         // Reset buffering:
         this.regBufferCounter = 0;
         this.regBuffer = 0;
-    
+
         // Reset register:
         if (this.getRegNumber(address) === 0) {
-        
+
             this.prgSwitchingArea = 1;
             this.prgSwitchingSize = 1;
-        
+
         }
     }
     else {
-    
+
         // Continue buffering:
         //regBuffer = (regBuffer & (0xFF-(1<<regBufferCounter))) | ((value & (1<<regBufferCounter))<<regBufferCounter);
         this.regBuffer = (this.regBuffer & (0xFF - (1 << this.regBufferCounter))) | ((value & 1) << this.regBufferCounter);
         this.regBufferCounter++;
-        
+
         if (this.regBufferCounter == 5) {
             // Use the buffered value:
             this.setReg(this.getRegNumber(address), this.regBuffer);
-        
+
             // Reset buffer:
             this.regBuffer = 0;
             this.regBufferCounter = 0;
@@ -619,28 +619,28 @@ JSNES.Mappers[1].prototype.setReg = function(reg, value) {
                     this.nes.ppu.setMirroring(this.nes.rom.VERTICAL_MIRRORING);
                 }
             }
-    
+
             // PRG Switching Area;
             this.prgSwitchingArea = (value >> 2) & 1;
-    
+
             // PRG Switching Size:
             this.prgSwitchingSize = (value >> 3) & 1;
-    
+
             // VROM Switching Size:
             this.vromSwitchingSize = (value >> 4) & 1;
-        
+
             break;
-    
+
         case 1:
             // ROM selection:
             this.romSelectionReg0 = (value >> 4) & 1;
-    
+
             // Check whether the cart has VROM:
             if (this.nes.rom.vromCount > 0) {
-        
+
                 // Select VROM bank at 0x0000:
                 if (this.vromSwitchingSize === 0) {
-        
+
                     // Swap 8kB VROM:
                     if (this.romSelectionReg0 === 0) {
                         this.load8kVromBank((value & 0xF), 0x0000);
@@ -648,11 +648,11 @@ JSNES.Mappers[1].prototype.setReg = function(reg, value) {
                     else {
                         this.load8kVromBank(
                             Math.floor(this.nes.rom.vromCount / 2) +
-                                (value & 0xF), 
+                                (value & 0xF),
                             0x0000
                         );
                     }
-            
+
                 }
                 else {
                     // Swap 4kB VROM:
@@ -668,16 +668,16 @@ JSNES.Mappers[1].prototype.setReg = function(reg, value) {
                     }
                 }
             }
-        
+
             break;
-    
+
         case 2:
             // ROM selection:
             this.romSelectionReg1 = (value >> 4) & 1;
-    
+
             // Check whether the cart has VROM:
             if (this.nes.rom.vromCount > 0) {
-                
+
                 // Select VROM bank at 0x1000:
                 if (this.vromSwitchingSize === 1) {
                     // Swap 4kB of VROM:
@@ -694,14 +694,14 @@ JSNES.Mappers[1].prototype.setReg = function(reg, value) {
                 }
             }
             break;
-    
+
         default:
             // Select ROM bank:
             // -------------------------
             tmp = value & 0xF;
             var bank;
             var baseBank = 0;
-    
+
             if (this.nes.rom.romCount >= 32) {
                 // 1024 kB cart
                 if (this.vromSwitchingSize === 0) {
@@ -710,7 +710,7 @@ JSNES.Mappers[1].prototype.setReg = function(reg, value) {
                     }
                 }
                 else {
-                    baseBank = (this.romSelectionReg0 
+                    baseBank = (this.romSelectionReg0
                                 | (this.romSelectionReg1 << 1)) << 3;
                 }
             }
@@ -720,7 +720,7 @@ JSNES.Mappers[1].prototype.setReg = function(reg, value) {
                     baseBank = 8;
                 }
             }
-    
+
             if (this.prgSwitchingSize === 0) {
                 // 32kB
                 bank = baseBank + (value & 0xF);
@@ -735,7 +735,7 @@ JSNES.Mappers[1].prototype.setReg = function(reg, value) {
                 else {
                     this.loadRomBank(bank, 0x8000);
                 }
-            }  
+            }
     }
 };
 
@@ -856,7 +856,7 @@ JSNES.Mappers[2].prototype.loadROM = function(rom) {
 
 JSNES.Mappers[4] = function(nes) {
     this.nes = nes;
-    
+
     this.CMD_SEL_2_1K_VROM_0000 = 0;
     this.CMD_SEL_2_1K_VROM_0800 = 1;
     this.CMD_SEL_1K_VROM_1000 = 2;
@@ -865,7 +865,7 @@ JSNES.Mappers[4] = function(nes) {
     this.CMD_SEL_1K_VROM_1C00 = 5;
     this.CMD_SEL_ROM_PAGE1 = 6;
     this.CMD_SEL_ROM_PAGE2 = 7;
-    
+
     this.command = null;
     this.prgAddressSelect = null;
     this.chrAddressSelect = null;
@@ -896,13 +896,13 @@ JSNES.Mappers[4].prototype.write = function(address, value) {
             this.prgAddressSelect = tmp;
             this.chrAddressSelect = (value >> 7) & 1;
             break;
-    
+
         case 0x8001:
             // Page number for command
             this.executeCommand(this.command, value);
             break;
-    
-        case 0xA000:        
+
+        case 0xA000:
             // Mirroring select
             if ((value & 1) !== 0) {
                 this.nes.ppu.setMirroring(
@@ -913,35 +913,35 @@ JSNES.Mappers[4].prototype.write = function(address, value) {
                 this.nes.ppu.setMirroring(this.nes.rom.VERTICAL_MIRRORING);
             }
             break;
-        
+
         case 0xA001:
             // SaveRAM Toggle
             // TODO
             //nes.getRom().setSaveState((value&1)!=0);
             break;
-    
+
         case 0xC000:
             // IRQ Counter register
             this.irqCounter = value;
             //nes.ppu.mapperIrqCounter = 0;
             break;
-    
+
         case 0xC001:
             // IRQ Latch register
             this.irqLatchValue = value;
             break;
-    
+
         case 0xE000:
             // IRQ Control Reg 0 (disable)
             //irqCounter = irqLatchValue;
             this.irqEnable = 0;
             break;
-    
-        case 0xE001:        
+
+        case 0xE001:
             // IRQ Control Reg 1 (enable)
             this.irqEnable = 1;
             break;
-    
+
         default:
             // Not a MMC3 register.
             // The game has probably crashed,
@@ -963,8 +963,8 @@ JSNES.Mappers[4].prototype.executeCommand = function(cmd, arg) {
                 this.load1kVromBank(arg + 1, 0x1400);
             }
             break;
-        
-        case this.CMD_SEL_2_1K_VROM_0800:           
+
+        case this.CMD_SEL_2_1K_VROM_0800:
             // Select 2 1KB VROM pages at 0x0800:
             if (this.chrAddressSelect === 0) {
                 this.load1kVromBank(arg, 0x0800);
@@ -975,8 +975,8 @@ JSNES.Mappers[4].prototype.executeCommand = function(cmd, arg) {
                 this.load1kVromBank(arg + 1, 0x1C00);
             }
             break;
-    
-        case this.CMD_SEL_1K_VROM_1000:         
+
+        case this.CMD_SEL_1K_VROM_1000:
             // Select 1K VROM Page at 0x1000:
             if (this.chrAddressSelect === 0) {
                 this.load1kVromBank(arg, 0x1000);
@@ -985,8 +985,8 @@ JSNES.Mappers[4].prototype.executeCommand = function(cmd, arg) {
                 this.load1kVromBank(arg, 0x0000);
             }
             break;
-    
-        case this.CMD_SEL_1K_VROM_1400:         
+
+        case this.CMD_SEL_1K_VROM_1400:
             // Select 1K VROM Page at 0x1400:
             if (this.chrAddressSelect === 0) {
                 this.load1kVromBank(arg, 0x1400);
@@ -995,7 +995,7 @@ JSNES.Mappers[4].prototype.executeCommand = function(cmd, arg) {
                 this.load1kVromBank(arg, 0x0400);
             }
             break;
-    
+
         case this.CMD_SEL_1K_VROM_1800:
             // Select 1K VROM Page at 0x1800:
             if (this.chrAddressSelect === 0) {
@@ -1005,7 +1005,7 @@ JSNES.Mappers[4].prototype.executeCommand = function(cmd, arg) {
                 this.load1kVromBank(arg, 0x0800);
             }
             break;
-    
+
         case this.CMD_SEL_1K_VROM_1C00:
             // Select 1K VROM Page at 0x1C00:
             if (this.chrAddressSelect === 0) {
@@ -1014,11 +1014,11 @@ JSNES.Mappers[4].prototype.executeCommand = function(cmd, arg) {
                 this.load1kVromBank(arg, 0x0C00);
             }
             break;
-    
+
         case this.CMD_SEL_ROM_PAGE1:
             if (this.prgAddressChanged) {
                 // Load the two hardwired banks:
-                if (this.prgAddressSelect === 0) { 
+                if (this.prgAddressSelect === 0) {
                     this.load8kRomBank(
                         ((this.nes.rom.romCount - 1) * 2),
                         0xC000
@@ -1032,7 +1032,7 @@ JSNES.Mappers[4].prototype.executeCommand = function(cmd, arg) {
                 }
                 this.prgAddressChanged = false;
             }
-    
+
             // Select first switchable ROM page:
             if (this.prgAddressSelect === 0) {
                 this.load8kRomBank(arg, 0x8000);
@@ -1041,21 +1041,21 @@ JSNES.Mappers[4].prototype.executeCommand = function(cmd, arg) {
                 this.load8kRomBank(arg, 0xC000);
             }
             break;
-        
+
         case this.CMD_SEL_ROM_PAGE2:
             // Select second switchable ROM page:
             this.load8kRomBank(arg, 0xA000);
-    
+
             // hardwire appropriate bank:
             if (this.prgAddressChanged) {
                 // Load the two hardwired banks:
-                if (this.prgAddressSelect === 0) { 
+                if (this.prgAddressSelect === 0) {
                     this.load8kRomBank(
                         ((this.nes.rom.romCount - 1) * 2),
                         0xC000
                     );
                 }
-                else {              
+                else {
                     this.load8kRomBank(
                         ((this.nes.rom.romCount - 1) * 2),
                         0x8000
