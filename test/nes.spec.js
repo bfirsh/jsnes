@@ -1,6 +1,7 @@
 var assert = require('chai').assert;
 var fs = require('fs');
 var NES = require('../src/nes');
+var sinon = require('sinon');
 
 describe('NES', function() {
   it('can be initialized', function() {
@@ -8,12 +9,16 @@ describe('NES', function() {
   });
 
   it('loads a ROM and runs a frame', function(done) {
-    var nes = new NES();
+    var onFrame = sinon.spy();
+    var nes = new NES({onFrame: onFrame});
     fs.readFile('roms/croom/croom.nes', function(err, data) {
       if (err) return done(err);
       assert(nes.loadRom(data.toString('ascii')));
       nes.isRunning = true;
       nes.frame();
+      assert(onFrame.calledOnce);
+      assert.isArray(onFrame.args[0][0]);
+      assert.lengthOf(onFrame.args[0][0], 256*240);
       done();
     });
   });

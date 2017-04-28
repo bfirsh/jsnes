@@ -6,9 +6,9 @@ var ROM = require("./rom");
 
 var NES = function(opts) {
   this.opts = {
-    onWriteFrame: function() {},
-    onWriteAudio: function() {},
-    onUpdateStatus: function() {},
+    onFrame: function() {},
+    onAudio: null,
+    onStatusUpdate: function() {},
 
     preferredFrameRate: 60,
     fpsInterval: 500, // Time between updating FPS in ms
@@ -29,9 +29,9 @@ var NES = function(opts) {
   this.frameTime = 1000 / this.opts.preferredFrameRate;
 
   this.ui = {
-    writeFrame: this.opts.onWriteFrame,
-    writeAudio: this.opts.onWriteAudio,
-    updateStatus: this.opts.onUpdateStatus,
+    writeFrame: this.opts.onFrame,
+    writeAudio: this.opts.onAudio,
+    updateStatus: this.opts.onStatusUpdate,
   };
   this.cpu = new CPU(this);
   this.ppu = new PPU(this);

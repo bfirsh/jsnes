@@ -16,6 +16,7 @@
   "devDependencies": {
     "chai": "^3.5.0",
     "mocha": "^3.3.0",
+    "sinon": "^2.1.0",
     "webpack": "^2.4.1"
   }
 }
