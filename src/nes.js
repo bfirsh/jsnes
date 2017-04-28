@@ -11,7 +11,6 @@ var NES = function(opts) {
     onStatusUpdate: function() {},
 
     preferredFrameRate: 60,
-    showDisplay: true,
 
     emulateSound: true,
     sampleRate: 44100 // Sound sample rate in hz
