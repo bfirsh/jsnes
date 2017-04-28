@@ -14,7 +14,6 @@ describe('NES', function() {
     fs.readFile('roms/croom/croom.nes', function(err, data) {
       if (err) return done(err);
       assert(nes.loadRom(data.toString('ascii')));
-      nes.isRunning = true;
       nes.frame();
       assert(onFrame.calledOnce);
       assert.isArray(onFrame.args[0][0]);

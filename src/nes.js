@@ -11,7 +11,6 @@ var NES = function(opts) {
     onStatusUpdate: function() {},
 
     preferredFrameRate: 60,
-    fpsInterval: 500, // Time between updating FPS in ms
     showDisplay: true,
 
     emulateSound: true,
@@ -43,7 +42,6 @@ var NES = function(opts) {
 };
 
 NES.prototype = {
-  isRunning: false,
   fpsFrameCount: 0,
   romData: null,
 
@@ -56,27 +54,6 @@ NES.prototype = {
     this.cpu.reset();
     this.ppu.reset();
     this.papu.reset();
-  },
-
-  start: function() {
-    var self = this;
-
-    if (this.rom !== null && this.rom.valid) {
-      if (!this.isRunning) {
-        this.isRunning = true;
-
-        this.frameInterval = setInterval(function() {
-          self.frame();
-        }, this.frameTime);
-        this.resetFps();
-        this.printFps();
-        this.fpsInterval = setInterval(function() {
-          self.printFps();
-        }, this.opts.fpsInterval);
-      }
-    } else {
-      this.ui.updateStatus("There is no ROM loaded, or it is invalid.");
-    }
   },
 
   frame: function() {
@@ -153,12 +130,6 @@ NES.prototype = {
     this.lastFpsTime = now;
   },
 
-  stop: function() {
-    clearInterval(this.frameInterval);
-    clearInterval(this.fpsInterval);
-    this.isRunning = false;
-  },
-
   reloadRom: function() {
     if (this.romData !== null) {
       this.loadRom(this.romData);
@@ -168,10 +139,6 @@ NES.prototype = {
   // Loads a ROM file into the CPU and PPU.
   // The ROM file is validated first.
   loadRom: function(data) {
-    if (this.isRunning) {
-      this.stop();
-    }
-
     this.ui.updateStatus("Loading ROM...");
 
     // Load ROM file:
