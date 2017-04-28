@@ -15,10 +15,7 @@ var NES = function(opts) {
     showDisplay: true,
 
     emulateSound: true,
-    sampleRate: 44100, // Sound sample rate in hz
-
-    CPU_FREQ_NTSC: 1789772.5, //1789772.72727272d;
-    CPU_FREQ_PAL: 1773447.4
+    sampleRate: 44100 // Sound sample rate in hz
   };
   if (typeof opts != "undefined") {
     var key;

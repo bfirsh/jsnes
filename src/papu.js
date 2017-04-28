@@ -1,3 +1,6 @@
+var CPU_FREQ_NTSC = 1789772.5; //1789772.72727272d;
+var CPU_FREQ_PAL = 1773447.4;
+
 var PAPU = function(nes) {
   this.nes = nes;
 
@@ -102,7 +105,7 @@ PAPU.prototype = {
     this.sampleRate = this.nes.opts.sampleRate;
     this.sampleTimerMax = Math.floor(
       1024.0 *
-        this.nes.opts.CPU_FREQ_NTSC *
+        CPU_FREQ_NTSC *
         this.nes.opts.preferredFrameRate /
         (this.sampleRate * 60.0)
     );
