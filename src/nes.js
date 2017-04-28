@@ -29,7 +29,7 @@ var NES = function(opts) {
   this.ui = {
     writeFrame: this.opts.onFrame,
     writeAudio: this.opts.onAudio,
-    updateStatus: this.opts.onStatusUpdate,
+    updateStatus: this.opts.onStatusUpdate
   };
   this.cpu = new CPU(this);
   this.ppu = new PPU(this);
@@ -53,6 +53,9 @@ NES.prototype = {
     this.cpu.reset();
     this.ppu.reset();
     this.papu.reset();
+
+    this.lastFpsTime = null;
+    this.fpsFrameCount = 0;
   },
 
   frame: function() {
@@ -115,18 +118,15 @@ NES.prototype = {
     this.fpsFrameCount++;
   },
 
-  printFps: function() {
+  getFPS: function() {
     var now = +new Date();
-    var s = "Running";
+    var fps = null;
     if (this.lastFpsTime) {
-      s +=
-        ": " +
-        (this.fpsFrameCount / ((now - this.lastFpsTime) / 1000)).toFixed(2) +
-        " FPS";
+      fps = this.fpsFrameCount / ((now - this.lastFpsTime) / 1000);
     }
-    this.ui.updateStatus(s);
     this.fpsFrameCount = 0;
     this.lastFpsTime = now;
+    return fps;
   },
 
   reloadRom: function() {
@@ -159,11 +159,6 @@ NES.prototype = {
       this.ui.updateStatus("Invalid ROM!");
     }
     return this.rom.valid;
-  },
-
-  resetFps: function() {
-    this.lastFpsTime = null;
-    this.fpsFrameCount = 0;
   },
 
   setFramerate: function(rate) {

@@ -21,4 +21,24 @@ describe('NES', function() {
       done();
     });
   });
+
+  describe('#getFPS()', function() {
+    var nes = new NES();
+    before(function(done) {
+      fs.readFile('roms/croom/croom.nes', function(err, data) {
+        if (err) return done(err);
+        nes.loadRom(data.toString('ascii'));
+        done();
+      });
+    });
+
+    it('returns an FPS count when frames have been run', function() {
+      assert.isNull(nes.getFPS());
+      nes.frame();
+      nes.frame();
+      var fps = nes.getFPS();
+      assert.isNumber(fps);
+      assert.isAbove(fps, 0);
+    });
+  });
 });
