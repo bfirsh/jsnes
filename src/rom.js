@@ -77,8 +77,7 @@ ROM.prototype = {
     var i, j, v;
 
     if (data.indexOf("NES\x1a") === -1) {
-      this.nes.ui.updateStatus("Not a valid NES ROM.");
-      return;
+      throw new Error("Not a valid NES ROM.");
     }
     this.header = new Array(16);
     for (i = 0; i < 16; i++) {
@@ -191,14 +190,13 @@ ROM.prototype = {
     if (this.mapperSupported()) {
       return new Mappers[this.mapperType](this.nes);
     } else {
-      this.nes.ui.updateStatus(
+      throw new Error(
         "This ROM uses a mapper not supported by JSNES: " +
           this.getMapperName() +
           "(" +
           this.mapperType +
           ")"
       );
-      return null;
     }
   }
 };

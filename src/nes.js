@@ -138,27 +138,15 @@ NES.prototype = {
   // Loads a ROM file into the CPU and PPU.
   // The ROM file is validated first.
   loadRom: function(data) {
-    this.ui.updateStatus("Loading ROM...");
-
     // Load ROM file:
     this.rom = new ROM(this);
     this.rom.load(data);
 
-    if (this.rom.valid) {
-      this.reset();
-      this.mmap = this.rom.createMapper();
-      if (!this.mmap) {
-        return;
-      }
-      this.mmap.loadROM();
-      this.ppu.setMirroring(this.rom.getMirroringType());
-      this.romData = data;
-
-      this.ui.updateStatus("Successfully loaded. Ready to be started.");
-    } else {
-      this.ui.updateStatus("Invalid ROM!");
-    }
-    return this.rom.valid;
+    this.reset();
+    this.mmap = this.rom.createMapper();
+    this.mmap.loadROM();
+    this.ppu.setMirroring(this.rom.getMirroringType());
+    this.romData = data;
   },
 
   setFramerate: function(rate) {

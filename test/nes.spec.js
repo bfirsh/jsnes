@@ -13,12 +13,19 @@ describe('NES', function() {
     var nes = new NES({onFrame: onFrame});
     fs.readFile('roms/croom/croom.nes', function(err, data) {
       if (err) return done(err);
-      assert(nes.loadRom(data.toString('ascii')));
+      nes.loadRom(data.toString('ascii'));
       nes.frame();
       assert(onFrame.calledOnce);
       assert.isArray(onFrame.args[0][0]);
       assert.lengthOf(onFrame.args[0][0], 256*240);
       done();
+    });
+  });
+
+  describe('#loadRom()', function() {
+    it('throws an error given an invalid ROM', function() {
+      var nes = new NES();
+      assert.throws(function() { nes.loadRom('foo'); }, 'Not a valid NES ROM.');
     });
   });
 
