@@ -11,7 +11,8 @@
   "scripts": {
     "build": "webpack",
     "test": "mocha ./test/*.spec.js",
-    "test:watch": "mocha -w ./test/*.spec.js"
+    "test:watch": "mocha -w ./test/*.spec.js",
+    "prepublish": "npm run build"
   },
   "devDependencies": {
     "chai": "^3.5.0",

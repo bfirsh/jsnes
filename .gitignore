@@ -1,7 +1,6 @@
-/dist/
-/local-roms/
-jsnes.tmproj
 ._*
 .DS_Store
-/tmp
+/dist
+/local-roms
 /node_modules
+/tmp
