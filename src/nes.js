@@ -34,7 +34,7 @@ var NES = function(opts) {
   this.cpu = new CPU(this);
   this.ppu = new PPU(this);
   this.papu = new PAPU(this);
-  this.mmap = null; // set in loadRom()
+  this.mmap = null; // set in loadROM()
   this.keyboard = new Keyboard();
 
   this.ui.updateStatus("Ready to load a ROM.");
@@ -129,15 +129,15 @@ NES.prototype = {
     return fps;
   },
 
-  reloadRom: function() {
+  reloadROM: function() {
     if (this.romData !== null) {
-      this.loadRom(this.romData);
+      this.loadROM(this.romData);
     }
   },
 
   // Loads a ROM file into the CPU and PPU.
   // The ROM file is validated first.
-  loadRom: function(data) {
+  loadROM: function(data) {
     // Load ROM file:
     this.rom = new ROM(this);
     this.rom.load(data);
@@ -165,7 +165,7 @@ NES.prototype = {
   },
 
   fromJSON: function(s) {
-    this.loadRom(s.romData);
+    this.loadROM(s.romData);
     this.cpu.fromJSON(s.cpu);
     this.mmap.fromJSON(s.mmap);
     this.ppu.fromJSON(s.ppu);
