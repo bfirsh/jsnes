@@ -216,7 +216,7 @@ PPU.prototype = {
 
   // Sets Nametable mirroring.
   setMirroring: function(mirroring) {
-    if (mirroring == this.currentMirroring) {
+    if (mirroring === this.currentMirroring) {
       return;
     }
 
@@ -241,7 +241,7 @@ PPU.prototype = {
     this.defineMirrorRegion(0x3000, 0x2000, 0xf00);
     this.defineMirrorRegion(0x4000, 0x0000, 0x4000);
 
-    if (mirroring == this.nes.rom.HORIZONTAL_MIRRORING) {
+    if (mirroring === this.nes.rom.HORIZONTAL_MIRRORING) {
       // Horizontal mirroring.
 
       this.ntable1[0] = 0;
@@ -251,7 +251,7 @@ PPU.prototype = {
 
       this.defineMirrorRegion(0x2400, 0x2000, 0x400);
       this.defineMirrorRegion(0x2c00, 0x2800, 0x400);
-    } else if (mirroring == this.nes.rom.VERTICAL_MIRRORING) {
+    } else if (mirroring === this.nes.rom.VERTICAL_MIRRORING) {
       // Vertical mirroring.
 
       this.ntable1[0] = 0;
@@ -261,7 +261,7 @@ PPU.prototype = {
 
       this.defineMirrorRegion(0x2800, 0x2000, 0x400);
       this.defineMirrorRegion(0x2c00, 0x2400, 0x400);
-    } else if (mirroring == this.nes.rom.SINGLESCREEN_MIRRORING) {
+    } else if (mirroring === this.nes.rom.SINGLESCREEN_MIRRORING) {
       // Single Screen mirroring
 
       this.ntable1[0] = 0;
@@ -272,7 +272,7 @@ PPU.prototype = {
       this.defineMirrorRegion(0x2400, 0x2000, 0x400);
       this.defineMirrorRegion(0x2800, 0x2000, 0x400);
       this.defineMirrorRegion(0x2c00, 0x2000, 0x400);
-    } else if (mirroring == this.nes.rom.SINGLESCREEN_MIRRORING2) {
+    } else if (mirroring === this.nes.rom.SINGLESCREEN_MIRRORING2) {
       this.ntable1[0] = 1;
       this.ntable1[1] = 1;
       this.ntable1[2] = 1;
@@ -342,7 +342,7 @@ PPU.prototype = {
         this.spr0HitX = -1;
         this.spr0HitY = -1;
 
-        if (this.f_bgVisibility == 1 || this.f_spVisibility == 1) {
+        if (this.f_bgVisibility === 1 || this.f_spVisibility === 1) {
           // Update counters:
           this.cntFV = this.regFV;
           this.cntV = this.regV;
@@ -350,18 +350,18 @@ PPU.prototype = {
           this.cntVT = this.regVT;
           this.cntHT = this.regHT;
 
-          if (this.f_bgVisibility == 1) {
+          if (this.f_bgVisibility === 1) {
             // Render dummy scanline:
             this.renderBgScanline(false, 0);
           }
         }
 
-        if (this.f_bgVisibility == 1 && this.f_spVisibility == 1) {
+        if (this.f_bgVisibility === 1 && this.f_spVisibility === 1) {
           // Check sprite 0 hit for first scanline:
           this.checkSprite0(0);
         }
 
-        if (this.f_bgVisibility == 1 || this.f_spVisibility == 1) {
+        if (this.f_bgVisibility === 1 || this.f_spVisibility === 1) {
           // Clock mapper IRQ Counter:
           this.nes.mmap.clockIrqCounter();
         }
@@ -382,7 +382,7 @@ PPU.prototype = {
       default:
         if (this.scanline >= 21 && this.scanline <= 260) {
           // Render normally:
-          if (this.f_bgVisibility == 1) {
+          if (this.f_bgVisibility === 1) {
             if (!this.scanlineAlreadyRendered) {
               // update scroll:
               this.cntHT = this.regHT;
@@ -392,7 +392,7 @@ PPU.prototype = {
             this.scanlineAlreadyRendered = false;
 
             // Check for sprite 0 (next scanline):
-            if (!this.hitSpr0 && this.f_spVisibility == 1) {
+            if (!this.hitSpr0 && this.f_spVisibility === 1) {
               if (
                 this.sprX[0] >= -7 &&
                 this.sprX[0] < 256 &&
@@ -407,7 +407,7 @@ PPU.prototype = {
             }
           }
 
-          if (this.f_bgVisibility == 1 || this.f_spVisibility == 1) {
+          if (this.f_bgVisibility === 1 || this.f_spVisibility === 1) {
             // Clock mapper IRQ Counter:
             this.nes.mmap.clockIrqCounter();
           }
@@ -699,7 +699,7 @@ PPU.prototype = {
       }
 
       // Increment by either 1 or 32, depending on d2 of Control Register 1:
-      this.vramAddress += this.f_addrInc == 1 ? 32 : 1;
+      this.vramAddress += this.f_addrInc === 1 ? 32 : 1;
 
       this.cntsFromAddress();
       this.regsFromAddress();
@@ -711,7 +711,7 @@ PPU.prototype = {
     tmp = this.mirroredLoad(this.vramAddress);
 
     // Increment by either 1 or 32, depending on d2 of Control Register 1:
-    this.vramAddress += this.f_addrInc == 1 ? 32 : 1;
+    this.vramAddress += this.f_addrInc === 1 ? 32 : 1;
 
     this.cntsFromAddress();
     this.regsFromAddress();
@@ -738,7 +738,7 @@ PPU.prototype = {
     }
 
     // Increment by either 1 or 32, depending on d2 of Control Register 1:
-    this.vramAddress += this.f_addrInc == 1 ? 32 : 1;
+    this.vramAddress += this.f_addrInc === 1 ? 32 : 1;
     this.regsFromAddress();
     this.cntsFromAddress();
   },
@@ -811,15 +811,15 @@ PPU.prototype = {
   incTileCounter: function(count) {
     for (var i = count; i !== 0; i--) {
       this.cntHT++;
-      if (this.cntHT == 32) {
+      if (this.cntHT === 32) {
         this.cntHT = 0;
         this.cntVT++;
         if (this.cntVT >= 30) {
           this.cntH++;
-          if (this.cntH == 2) {
+          if (this.cntH === 2) {
             this.cntH = 0;
             this.cntV++;
-            if (this.cntV == 2) {
+            if (this.cntV === 2) {
               this.cntV = 0;
               this.cntFV++;
               this.cntFV &= 0x7;
@@ -841,16 +841,16 @@ PPU.prototype = {
   mirroredWrite: function(address, value) {
     if (address >= 0x3f00 && address < 0x3f20) {
       // Palette write mirroring.
-      if (address == 0x3f00 || address == 0x3f10) {
+      if (address === 0x3f00 || address === 0x3f10) {
         this.writeMem(0x3f00, value);
         this.writeMem(0x3f10, value);
-      } else if (address == 0x3f04 || address == 0x3f14) {
+      } else if (address === 0x3f04 || address === 0x3f14) {
         this.writeMem(0x3f04, value);
         this.writeMem(0x3f14, value);
-      } else if (address == 0x3f08 || address == 0x3f18) {
+      } else if (address === 0x3f08 || address === 0x3f18) {
         this.writeMem(0x3f08, value);
         this.writeMem(0x3f18, value);
-      } else if (address == 0x3f0c || address == 0x3f1c) {
+      } else if (address === 0x3f0c || address === 0x3f1c) {
         this.writeMem(0x3f0c, value);
         this.writeMem(0x3f1c, value);
       } else {
@@ -880,11 +880,11 @@ PPU.prototype = {
   },
 
   renderFramePartially: function(startScan, scanCount) {
-    if (this.f_spVisibility == 1) {
+    if (this.f_spVisibility === 1) {
       this.renderSpritesPartially(startScan, scanCount, true);
     }
 
-    if (this.f_bgVisibility == 1) {
+    if (this.f_bgVisibility === 1) {
       var si = startScan << 8;
       var ei = (startScan + scanCount) << 8;
       if (ei > 0xf000) {
@@ -900,7 +900,7 @@ PPU.prototype = {
       }
     }
 
-    if (this.f_spVisibility == 1) {
+    if (this.f_spVisibility === 1) {
       this.renderSpritesPartially(startScan, scanCount, false);
     }
 
@@ -986,7 +986,7 @@ PPU.prototype = {
         }
 
         // Increase Horizontal Tile Counter:
-        if (++this.cntHT == 32) {
+        if (++this.cntHT === 32) {
           this.cntHT = 0;
           this.cntH++;
           this.cntH %= 2;
@@ -1001,15 +1001,15 @@ PPU.prototype = {
 
     // update vertical scroll:
     this.cntFV++;
-    if (this.cntFV == 8) {
+    if (this.cntFV === 8) {
       this.cntFV = 0;
       this.cntVT++;
-      if (this.cntVT == 30) {
+      if (this.cntVT === 30) {
         this.cntVT = 0;
         this.cntV++;
         this.cntV %= 2;
         this.curNt = this.ntable1[(this.cntV << 1) + this.cntH];
-      } else if (this.cntVT == 32) {
+      } else if (this.cntVT === 32) {
         this.cntVT = 0;
       }
 
@@ -1022,7 +1022,7 @@ PPU.prototype = {
     if (this.f_spVisibility === 1) {
       for (var i = 0; i < 64; i++) {
         if (
-          this.bgPriority[i] == bgPri &&
+          this.bgPriority[i] === bgPri &&
           this.sprX[i] >= 0 &&
           this.sprX[i] < 256 &&
           this.sprY[i] + 8 >= startscan &&
@@ -1406,16 +1406,16 @@ PPU.prototype = {
     if (address % 4 === 0) {
       // Y coordinate
       this.sprY[tIndex] = value;
-    } else if (address % 4 == 1) {
+    } else if (address % 4 === 1) {
       // Tile index
       this.sprTile[tIndex] = value;
-    } else if (address % 4 == 2) {
+    } else if (address % 4 === 2) {
       // Attributes
       this.vertFlip[tIndex] = (value & 0x80) !== 0;
       this.horiFlip[tIndex] = (value & 0x40) !== 0;
       this.bgPriority[tIndex] = (value & 0x20) !== 0;
       this.sprCol[tIndex] = (value & 3) << 2;
-    } else if (address % 4 == 3) {
+    } else if (address % 4 === 3) {
       // X coordinate
       this.sprX[tIndex] = value;
     }
@@ -1540,7 +1540,7 @@ var NameTable = function(width, height, name) {
 
   this.tile = new Array(width * height);
   this.attrib = new Array(width * height);
-  for (i = 0; i < width * height; i++) {
+  for (var i = 0; i < width * height; i++) {
     this.tile[i] = 0;
     this.attrib[i] = 0;
   }
@@ -1652,7 +1652,7 @@ PaletteTable.prototype = {
   },
 
   setEmphasis: function(emph) {
-    if (emph != this.currentEmph) {
+    if (emph !== this.currentEmph) {
       this.currentEmph = emph;
       for (var i = 0; i < 64; i++) {
         this.curTable[i] = this.emphTable[emph][i];

@@ -151,7 +151,7 @@ Mappers[0].prototype = {
 
               for (var y = sy; y < ey; y++) {
                 for (var x = sx; x < ex; x++) {
-                  if (this.nes.ppu.buffer[(y << 8) + x] == 0xffffff) {
+                  if (this.nes.ppu.buffer[(y << 8) + x] === 0xffffff) {
                     w |= 0x1 << 3;
                     console.debug("Clicked on white!");
                     break;
@@ -277,7 +277,7 @@ Mappers[0].prototype = {
     }
 
     this.joy1StrobeState++;
-    if (this.joy1StrobeState == 24) {
+    if (this.joy1StrobeState === 24) {
       this.joy1StrobeState = 0;
     }
 
@@ -319,7 +319,7 @@ Mappers[0].prototype = {
     }
 
     this.joy2StrobeState++;
-    if (this.joy2StrobeState == 24) {
+    if (this.joy2StrobeState === 24) {
       this.joy2StrobeState = 0;
     }
 
@@ -360,7 +360,7 @@ Mappers[0].prototype = {
   loadCHRROM: function() {
     // console.log("Loading CHR ROM..");
     if (this.nes.rom.vromCount > 0) {
-      if (this.nes.rom.vromCount == 1) {
+      if (this.nes.rom.vromCount === 1) {
         this.loadVromBank(0, 0x0000);
         this.loadVromBank(0, 0x1000);
       } else {
@@ -375,7 +375,7 @@ Mappers[0].prototype = {
   loadBatteryRam: function() {
     if (this.nes.rom.batteryRam) {
       var ram = this.nes.rom.batteryRam;
-      if (ram !== null && ram.length == 0x2000) {
+      if (ram !== null && ram.length === 0x2000) {
         // Load Battery RAM into memory:
         utils.copyArrayElements(ram, 0, this.nes.cpu.mem, 0x6000, 0x2000);
       }
@@ -579,7 +579,7 @@ Mappers[1].prototype.write = function(address, value) {
       ((value & 1) << this.regBufferCounter);
     this.regBufferCounter++;
 
-    if (this.regBufferCounter == 5) {
+    if (this.regBufferCounter === 5) {
       // Use the buffered value:
       this.setReg(this.getRegNumber(address), this.regBuffer);
 
@@ -728,7 +728,7 @@ Mappers[1].prototype.getRegNumber = function(address) {
   }
 };
 
-Mappers[1].prototype.loadROM = function(rom) {
+Mappers[1].prototype.loadROM = function() {
   if (!this.nes.rom.valid) {
     throw new Error("MMC1: Invalid ROM! Unable to load.");
   }
@@ -806,7 +806,7 @@ Mappers[2].prototype.write = function(address, value) {
   }
 };
 
-Mappers[2].prototype.loadROM = function(rom) {
+Mappers[2].prototype.loadROM = function() {
   if (!this.nes.rom.valid) {
     throw new Error("UNROM: Invalid ROM! Unable to load.");
   }
@@ -858,7 +858,7 @@ Mappers[4].prototype.write = function(address, value) {
       // Command/Address Select register
       this.command = value & 7;
       var tmp = (value >> 6) & 1;
-      if (tmp != this.prgAddressSelect) {
+      if (tmp !== this.prgAddressSelect) {
         this.prgAddressChanged = true;
       }
       this.prgAddressSelect = tmp;
@@ -1011,7 +1011,7 @@ Mappers[4].prototype.executeCommand = function(cmd, arg) {
   }
 };
 
-Mappers[4].prototype.loadROM = function(rom) {
+Mappers[4].prototype.loadROM = function() {
   if (!this.nes.rom.valid) {
     throw new Error("MMC3: Invalid ROM! Unable to load.");
   }
@@ -1035,7 +1035,7 @@ Mappers[4].prototype.loadROM = function(rom) {
 };
 
 Mappers[4].prototype.clockIrqCounter = function() {
-  if (this.irqEnable == 1) {
+  if (this.irqEnable === 1) {
     this.irqCounter--;
     if (this.irqCounter < 0) {
       // Trigger IRQ:
@@ -1193,10 +1193,10 @@ Mappers[5].prototype.write = function(address, value) {
       if (address >= 0x5000 && address <= 0x5015) {
         this.nes.papu.exWrite(address, value);
       } else if (address >= 0x5c00 && address <= 0x5fff) {
-        if (this.graphic_mode == 2) {
+        if (this.graphic_mode === 2) {
           // ExRAM
           // vram write
-        } else if (this.graphic_mode != 3) {
+        } else if (this.graphic_mode !== 3) {
           // Split,ExGraphic
           if (this.irq_status & 0x40) {
             // vram write
@@ -1205,7 +1205,7 @@ Mappers[5].prototype.write = function(address, value) {
           }
         }
       } else if (address >= 0x6000 && address <= 0x7fff) {
-        if (this.sram_we_a == 2 && this.sram_we_b == 1) {
+        if (this.sram_we_a === 2 && this.sram_we_b === 1) {
           // additional ram write
         }
       }
@@ -1213,7 +1213,7 @@ Mappers[5].prototype.write = function(address, value) {
   }
 };
 
-Mappers[5].prototype.loadROM = function(rom) {
+Mappers[5].prototype.loadROM = function() {
   if (!this.nes.rom.valid) {
     throw new Error("UNROM: Invalid ROM! Unable to load.");
   }
@@ -1257,7 +1257,7 @@ Mappers[7].prototype.write = function(address, value) {
   }
 };
 
-Mappers[7].prototype.loadROM = function(rom) {
+Mappers[7].prototype.loadROM = function() {
   if (!this.nes.rom.valid) {
     throw new Error("AOROM: Invalid ROM! Unable to load.");
   }

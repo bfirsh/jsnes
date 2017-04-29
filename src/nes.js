@@ -15,10 +15,10 @@ var NES = function(opts) {
     emulateSound: true,
     sampleRate: 44100 // Sound sample rate in hz
   };
-  if (typeof opts != "undefined") {
+  if (typeof opts !== "undefined") {
     var key;
     for (key in this.opts) {
-      if (typeof opts[key] != "undefined") {
+      if (typeof opts[key] !== "undefined") {
         this.opts[key] = opts[key];
       }
     }

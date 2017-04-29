@@ -1,5 +1,5 @@
 var CPU_FREQ_NTSC = 1789772.5; //1789772.72727272d;
-var CPU_FREQ_PAL = 1773447.4;
+// var CPU_FREQ_PAL = 1773447.4;
 
 var PAPU = function(nes) {
   this.nes = nes;
@@ -985,9 +985,11 @@ ChannelNoise.prototype = {
         this.envVolume = this.envDecayLoopEnable ? 0xf : 0;
       }
     }
-    this.masterVolume = this.envDecayDisable
-      ? this.envDecayRate
-      : this.envVolume;
+    if (this.envDecayDisable) {
+      this.masterVolume = this.envDecayRate;
+    } else {
+      this.masterVolume = this.envVolume;
+    }
     this.updateSampleValue();
   },
 
@@ -1004,9 +1006,11 @@ ChannelNoise.prototype = {
       this.envDecayRate = value & 0xf;
       this.envDecayLoopEnable = (value & 0x20) !== 0;
       this.lengthCounterEnable = (value & 0x20) === 0;
-      this.masterVolume = this.envDecayDisable
-        ? this.envDecayRate
-        : this.envVolume;
+      if (this.envDecayDisable) {
+        this.masterVolume = this.envDecayRate;
+      } else {
+        this.masterVolume = this.envVolume;
+      }
     } else if (address === 0x400e) {
       // Programmable timer:
       this.progTimerMax = this.papu.getNoiseWaveLength(value & 0xf);
@@ -1131,9 +1135,11 @@ ChannelSquare.prototype = {
       }
     }
 
-    this.masterVolume = this.envDecayDisable
-      ? this.envDecayRate
-      : this.envVolume;
+    if (this.envDecayDisable) {
+      this.masterVolume = this.envDecayRate;
+    } else {
+      this.masterVolume = this.envVolume;
+    }
     this.updateSampleValue();
   },
 
@@ -1193,9 +1199,11 @@ ChannelSquare.prototype = {
       this.envDecayLoopEnable = (value & 0x20) !== 0;
       this.dutyMode = (value >> 6) & 0x3;
       this.lengthCounterEnable = (value & 0x20) === 0;
-      this.masterVolume = this.envDecayDisable
-        ? this.envDecayRate
-        : this.envVolume;
+      if (this.envDecayDisable) {
+        this.masterVolume = this.envDecayRate;
+      } else {
+        this.masterVolume = this.envVolume;
+      }
       this.updateSampleValue();
     } else if (address === 0x4001 + addrAdd) {
       // Sweep:

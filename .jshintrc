@@ -1,0 +1,12 @@
+{
+  "eqeqeq": true,
+  "globals": {
+    "console": true,
+    "module": true,
+    "require": true
+  },
+  "indent": 2,
+  "nonbsp": true,
+  "newcap": true,
+  "undef": true
+}

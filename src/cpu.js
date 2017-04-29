@@ -1,4 +1,4 @@
-var utils = require('./utils');
+var utils = require("./utils");
 
 var CPU = function(nes) {
   this.nes = nes;
@@ -46,14 +46,14 @@ CPU.prototype = {
       this.mem[i] = 0xff;
     }
     for (var p = 0; p < 4; p++) {
-      var i = p * 0x800;
-      this.mem[i + 0x008] = 0xf7;
-      this.mem[i + 0x009] = 0xef;
-      this.mem[i + 0x00a] = 0xdf;
-      this.mem[i + 0x00f] = 0xbf;
+      var j = p * 0x800;
+      this.mem[j + 0x008] = 0xf7;
+      this.mem[j + 0x009] = 0xef;
+      this.mem[j + 0x00a] = 0xdf;
+      this.mem[j + 0x00f] = 0xbf;
     }
-    for (var i = 0x2001; i < this.mem.length; i++) {
-      this.mem[i] = 0;
+    for (var k = 0x2001; k < this.mem.length; k++) {
+      this.mem[k] = 0;
     }
 
     // CPU Registers:
@@ -117,7 +117,7 @@ CPU.prototype = {
       switch (this.irqType) {
         case 0: {
           // Normal IRQ:
-          if (this.F_INTERRUPT != 0) {
+          if (this.F_INTERRUPT !== 0) {
             // console.log("Interrupt was masked.");
             break;
           }
@@ -211,7 +211,7 @@ CPU.prototype = {
         // Absolute Indexed Mode, X as index. Same as zero page
         // indexed, but with the high byte.
         addr = this.load16bit(opaddr + 2);
-        if ((addr & 0xff00) != ((addr + this.REG_X) & 0xff00)) {
+        if ((addr & 0xff00) !== ((addr + this.REG_X) & 0xff00)) {
           cycleAdd = 1;
         }
         addr += this.REG_X;
@@ -221,7 +221,7 @@ CPU.prototype = {
         // Absolute Indexed Mode, Y as index. Same as zero page
         // indexed, but with the high byte.
         addr = this.load16bit(opaddr + 2);
-        if ((addr & 0xff00) != ((addr + this.REG_Y) & 0xff00)) {
+        if ((addr & 0xff00) !== ((addr + this.REG_Y) & 0xff00)) {
           cycleAdd = 1;
         }
         addr += this.REG_Y;
@@ -233,7 +233,7 @@ CPU.prototype = {
         // the current X register. The value is the contents of that
         // address.
         addr = this.load(opaddr + 2);
-        if ((addr & 0xff00) != ((addr + this.REG_X) & 0xff00)) {
+        if ((addr & 0xff00) !== ((addr + this.REG_X) & 0xff00)) {
           cycleAdd = 1;
         }
         addr += this.REG_X;
@@ -248,7 +248,7 @@ CPU.prototype = {
         // of the Y register. Fetch the value
         // stored at that adress.
         addr = this.load16bit(this.load(opaddr + 2));
-        if ((addr & 0xff00) != ((addr + this.REG_Y) & 0xff00)) {
+        if ((addr & 0xff00) !== ((addr + this.REG_Y) & 0xff00)) {
           cycleAdd = 1;
         }
         addr += this.REG_Y;
@@ -289,10 +289,15 @@ CPU.prototype = {
 
         // Add with carry.
         temp = this.REG_ACC + this.load(addr) + this.F_CARRY;
-        this.F_OVERFLOW = !(((this.REG_ACC ^ this.load(addr)) & 0x80) != 0) &&
-          ((this.REG_ACC ^ temp) & 0x80) != 0
-          ? 1
-          : 0;
+
+        if (
+          ((this.REG_ACC ^ this.load(addr)) & 0x80) === 0 &&
+          ((this.REG_ACC ^ temp) & 0x80) !== 0
+        ) {
+          this.F_OVERFLOW = 1;
+        } else {
+          this.F_OVERFLOW = 0;
+        }
         this.F_CARRY = temp > 255 ? 1 : 0;
         this.F_SIGN = (temp >> 7) & 1;
         this.F_ZERO = temp & 0xff;
@@ -310,7 +315,7 @@ CPU.prototype = {
         this.F_SIGN = (this.REG_ACC >> 7) & 1;
         this.F_ZERO = this.REG_ACC;
         //this.REG_ACC = temp;
-        if (addrMode != 11) cycleCount += cycleAdd; // PostIdxInd = 11
+        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
         break;
       }
       case 2: {
@@ -319,7 +324,7 @@ CPU.prototype = {
         // *******
 
         // Shift left one bit
-        if (addrMode == 4) {
+        if (addrMode === 4) {
           // ADDR_ACC = 4
 
           this.F_CARRY = (this.REG_ACC >> 7) & 1;
@@ -342,8 +347,8 @@ CPU.prototype = {
         // *******
 
         // Branch on carry clear
-        if (this.F_CARRY == 0) {
-          cycleCount += (opaddr & 0xff00) != (addr & 0xff00) ? 2 : 1;
+        if (this.F_CARRY === 0) {
+          cycleCount += (opaddr & 0xff00) !== (addr & 0xff00) ? 2 : 1;
           this.REG_PC = addr;
         }
         break;
@@ -354,8 +359,8 @@ CPU.prototype = {
         // *******
 
         // Branch on carry set
-        if (this.F_CARRY == 1) {
-          cycleCount += (opaddr & 0xff00) != (addr & 0xff00) ? 2 : 1;
+        if (this.F_CARRY === 1) {
+          cycleCount += (opaddr & 0xff00) !== (addr & 0xff00) ? 2 : 1;
           this.REG_PC = addr;
         }
         break;
@@ -366,8 +371,8 @@ CPU.prototype = {
         // *******
 
         // Branch on zero
-        if (this.F_ZERO == 0) {
-          cycleCount += (opaddr & 0xff00) != (addr & 0xff00) ? 2 : 1;
+        if (this.F_ZERO === 0) {
+          cycleCount += (opaddr & 0xff00) !== (addr & 0xff00) ? 2 : 1;
           this.REG_PC = addr;
         }
         break;
@@ -390,7 +395,7 @@ CPU.prototype = {
         // *******
 
         // Branch on negative result
-        if (this.F_SIGN == 1) {
+        if (this.F_SIGN === 1) {
           cycleCount++;
           this.REG_PC = addr;
         }
@@ -402,8 +407,8 @@ CPU.prototype = {
         // *******
 
         // Branch on not zero
-        if (this.F_ZERO != 0) {
-          cycleCount += (opaddr & 0xff00) != (addr & 0xff00) ? 2 : 1;
+        if (this.F_ZERO !== 0) {
+          cycleCount += (opaddr & 0xff00) !== (addr & 0xff00) ? 2 : 1;
           this.REG_PC = addr;
         }
         break;
@@ -414,8 +419,8 @@ CPU.prototype = {
         // *******
 
         // Branch on positive result
-        if (this.F_SIGN == 0) {
-          cycleCount += (opaddr & 0xff00) != (addr & 0xff00) ? 2 : 1;
+        if (this.F_SIGN === 0) {
+          cycleCount += (opaddr & 0xff00) !== (addr & 0xff00) ? 2 : 1;
           this.REG_PC = addr;
         }
         break;
@@ -432,7 +437,7 @@ CPU.prototype = {
 
         this.push(
           this.F_CARRY |
-            ((this.F_ZERO == 0 ? 1 : 0) << 1) |
+            ((this.F_ZERO === 0 ? 1 : 0) << 1) |
             (this.F_INTERRUPT << 2) |
             (this.F_DECIMAL << 3) |
             (this.F_BRK << 4) |
@@ -453,8 +458,8 @@ CPU.prototype = {
         // *******
 
         // Branch on overflow clear
-        if (this.F_OVERFLOW == 0) {
-          cycleCount += (opaddr & 0xff00) != (addr & 0xff00) ? 2 : 1;
+        if (this.F_OVERFLOW === 0) {
+          cycleCount += (opaddr & 0xff00) !== (addr & 0xff00) ? 2 : 1;
           this.REG_PC = addr;
         }
         break;
@@ -465,8 +470,8 @@ CPU.prototype = {
         // *******
 
         // Branch on overflow set
-        if (this.F_OVERFLOW == 1) {
-          cycleCount += (opaddr & 0xff00) != (addr & 0xff00) ? 2 : 1;
+        if (this.F_OVERFLOW === 1) {
+          cycleCount += (opaddr & 0xff00) !== (addr & 0xff00) ? 2 : 1;
           this.REG_PC = addr;
         }
         break;
@@ -688,7 +693,7 @@ CPU.prototype = {
         // *******
 
         // Shift right one bit:
-        if (addrMode == 4) {
+        if (addrMode === 4) {
           // ADDR_ACC
 
           temp = this.REG_ACC & 0xff;
@@ -724,7 +729,7 @@ CPU.prototype = {
         this.F_SIGN = (temp >> 7) & 1;
         this.F_ZERO = temp;
         this.REG_ACC = temp;
-        if (addrMode != 11) cycleCount += cycleAdd; // PostIdxInd = 11
+        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
         break;
       }
       case 35: {
@@ -745,7 +750,7 @@ CPU.prototype = {
         this.F_BRK = 1;
         this.push(
           this.F_CARRY |
-            ((this.F_ZERO == 0 ? 1 : 0) << 1) |
+            ((this.F_ZERO === 0 ? 1 : 0) << 1) |
             (this.F_INTERRUPT << 2) |
             (this.F_DECIMAL << 3) |
             (this.F_BRK << 4) |
@@ -774,7 +779,7 @@ CPU.prototype = {
         // Pull processor status from stack
         temp = this.pull();
         this.F_CARRY = temp & 1;
-        this.F_ZERO = ((temp >> 1) & 1) == 1 ? 0 : 1;
+        this.F_ZERO = ((temp >> 1) & 1) === 1 ? 0 : 1;
         this.F_INTERRUPT = (temp >> 2) & 1;
         this.F_DECIMAL = (temp >> 3) & 1;
         this.F_BRK = (temp >> 4) & 1;
@@ -791,7 +796,7 @@ CPU.prototype = {
         // *******
 
         // Rotate one bit left
-        if (addrMode == 4) {
+        if (addrMode === 4) {
           // ADDR_ACC = 4
 
           temp = this.REG_ACC;
@@ -816,7 +821,7 @@ CPU.prototype = {
         // *******
 
         // Rotate one bit right
-        if (addrMode == 4) {
+        if (addrMode === 4) {
           // ADDR_ACC = 4
 
           add = this.F_CARRY << 7;
@@ -843,7 +848,7 @@ CPU.prototype = {
 
         temp = this.pull();
         this.F_CARRY = temp & 1;
-        this.F_ZERO = ((temp >> 1) & 1) == 0 ? 1 : 0;
+        this.F_ZERO = ((temp >> 1) & 1) === 0 ? 1 : 0;
         this.F_INTERRUPT = (temp >> 2) & 1;
         this.F_DECIMAL = (temp >> 3) & 1;
         this.F_BRK = (temp >> 4) & 1;
@@ -853,7 +858,7 @@ CPU.prototype = {
 
         this.REG_PC = this.pull();
         this.REG_PC += this.pull() << 8;
-        if (this.REG_PC == 0xffff) {
+        if (this.REG_PC === 0xffff) {
           return;
         }
         this.REG_PC--;
@@ -870,7 +875,7 @@ CPU.prototype = {
         this.REG_PC = this.pull();
         this.REG_PC += this.pull() << 8;
 
-        if (this.REG_PC == 0xffff) {
+        if (this.REG_PC === 0xffff) {
           return; // return from NSF play routine:
         }
         break;
@@ -883,13 +888,17 @@ CPU.prototype = {
         temp = this.REG_ACC - this.load(addr) - (1 - this.F_CARRY);
         this.F_SIGN = (temp >> 7) & 1;
         this.F_ZERO = temp & 0xff;
-        this.F_OVERFLOW = ((this.REG_ACC ^ temp) & 0x80) != 0 &&
-          ((this.REG_ACC ^ this.load(addr)) & 0x80) != 0
-          ? 1
-          : 0;
+        if (
+          ((this.REG_ACC ^ temp) & 0x80) !== 0 &&
+          ((this.REG_ACC ^ this.load(addr)) & 0x80) !== 0
+        ) {
+          this.F_OVERFLOW = 1;
+        } else {
+          this.F_OVERFLOW = 0;
+        }
         this.F_CARRY = temp < 0 ? 0 : 1;
         this.REG_ACC = temp & 0xff;
-        if (addrMode != 11) cycleCount += cycleAdd; // PostIdxInd = 11
+        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
         break;
       }
       case 44: {
@@ -1052,7 +1061,7 @@ CPU.prototype = {
 
   requestIrq: function(type) {
     if (this.irqRequested) {
-      if (type == this.IRQ_NORMAL) {
+      if (type === this.IRQ_NORMAL) {
         return;
       }
       // console.log("too fast irqs. type="+type);
@@ -1078,7 +1087,7 @@ CPU.prototype = {
   },
 
   pageCrossed: function(addr1, addr2) {
-    return (addr1 & 0xff00) != (addr2 & 0xff00);
+    return (addr1 & 0xff00) !== (addr2 & 0xff00);
   },
 
   haltCycles: function(cycles) {
@@ -1086,7 +1095,7 @@ CPU.prototype = {
   },
 
   doNonMaskableInterrupt: function(status) {
-    if ((this.nes.mmap.load(0x2000) & 128) != 0) {
+    if ((this.nes.mmap.load(0x2000) & 128) !== 0) {
       // Check whether VBlank Interrupts are enabled
 
       this.REG_PC_NEW++;
