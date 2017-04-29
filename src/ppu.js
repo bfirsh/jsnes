@@ -861,8 +861,7 @@ PPU.prototype = {
       if (address < this.vramMirrorTable.length) {
         this.writeMem(this.vramMirrorTable[address], value);
       } else {
-        // FIXME
-        alert("Invalid VRAM address: " + address.toString(16));
+        throw new Error("Invalid VRAM address: " + address.toString(16));
       }
     }
   },

@@ -328,8 +328,7 @@ Mappers[0].prototype = {
 
   loadROM: function() {
     if (!this.nes.rom.valid || this.nes.rom.romCount < 1) {
-      alert("NoMapper: Invalid ROM! Unable to load.");
-      return;
+      throw new Error("NoMapper: Invalid ROM! Unable to load.");
     }
 
     // Load ROM into memory:
@@ -731,8 +730,7 @@ Mappers[1].prototype.getRegNumber = function(address) {
 
 Mappers[1].prototype.loadROM = function(rom) {
   if (!this.nes.rom.valid) {
-    alert("MMC1: Invalid ROM! Unable to load.");
-    return;
+    throw new Error("MMC1: Invalid ROM! Unable to load.");
   }
 
   // Load PRG-ROM:
@@ -810,8 +808,7 @@ Mappers[2].prototype.write = function(address, value) {
 
 Mappers[2].prototype.loadROM = function(rom) {
   if (!this.nes.rom.valid) {
-    alert("UNROM: Invalid ROM! Unable to load.");
-    return;
+    throw new Error("UNROM: Invalid ROM! Unable to load.");
   }
 
   // Load PRG-ROM:
@@ -1016,8 +1013,7 @@ Mappers[4].prototype.executeCommand = function(cmd, arg) {
 
 Mappers[4].prototype.loadROM = function(rom) {
   if (!this.nes.rom.valid) {
-    alert("MMC3: Invalid ROM! Unable to load.");
-    return;
+    throw new Error("MMC3: Invalid ROM! Unable to load.");
   }
 
   // Load hardwired PRG banks (0xC000 and 0xE000):
@@ -1219,8 +1215,7 @@ Mappers[5].prototype.write = function(address, value) {
 
 Mappers[5].prototype.loadROM = function(rom) {
   if (!this.nes.rom.valid) {
-    alert("UNROM: Invalid ROM! Unable to load.");
-    return;
+    throw new Error("UNROM: Invalid ROM! Unable to load.");
   }
 
   // Load PRG-ROM:
@@ -1264,8 +1259,7 @@ Mappers[7].prototype.write = function(address, value) {
 
 Mappers[7].prototype.loadROM = function(rom) {
   if (!this.nes.rom.valid) {
-    alert("AOROM: Invalid ROM! Unable to load.");
-    return;
+    throw new Error("AOROM: Invalid ROM! Unable to load.");
   }
 
   // Load PRG-ROM:
