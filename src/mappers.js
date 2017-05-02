@@ -775,7 +775,7 @@ Mappers[1].prototype.toJSON = function() {
 };
 
 Mappers[1].prototype.fromJSON = function(s) {
-  Mappers[0].prototype.fromJSON.apply(this, s);
+  Mappers[0].prototype.fromJSON.apply(this, arguments);
   this.mirroring = s.mirroring;
   this.oneScreenMirroring = s.oneScreenMirroring;
   this.prgSwitchingArea = s.prgSwitchingArea;
@@ -1060,7 +1060,7 @@ Mappers[4].prototype.toJSON = function() {
 };
 
 Mappers[4].prototype.fromJSON = function(s) {
-  Mappers[0].prototype.fromJSON.apply(this, s);
+  Mappers[0].prototype.fromJSON.apply(this, arguments);
   this.command = s.command;
   this.prgAddressSelect = s.prgAddressSelect;
   this.chrAddressSelect = s.chrAddressSelect;
