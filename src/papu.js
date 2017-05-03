@@ -15,8 +15,6 @@ var PAPU = function(nes) {
   this.initCounter = 2048;
   this.channelEnableValue = null;
 
-  this.bufferSize = 8192;
-  this.bufferIndex = 0;
   this.sampleRate = 44100;
 
   this.lengthLookup = null;
@@ -24,7 +22,6 @@ var PAPU = function(nes) {
   this.noiseWavelengthLookup = null;
   this.square_table = null;
   this.tnd_table = null;
-  this.sampleBuffer = new Array(this.bufferSize * 2);
 
   this.frameIrqEnabled = false;
   this.frameIrqActive = null;
@@ -115,7 +112,6 @@ PAPU.prototype = {
     );
 
     this.sampleTimer = 0;
-    this.bufferIndex = 0;
 
     this.updateChannelEnable(0);
     this.masterFrameCounter = 0;
@@ -134,7 +130,6 @@ PAPU.prototype = {
     this.noise.reset();
     this.dmc.reset();
 
-    this.bufferIndex = 0;
     this.accCount = 0;
     this.smpSquare1 = 0;
     this.smpSquare2 = 0;
@@ -475,8 +470,7 @@ PAPU.prototype = {
     // End of 240Hz tick
   },
 
-  // Samples the channels, mixes the output together,
-  // writes to buffer and (if enabled) file.
+  // Samples the channels, mixes the output together, then writes to buffer.
   sample: function() {
     var sq_index, tnd_index;
 
@@ -563,14 +557,9 @@ PAPU.prototype = {
     if (sampleValueL < this.minSample) {
       this.minSample = sampleValueL;
     }
-    this.sampleBuffer[this.bufferIndex++] = sampleValueL;
-    this.sampleBuffer[this.bufferIndex++] = sampleValueR;
 
-    // Write full buffer
-    if (this.bufferIndex === this.sampleBuffer.length) {
-      this.nes.ui.writeAudio(this.sampleBuffer);
-      this.sampleBuffer = new Array(this.bufferSize * 2);
-      this.bufferIndex = 0;
+    if (this.nes.opts.onAudioSample) {
+      this.nes.opts.onAudioSample(sampleValueL / 32768, sampleValueR / 32768);
     }
 
     // Reset sampled values:

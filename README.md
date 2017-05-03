@@ -29,8 +29,8 @@ var nes = new jsnes.NES({
   onFrame: function(frameBuffer) {
     // ... write frameBuffer to screen
   },
-  onAudio: function(audioBuffer) {
-    // ... play audioBuffer
+  onAudioSample: function(left, right) {
+    // ... play audio sample
   }
 });
 
