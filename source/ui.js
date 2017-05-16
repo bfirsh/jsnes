@@ -46,6 +46,10 @@ if (typeof jQuery !== 'undefined') {
                     return;
                 }
                 
+                // Don't blur the screen when resized
+                self.screen[0].style.imageRendering = "-moz-crisp-edges";
+                self.screen[0].style.imageRendering = "pixelated";
+
                 self.romContainer = $('<div class="nes-roms"></div>').appendTo(self.root);
                 self.romSelect = $('<select></select>').appendTo(self.romContainer);
                 
