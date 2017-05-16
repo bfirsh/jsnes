@@ -28,6 +28,9 @@ if (typeof jQuery !== 'undefined') {
     (function($) {
         $.fn.JSNESUI = function(roms) {
             var parent = this;
+            var buf = null;
+            var buf8 = null;
+            var buf32 = null;
             var UI = function(nes) {
                 var self = this;
                 self.nes = nes;
@@ -213,13 +216,19 @@ if (typeof jQuery !== 'undefined') {
                 },
                 
                 resetCanvas: function() {
+                    // Get the canvas buffer in 8bit and 32bit
+                    this.buf = new ArrayBuffer(this.canvasImageData.data.length);
+                    this.buf8 = new Uint8ClampedArray(this.buf);
+                    this.buf32 = new Uint32Array(this.buf);
+
+                    // Fill the canvas with black
                     this.canvasContext.fillStyle = 'black';
                     // set alpha to opaque
                     this.canvasContext.fillRect(0, 0, 256, 240);
 
                     // Set alpha
-                    for (var i = 3; i < this.canvasImageData.data.length-3; i += 4) {
-                        this.canvasImageData.data[i] = 0xFF;
+                    for (var i=0; i<this.buf32.length; ++i) {
+                        this.buf32[i] = 0xFF000000;
                     }
                 },
                 
@@ -279,22 +288,17 @@ if (typeof jQuery !== 'undefined') {
                     return this.dynamicaudio.writeInt(samples);
                 },
             
-                writeFrame: function(buffer, prevBuffer) {
-                    var imageData = this.canvasImageData.data;
-                    var pixel, i, j;
-
-                    for (i=0; i<256*240; i++) {
-                        pixel = buffer[i];
-
-                        if (pixel != prevBuffer[i]) {
-                            j = i*4;
-                            imageData[j] = pixel & 0xFF;
-                            imageData[j+1] = (pixel >> 8) & 0xFF;
-                            imageData[j+2] = (pixel >> 16) & 0xFF;
-                            prevBuffer[i] = pixel;
+                writeFrame: function(buffer) {
+                    var i = 0;
+                    for (var y=0; y<240; ++y) {
+                        for (var x=0; x<256; ++x) {
+                            i = y * 256 + x;
+                            // Convert pixel from NES BGR to canvas ABGR
+                            this.buf32[i] = 0xFF000000 | buffer[i]; // Full alpha
                         }
                     }
 
+                    this.canvasImageData.data.set(this.buf8);
                     this.canvasContext.putImageData(this.canvasImageData, 0, 0);
                 }
             };
