@@ -47,7 +47,7 @@ var JSNES = function(opts) {
     this.ppu = new JSNES.PPU(this);
     this.papu = new JSNES.PAPU(this);
     this.mmap = null; // set in loadRom()
-    this.keyboard = new JSNES.Keyboard();
+    this.input = new JSNES.Input();
     
     this.ui.updateStatus("Ready to load a ROM.");
 };
