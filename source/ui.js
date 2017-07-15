@@ -174,6 +174,16 @@ if (typeof jQuery !== 'undefined') {
                     bind('keypress', function(evt) {
                         self.nes.keyboard.keyPress(evt);
                     });
+
+                /*
+                 * Wii U Gamepad
+                 */
+                 if(JSNES.Utils.isWiiU()) {
+                    setInterval('self.nes.gamepad.update()', 20);
+                 } else {
+                    console.log('Not running on Wii U')
+                 }
+                 
             
                 /*
                  * Sound

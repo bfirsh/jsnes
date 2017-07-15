@@ -47,6 +47,10 @@ JSNES.Utils = {
     
     isIE: function() {
         return (/msie/i.test(navigator.userAgent) && !/opera/i.test(navigator.userAgent));
+    },
+
+    isWiiU: function() {
+        return (/WiiU/i.test(navigator.userAgent));
     }
 };
 
