@@ -39,16 +39,16 @@ var JSNES = function(opts) {
             }
         }
     }
-    
+
     this.frameTime = 1000 / this.opts.preferredFrameRate;
-    
     this.ui = new this.opts.ui(this);
     this.cpu = new JSNES.CPU(this);
     this.ppu = new JSNES.PPU(this);
     this.papu = new JSNES.PAPU(this);
     this.mmap = null; // set in loadRom()
+    this.gamepad = new JSNES.Gamepad();
     this.keyboard = new JSNES.Keyboard();
-    
+
     this.ui.updateStatus("Ready to load a ROM.");
 };
 
