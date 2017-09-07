@@ -10,3 +10,4 @@ deploy:
   on:
     tags: true
     repo: bfirsh/jsnes
+  skip_cleanup: true
