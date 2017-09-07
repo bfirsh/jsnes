@@ -1,16 +1,25 @@
 {
   "name": "jsnes",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "A JavaScript NES emulator",
+  "main": "src/index.js",
   "repository": {
     "type": "git",
     "url": "git://github.com/bfirsh/jsnes.git"
   },
-  "license": "BSD",
+  "license": "GPL-3.0",
+  "scripts": {
+    "build": "webpack",
+    "test": "mocha ./test/*.spec.js",
+    "test:watch": "mocha -w ./test/*.spec.js",
+    "prepublish": "npm run build"
+  },
   "devDependencies": {
-    "grunt": "~0.4.1",
-    "grunt-contrib-concat": "~0.3.0",
-    "grunt-contrib-uglify": "~0.2.1",
-    "grunt-contrib-jshint": "~0.5.4"
+    "chai": "^3.5.0",
+    "jshint": "^2.9.5",
+    "jshint-loader": "^0.8.4",
+    "mocha": "^3.3.0",
+    "sinon": "^2.1.0",
+    "webpack": "^2.4.1"
   }
 }
