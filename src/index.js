@@ -1,1 +1,1 @@
-module.exports.NES = require('./nes');
+module.exports.NES = require("./nes");

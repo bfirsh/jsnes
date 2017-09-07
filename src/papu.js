@@ -1136,7 +1136,9 @@ ChannelSquare.prototype = {
     if (--this.sweepCounter <= 0) {
       this.sweepCounter = this.sweepCounterMax + 1;
       if (
-        this.sweepActive && this.sweepShiftAmount > 0 && this.progTimerMax > 7
+        this.sweepActive &&
+        this.sweepShiftAmount > 0 &&
+        this.progTimerMax > 7
       ) {
         // Calculate result from shifter:
         this.sweepCarry = false;
@@ -1329,11 +1331,14 @@ ChannelTriangle.prototype = {
     if (this.progTimerMax > 0) {
       this.progTimerCount += nCycles;
       while (
-        this.progTimerMax > 0 && this.progTimerCount >= this.progTimerMax
+        this.progTimerMax > 0 &&
+        this.progTimerCount >= this.progTimerMax
       ) {
         this.progTimerCount -= this.progTimerMax;
         if (
-          this.isEnabled && this.lengthCounter > 0 && this.linearCounter > 0
+          this.isEnabled &&
+          this.lengthCounter > 0 &&
+          this.linearCounter > 0
         ) {
           this.clockTriangleGenerator();
         }

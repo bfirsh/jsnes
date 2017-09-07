@@ -1,4 +1,3 @@
-
 var Tile = function() {
   // Tile data:
   this.pix = new Array(64);

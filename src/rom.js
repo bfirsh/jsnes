@@ -1,5 +1,5 @@
-var Mappers = require('./mappers');
-var Tile = require('./tile');
+var Mappers = require("./mappers");
+var Tile = require("./tile");
 
 var ROM = function(nes) {
   this.nes = nes;

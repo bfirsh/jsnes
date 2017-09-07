@@ -1,4 +1,4 @@
-var utils = require('./utils');
+var utils = require("./utils");
 
 var Mappers = {};
 
@@ -421,7 +421,7 @@ Mappers[0].prototype = {
   },
 
   load32kRomBank: function(bank, address) {
-    this.loadRomBank(bank * 2 % this.nes.rom.romCount, address);
+    this.loadRomBank((bank * 2) % this.nes.rom.romCount, address);
     this.loadRomBank((bank * 2 + 1) % this.nes.rom.romCount, address + 16384);
   },
 
@@ -445,7 +445,7 @@ Mappers[0].prototype = {
     this.nes.ppu.triggerRendering();
 
     var bank4k = Math.floor(bank1k / 4) % this.nes.rom.vromCount;
-    var bankoffset = bank1k % 4 * 1024;
+    var bankoffset = (bank1k % 4) * 1024;
     utils.copyArrayElements(
       this.nes.rom.vrom[bank4k],
       0,
@@ -469,7 +469,7 @@ Mappers[0].prototype = {
     this.nes.ppu.triggerRendering();
 
     var bank4k = Math.floor(bank2k / 2) % this.nes.rom.vromCount;
-    var bankoffset = bank2k % 2 * 2048;
+    var bankoffset = (bank2k % 2) * 2048;
     utils.copyArrayElements(
       this.nes.rom.vrom[bank4k],
       bankoffset,
@@ -488,7 +488,7 @@ Mappers[0].prototype = {
 
   load8kRomBank: function(bank8k, address) {
     var bank16k = Math.floor(bank8k / 2) % this.nes.rom.romCount;
-    var offset = bank8k % 2 * 8192;
+    var offset = (bank8k % 2) * 8192;
 
     //this.nes.cpu.mem.write(address,this.nes.rom.rom[bank16k],offset,8192);
     utils.copyArrayElements(
@@ -1291,7 +1291,7 @@ Mappers[11].prototype.write = function(address, value) {
     return;
   } else {
     // Swap in the given PRG-ROM bank:
-    var prgbank1 = (value & 0xf) * 2 % this.nes.rom.romCount;
+    var prgbank1 = ((value & 0xf) * 2) % this.nes.rom.romCount;
     var prgbank2 = ((value & 0xf) * 2 + 1) % this.nes.rom.romCount;
 
     this.loadRomBank(prgbank1, 0x8000);
@@ -1299,7 +1299,7 @@ Mappers[11].prototype.write = function(address, value) {
 
     if (this.nes.rom.vromCount > 0) {
       // Swap in the given VROM bank at 0x0000:
-      var bank = (value >> 4) * 2 % this.nes.rom.vromCount;
+      var bank = ((value >> 4) * 2) % this.nes.rom.vromCount;
       this.loadVromBank(bank, 0x0000);
       this.loadVromBank(bank + 1, 0x1000);
     }
