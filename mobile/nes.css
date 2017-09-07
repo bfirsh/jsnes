@@ -1,0 +1,73 @@
+.controls {
+    -moz-user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+}
+
+.nes-button {
+    cursor: pointer;
+    text-align: center;
+    display: inline-block;
+    border: 1px solid black;
+    font-family: Arial;
+    font-weight: bold;
+}
+
+.action-button {
+    background-color: red;
+    border-radius: 50px 50px 50px 50px;
+    width: 50px;
+    height: 50px;
+    line-height: 50px;
+}
+.action-button:active {
+    background-color: #EE0000;
+}
+
+.option-button {
+    background-color: #CFCFCF;
+    border-radius: 20px 20px 20px 20px;
+    padding: 3px;
+}
+
+.option-button:active{
+    background-color: #BBBBBB;
+}
+
+.directions {
+    display: inline-block;
+}
+
+.directions .nes-button {
+    background-color: black;
+    width: 50px;
+    height: 50px;
+}
+
+.up-button, .down-button {
+    display: block;
+    margin-right: auto;
+    margin-left: auto;
+}
+.left-button, .right-button {
+    display: inline-block;
+    margin-right: 24px;
+    margin-left: 24px;
+}
+
+.sideways-buttons {
+    height: 52px;
+}
+
+.directions .nes-button:active {
+    background-color: #323232;
+}
+
+.nes-button:active {
+    position: relative;
+    top: 1px;
+}
+
+.nes {
+    display: inline-block;
+}
