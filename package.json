@@ -22,6 +22,6 @@
     "jshint-loader": "^0.8.4",
     "mocha": "^3.5.0",
     "sinon": "^3.2.1",
-    "webpack": "^2.4.1"
+    "webpack": "^3.5.6"
   }
 }
