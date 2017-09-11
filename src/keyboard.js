@@ -21,6 +21,10 @@ var Keyboard = function() {
   for (i = 0; i < this.state2.length; i++) {
     this.state2[i] = 0x40;
   }
+
+  this.keyUp = this.keyUp.bind(this);
+  this.keyDown = this.keyDown.bind(this);
+  this.keyPress = this.keyPress.bind(this);
 };
 
 Keyboard.prototype = {
