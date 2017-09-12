@@ -1,5 +1,5 @@
 var CPU = require("./cpu");
-var Keyboard = require("./keyboard");
+var Controller = require("./controller");
 var PPU = require("./ppu");
 var PAPU = require("./papu");
 var ROM = require("./rom");
@@ -34,11 +34,16 @@ var NES = function(opts) {
   this.ppu = new PPU(this);
   this.papu = new PAPU(this);
   this.mmap = null; // set in loadROM()
-  this.keyboard = new Keyboard();
+  this.controllers = {
+    1: new Controller(),
+    2: new Controller(),
+  };
 
   this.ui.updateStatus("Ready to load a ROM.");
 
   this.frame = this.frame.bind(this);
+  this.buttonDown = this.buttonDown.bind(this);
+  this.buttonUp = this.buttonUp.bind(this);
 };
 
 NES.prototype = {
@@ -117,6 +122,14 @@ NES.prototype = {
       }
     }
     this.fpsFrameCount++;
+  },
+
+  buttonDown: function(controller, button) {
+    this.controllers[controller].buttonDown(button);
+  },
+
+  buttonUp: function(controller, button) {
+    this.controllers[controller].buttonUp(button);
   },
 
   getFPS: function() {
