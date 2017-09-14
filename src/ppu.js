@@ -1428,6 +1428,11 @@ PPU.prototype = {
     this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NMI);
   },
 
+  isPixelWhite: function(x, y) {
+    this.triggerRendering();
+    return this.nes.ppu.buffer[(y << 8) + x] === 0xffffff;
+  },
+
   JSON_PROPERTIES: [
     // Memory
     "vramMem",

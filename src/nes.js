@@ -44,6 +44,9 @@ var NES = function(opts) {
   this.frame = this.frame.bind(this);
   this.buttonDown = this.buttonDown.bind(this);
   this.buttonUp = this.buttonUp.bind(this);
+  this.zapperMove = this.zapperMove.bind(this);
+  this.zapperFireDown = this.zapperFireDown.bind(this);
+  this.zapperFireUp = this.zapperFireUp.bind(this);
 };
 
 NES.prototype = {
@@ -130,6 +133,22 @@ NES.prototype = {
 
   buttonUp: function(controller, button) {
     this.controllers[controller].buttonUp(button);
+  },
+
+  zapperMove: function(x, y) {
+    if (!this.mmap) return;
+    this.mmap.zapperX = x;
+    this.mmap.zapperY = y;
+  },
+
+  zapperFireDown: function() {
+    if (!this.mmap) return;
+    this.mmap.zapperFired = true;
+  },
+
+  zapperFireUp: function() {
+    if (!this.mmap) return;
+    this.mmap.zapperFired = false;
   },
 
   getFPS: function() {

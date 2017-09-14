@@ -12,9 +12,9 @@ Mappers[0].prototype = {
     this.joy2StrobeState = 0;
     this.joypadLastWrite = 0;
 
-    this.mousePressed = false;
-    this.mouseX = null;
-    this.mouseY = null;
+    this.zapperFired = false;
+    this.zapperX = null;
+    this.zapperY = null;
   },
 
   write: function(address, value) {
@@ -141,29 +141,19 @@ Mappers[0].prototype = {
           case 2:
             // 0x4017:
             // Joystick 2 + Strobe
-            if (this.mousePressed) {
-              // Check for white pixel nearby:
-              var sx = Math.max(0, this.mouseX - 4);
-              var ex = Math.min(256, this.mouseX + 4);
-              var sy = Math.max(0, this.mouseY - 4);
-              var ey = Math.min(240, this.mouseY + 4);
-              var w = 0;
+            // https://wiki.nesdev.com/w/index.php/Zapper
+            var w;
 
-              for (var y = sy; y < ey; y++) {
-                for (var x = sx; x < ex; x++) {
-                  if (this.nes.ppu.buffer[(y << 8) + x] === 0xffffff) {
-                    w |= 0x1 << 3;
-                    console.debug("Clicked on white!");
-                    break;
-                  }
-                }
-              }
-
-              w |= this.mousePressed ? 0x1 << 4 : 0;
-              return (this.joy2Read() | w) & 0xffff;
+            if (this.nes.ppu.isPixelWhite(this.zapperX, this.zapperY)) {
+              w = 0;
             } else {
-              return this.joy2Read();
+              w = 0x1 << 3;
             }
+
+            if (this.zapperFired) {
+              w |= 0x1 << 4;
+            }
+            return (this.joy2Read() | w) & 0xffff;
         }
         break;
     }
