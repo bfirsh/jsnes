@@ -144,7 +144,11 @@ Mappers[0].prototype = {
             // https://wiki.nesdev.com/w/index.php/Zapper
             var w;
 
-            if (this.nes.ppu.isPixelWhite(this.zapperX, this.zapperY)) {
+            if (
+              this.zapperX !== null &&
+              this.zapperY !== null &&
+              this.nes.ppu.isPixelWhite(this.zapperX, this.zapperY)
+            ) {
               w = 0;
             } else {
               w = 0x1 << 3;
