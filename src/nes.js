@@ -10,6 +10,7 @@ var NES = function(opts) {
     onAudioSample: null,
     onStatusUpdate: function() {},
 
+    // FIXME: not actually used except for in PAPU
     preferredFrameRate: 60,
 
     emulateSound: true,
