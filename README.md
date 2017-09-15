@@ -42,6 +42,13 @@ nes.loadROM(romData);
 nes.frame();
 nes.frame();
 // ...
+
+// Hook up whatever input device you have to the controller.
+nes.buttonDown(jsnes.Controller.BUTTON_A);
+nes.frame();
+nes.buttonUp(jsnes.Controller.BUTTON_A);
+nes.frame();
+// ...
 ```
 
 Build
