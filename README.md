@@ -17,7 +17,7 @@ For Node.js or Webpack:
 In the browser, you can use [unpkg](https://unpkg.com):
 
 ```html
-<script type="text/javascript" src="https://unpkg.com/jsnes@0.1.0/dist/jsnes.min.js"></script>
+<script type="text/javascript" src="https://unpkg.com/jsnes/dist/jsnes.min.js"></script>
 ```
 
 Usage
