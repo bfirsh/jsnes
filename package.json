@@ -20,7 +20,7 @@
     "chai": "^4.1.2",
     "jshint": "^2.9.5",
     "jshint-loader": "^0.8.4",
-    "mocha": "^3.5.3",
+    "mocha": "^4.0.0",
     "sinon": "^4.0.0",
     "webpack": "^3.5.6"
   }
