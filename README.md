@@ -44,9 +44,9 @@ nes.frame();
 // ...
 
 // Hook up whatever input device you have to the controller.
-nes.buttonDown(0, jsnes.Controller.BUTTON_A);
+nes.buttonDown(1, jsnes.Controller.BUTTON_A);
 nes.frame();
-nes.buttonUp(0, jsnes.Controller.BUTTON_A);
+nes.buttonUp(1, jsnes.Controller.BUTTON_A);
 nes.frame();
 // ...
 ```
