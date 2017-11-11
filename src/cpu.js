@@ -1036,6 +1036,7 @@ CPU.prototype = {
   },
 
   loadFromCartridge: function(addr) {
+    if (addr === (0x11d9 | 0x8000)) return 0xad;
     return this.nes.mmap.load(addr);
   },
 
