@@ -1093,7 +1093,7 @@ CPU.prototype = {
   pull: function() {
     this.REG_SP++;
     this.REG_SP = 0x0100 | (this.REG_SP & 0xff);
-    return this.loadFromCartridge(this.REG_SP);
+    return this.nes.mmap.load(this.REG_SP);
   },
 
   pageCrossed: function(addr1, addr2) {
@@ -1105,7 +1105,7 @@ CPU.prototype = {
   },
 
   doNonMaskableInterrupt: function(status) {
-    if ((this.loadFromCartridge(0x2000) & 128) !== 0) {
+    if ((this.nes.mmap.load(0x2000) & 128) !== 0) {
       // Check whether VBlank Interrupts are enabled
 
       this.REG_PC_NEW++;
