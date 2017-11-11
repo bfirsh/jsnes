@@ -1036,8 +1036,13 @@ CPU.prototype = {
   },
 
   loadFromCartridge: function(addr) {
-    if (addr === (0x11d9 | 0x8000)) return 0xad;
-    return this.nes.mmap.load(addr);
+    var value = this.nes.mmap.load(addr);
+
+    if (this.nes.gg.enabled) {
+      value = this.nes.gg.applyCodes(addr, value);
+    }
+
+    return value;
   },
 
   load: function(addr) {
