@@ -36,7 +36,6 @@ var NES = function(opts) {
   this.ppu = new PPU(this);
   this.papu = new PAPU(this);
   this.gg = new GG(this);
-  this.gg.addCode('SXIOPO');
   this.mmap = null; // set in loadROM()
   this.controllers = {
     1: new Controller(),
