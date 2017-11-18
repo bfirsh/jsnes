@@ -15,6 +15,12 @@ function toLetter(digit) {
   return LETTER_VALUES.substr(digit, 1);
 }
 
+function toHex(n, width) {
+  var s = n.toString(16);
+  return '0000'.substring(0, width - s.length) + s;
+}
+
+
 GG.prototype = {
   setEnabled: function(enabled) {
     this.enabled = enabled;
@@ -42,14 +48,16 @@ GG.prototype = {
   },
 
   decode: function(code) {
-    var digits = code.split('').map(toDigit);
+    if (code.indexOf(':') !== -1) return this.decodeHex(code);
+
+    var digits = code.toUpperCase().split('').map(toDigit);
 
     var value = ((digits[0] & 8) << 4) + ((digits[1] & 7) << 4) + (digits[0] & 7);
     var addr = ((digits[3] & 7) << 12) + ((digits[4] & 8) << 8) + ((digits[5] & 7) << 8) +
         ((digits[1] & 8) << 4) + ((digits[2] & 7) << 4) + (digits[3] & 8) + (digits[4] & 7);
     var key;
 
-    if (digits.length == 8) {
+    if (digits.length === 8) {
       value += (digits[7] & 8);
       key = ((digits[6] & 8) << 4) + ((digits[7] & 7) << 4) + (digits[5] & 8) + (digits[6] & 7);
     } else {
@@ -57,6 +65,32 @@ GG.prototype = {
     }
 
     var wantskey = !!(digits[2] >> 3);
+
+    return { value: value, addr: addr, wantskey: wantskey, key: key };
+  },
+
+  encodeHex: function(addr, value, key, wantskey) {
+    var s = toHex(addr, 4) + ':' + toHex(value, 2);
+
+    if (key !== undefined || wantskey) {
+      s += '?';
+    }
+
+    if (key !== undefined) {
+      s += toHex(key, 2);
+    }
+
+    return s;
+  },
+
+  decodeHex: function(s) {
+    var match = s.match(/([0-9a-fA-F]+):([0-9a-fA-F]+)(\?[0-9a-fA-F]*)?/);
+    if (!match) return null;
+
+    var addr = parseInt(match[1], 16);
+    var value = parseInt(match[2], 16);
+    var wantskey = match[3] !== undefined;
+    var key = (match[3] !== undefined && match[3].length > 1) ? parseInt(match[3].substring(1), 16) : undefined;
 
     return { value: value, addr: addr, wantskey: wantskey, key: key };
   },

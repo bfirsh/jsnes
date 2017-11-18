@@ -36,6 +36,8 @@ var NES = function(opts) {
   this.ppu = new PPU(this);
   this.papu = new PAPU(this);
   this.gg = new GG(this);
+  //this.gg.addCode('11d9:ad'); // example of hex code
+  //this.gg.addCode('SXIOPO'); // example of Game Genie code
   this.mmap = null; // set in loadROM()
   this.controllers = {
     1: new Controller(),
