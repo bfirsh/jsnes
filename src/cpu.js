@@ -1038,8 +1038,8 @@ CPU.prototype = {
   loadFromCartridge: function(addr) {
     var value = this.nes.mmap.load(addr);
 
-    if (this.nes.gg.enabled) {
-      value = this.nes.gg.applyCodes(addr, value);
+    if (this.nes.gameGenie.enabled) {
+      value = this.nes.gameGenie.applyCodes(addr, value);
     }
 
     return value;

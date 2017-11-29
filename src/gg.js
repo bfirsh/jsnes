@@ -1,6 +1,5 @@
 
-var GG = function(nes) {
-  this.nes = nes;
+var GG = function() {
   this.patches = [];
   this.enabled = true;
 };
