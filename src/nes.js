@@ -9,6 +9,7 @@ var NES = function(opts) {
     onFrame: function() {},
     onAudioSample: null,
     onStatusUpdate: function() {},
+    onBatteryRamWrite: function() {},
 
     // FIXME: not actually used except for in PAPU
     preferredFrameRate: 60,

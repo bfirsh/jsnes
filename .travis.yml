@@ -2,6 +2,9 @@ language: node_js
 node_js:
 - '8'
 sudo: false
+script:
+- npm test
+- npm run build
 deploy:
   provider: npm
   email: ben+jsnes-travis@firshman.co.uk
