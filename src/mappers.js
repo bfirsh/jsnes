@@ -24,10 +24,13 @@ Mappers[0].prototype = {
     } else if (address > 0x4017) {
       this.nes.cpu.mem[address] = value;
       if (address >= 0x6000 && address < 0x8000) {
-        // Write to SaveRAM. Store in file:
-        // TODO: not yet
-        //if(this.nes.rom!=null)
-        //    this.nes.rom.writeBatteryRam(address,value);
+        // Write to persistent RAM
+        console.log(
+          "onBatteryRamWrite",
+          address.toString(16),
+          value.toString(16)
+        );
+        this.nes.opts.onBatteryRamWrite(address, value);
       }
     } else if (address > 0x2007 && address < 0x4000) {
       this.regWrite(0x2000 + (address & 0x7), value);
