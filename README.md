@@ -36,6 +36,8 @@ var nes = new jsnes.NES({
 
 // Load ROM data as a string or byte array
 nes.loadROM(romData);
+// An example of loading ROM data in Node.js
+var romData = require('fs').readFileSync('path/to/rom.nes', { encoding: 'binary' });
 
 // Run frames at 60 fps, or as fast as you can.
 // You are responsible for reliable timing as best you can on your platform.
