@@ -13,11 +13,27 @@ describe("NES", function() {
     var nes = new NES({ onFrame: onFrame });
     fs.readFile("roms/croom/croom.nes", function(err, data) {
       if (err) return done(err);
-      nes.loadROM(data.toString("ascii"));
+      nes.loadROM(data.toString("binary"));
       nes.frame();
       assert(onFrame.calledOnce);
       assert.isArray(onFrame.args[0][0]);
       assert.lengthOf(onFrame.args[0][0], 256 * 240);
+      done();
+    });
+  });
+
+  it("generates the correct frame buffer", function(done) {
+    var onFrame = sinon.spy();
+    var nes = new NES({ onFrame: onFrame });
+    fs.readFile("roms/croom/croom.nes", function(err, data) {
+      if (err) return done(err);
+      nes.loadROM(data.toString("binary"));
+      var pixIndexes = [];
+      for (var i = 0; i < 6; i++) {
+        nes.frame();
+        pixIndexes.push(onFrame.args[i][0].indexOf(16777215))
+      }
+      assert.deepEqual(pixIndexes, [-1, -1, -1, 2056, 4104, 4104]);
       done();
     });
   });
@@ -36,7 +52,7 @@ describe("NES", function() {
     before(function(done) {
       fs.readFile("roms/croom/croom.nes", function(err, data) {
         if (err) return done(err);
-        nes.loadROM(data.toString("ascii"));
+        nes.loadROM(data.toString("binary"));
         done();
       });
     });
