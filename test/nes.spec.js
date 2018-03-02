@@ -28,12 +28,15 @@ describe("NES", function() {
     fs.readFile("roms/croom/croom.nes", function(err, data) {
       if (err) return done(err);
       nes.loadROM(data.toString("binary"));
-      var pixIndexes = [];
+      // Check the first index of a white pixel on the first 6 frames of
+      // output. Croom only uses 2 colors on the initial screen which makes
+      // it easy to detect. Comparing full snapshots of each frame takes too
+      // long.
+      var expectedIndexes = [-1, -1, -1, 2056, 4104, 4104];
       for (var i = 0; i < 6; i++) {
         nes.frame();
-        pixIndexes.push(onFrame.args[i][0].indexOf(16777215))
+        assert.equal(onFrame.lastCall.args[0].indexOf(0xFFFFFF), expectedIndexes[i]);
       }
-      assert.deepEqual(pixIndexes, [-1, -1, -1, 2056, 4104, 4104]);
       done();
     });
   });
