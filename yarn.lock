@@ -1828,8 +1828,8 @@ signal-exit@^3.0.0:
   resolved "https://registry.yarnpkg.com/signal-exit/-/signal-exit-3.0.2.tgz#b5fdc08f1287ea1178628e415e25132b73646c6d"
 
 sinon@^4.3.0:
-  version "4.4.2"
-  resolved "https://registry.yarnpkg.com/sinon/-/sinon-4.4.2.tgz#c4c41d4bd346e1d33594daec2d5df0548334fc65"
+  version "4.4.5"
+  resolved "https://registry.yarnpkg.com/sinon/-/sinon-4.4.5.tgz#b625f992f0f0998d068a270c34e8f50ddcfd846b"
   dependencies:
     "@sinonjs/formatio" "^2.0.0"
     diff "^3.1.0"
