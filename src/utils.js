@@ -6,11 +6,7 @@ module.exports = {
   },
 
   copyArray: function(src) {
-    var dest = new Array(src.length);
-    for (var i = 0; i < src.length; i++) {
-      dest[i] = src[i];
-    }
-    return dest;
+    return src.slice(0);
   },
 
   fromJSON: function(obj, state) {
