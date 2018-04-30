@@ -65,7 +65,9 @@ Mappers[0].prototype = {
   },
 
   regLoad: function(address) {
-    switch (address >> 12) { // use fourth nibble (0xF000)
+    switch (
+      address >> 12 // use fourth nibble (0xF000)
+    ) {
       case 0:
         break;
 

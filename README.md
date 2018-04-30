@@ -59,3 +59,11 @@ To build a distribution:
     $ yarn run build
 
 This will create `dist/jsnes.min.js`.
+
+## Formatting code
+
+All code must conform to [Prettier](https://prettier.io/) formatting. The test suite won't pass unless it does.
+
+To automatically format all your code, run:
+
+    $ yarn run format

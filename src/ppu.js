@@ -1,5 +1,5 @@
-var Tile = require('./tile');
-var utils = require('./utils');
+var Tile = require("./tile");
+var utils = require("./utils");
 
 var PPU = function(nes) {
   this.nes = nes;

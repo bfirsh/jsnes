@@ -38,7 +38,7 @@ var NES = function(opts) {
   this.mmap = null; // set in loadROM()
   this.controllers = {
     1: new Controller(),
-    2: new Controller(),
+    2: new Controller()
   };
 
   this.ui.updateStatus("Ready to load a ROM.");
