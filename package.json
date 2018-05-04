@@ -24,7 +24,7 @@
     "mocha": "^5.0.0",
     "prettier": "^1.12.1",
     "prettier-check": "^2.0.0",
-    "sinon": "^4.3.0",
+    "sinon": "^5.0.3",
     "webpack": "^3.9.1"
   }
 }
