@@ -1,12 +1,10 @@
-JSNES
-=====
+# JSNES
 
 A JavaScript NES emulator.
 
 It's a library that works in both the browser and Node.js. The browser UI is available at [https://github.com/bfirsh/jsnes-web](https://github.com/bfirsh/jsnes-web).
 
-Installation
-------------
+## Installation
 
 For Node.js or Webpack:
 
@@ -20,8 +18,7 @@ In the browser, you can use [unpkg](https://unpkg.com):
 <script type="text/javascript" src="https://unpkg.com/jsnes/dist/jsnes.min.js"></script>
 ```
 
-Usage
------
+## Usage
 
 ```javascript
 // Initialize and set up outputs
@@ -55,8 +52,7 @@ nes.frame();
 // ...
 ```
 
-Build
------
+## Build
 
 To build a distribution:
 
