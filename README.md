@@ -60,6 +60,10 @@ To build a distribution:
 
 This will create `dist/jsnes.min.js`.
 
+## Running tests
+
+    $ yarn test
+
 ## Formatting code
 
 All code must conform to [Prettier](https://prettier.io/) formatting. The test suite won't pass unless it does.
