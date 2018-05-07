@@ -1,0 +1,13 @@
+{
+    "env": {
+        "browser": true,
+        "node": true,
+        "es6": true,
+        "commonjs": true
+    },
+    "extends": ["eslint:recommended", "prettier"],
+    "rules": {
+      "eqeqeq": ["error", "always"],
+      "no-alert": "error"
+    }
+}

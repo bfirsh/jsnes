@@ -22,7 +22,7 @@ module.exports = {
         exclude: /node_modules/,
         use: [
           {
-            loader: "jshint-loader"
+            loader: "eslint-loader"
           }
         ]
       }

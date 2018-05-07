@@ -150,6 +150,7 @@ PAPU.prototype = {
     this.minSample = 500000;
   },
 
+  // eslint-disable-next-line no-unused-vars
   readReg: function(address) {
     // Read 0x4015:
     var tmp = 0;
@@ -1300,6 +1301,7 @@ ChannelTriangle.prototype = {
     return this.lengthCounter === 0 || !this.isEnabled ? 0 : 1;
   },
 
+  // eslint-disable-next-line no-unused-vars
   readReg: function(address) {
     return 0;
   },
