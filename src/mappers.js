@@ -498,6 +498,7 @@ Mappers[0].prototype = {
     // Does nothing. This is used by the MMC3 mapper.
   },
 
+  // eslint-disable-next-line no-unused-vars
   latchAccess: function(address) {
     // Does nothing. This is used by MMC2.
   },
@@ -741,6 +742,7 @@ Mappers[1].prototype.loadROM = function() {
   this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
 };
 
+// eslint-disable-next-line no-unused-vars
 Mappers[1].prototype.switchLowHighPrgRom = function(oldSetting) {
   // not yet.
 };
@@ -1362,7 +1364,6 @@ Mappers[34].prototype.write = function(address, value) {
  */
 Mappers[66] = function(nes) {
   this.nes = nes;
-  console.log("Mapper 66");
 };
 
 Mappers[66].prototype = new Mappers[0]();

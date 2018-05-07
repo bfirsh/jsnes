@@ -1150,8 +1150,6 @@ PPU.prototype = {
     var tIndexAdd = this.f_spPatternTable === 0 ? 0 : 256;
     var x, y, t, i;
     var bufferIndex;
-    var col;
-    var bgPri;
 
     x = this.sprX[0];
     y = this.sprY[0] + 1;
@@ -1164,8 +1162,6 @@ PPU.prototype = {
         // Sprite is in range.
         // Draw scanline:
         t = this.ptTile[this.sprTile[0] + tIndexAdd];
-        col = this.sprCol[0];
-        bgPri = this.bgPriority[0];
 
         if (this.vertFlip[0]) {
           toffset = 7 - (scan - y);
@@ -1248,8 +1244,6 @@ PPU.prototype = {
           }
         }
         toffset *= 8;
-        col = this.sprCol[0];
-        bgPri = this.bgPriority[0];
 
         bufferIndex = scan * 256 + x;
         if (this.horiFlip[0]) {
@@ -1575,7 +1569,7 @@ NameTable.prototype = {
             tx = basex + sqx * 2 + x;
             ty = basey + sqy * 2 + y;
             attindex = ty * this.width + tx;
-            this.attrib[ty * this.width + tx] = (add << 2) & 12;
+            this.attrib[attindex] = (add << 2) & 12;
           }
         }
       }
