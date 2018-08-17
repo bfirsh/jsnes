@@ -71,3 +71,8 @@ All code must conform to [Prettier](https://prettier.io/) formatting. The test s
 To automatically format all your code, run:
 
     $ yarn run format
+
+## Maintainers
+
+- [Ben Firshman](http://github.com/bfirsh)
+- [Ben Jones](https://github.com/BenShelton)
