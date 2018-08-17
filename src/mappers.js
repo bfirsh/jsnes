@@ -442,9 +442,9 @@ Mappers[0].prototype = {
     var bankoffset = (bank1k % 4) * 1024;
     utils.copyArrayElements(
       this.nes.rom.vrom[bank4k],
-      0,
-      this.nes.ppu.vramMem,
       bankoffset,
+      this.nes.ppu.vramMem,
+      address,
       1024
     );
 
