@@ -76,3 +76,4 @@ To automatically format all your code, run:
 
 - [Ben Firshman](http://github.com/bfirsh)
 - [Ben Jones](https://github.com/BenShelton)
+- [Stephen Hicks](https://github.com/shicks)
