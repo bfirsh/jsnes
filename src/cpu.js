@@ -1020,6 +1020,230 @@ CPU.prototype = {
         this.F_ZERO = this.REG_Y;
         break;
       }
+      case 56: {
+        // *******
+        // * ALR *
+        // *******
+
+        // Shift right one bit after ANDing:
+        temp = this.REG_ACC & this.load(addr);
+        this.F_CARRY = temp & 1;
+        this.REG_ACC = this.F_ZERO = temp >> 1;
+        this.F_SIGN = 0;
+        break;
+      }
+      case 57: {
+        // *******
+        // * ANC *
+        // *******
+
+        // AND accumulator, setting carry to bit 7 result.
+        this.REG_ACC = this.F_ZERO = this.REG_ACC & this.load(addr);
+        this.F_CARRY = this.F_SIGN = (this.REG_ACC >> 7) & 1;
+        break;
+      }
+      case 58: {
+        // *******
+        // * ARR *
+        // *******
+
+        // Rotate right one bit after ANDing:
+        temp = this.REG_ACC & this.load(addr);
+        this.REG_ACC = this.F_ZERO = (temp >> 1) + (this.F_CARRY << 7);
+        this.F_SIGN = this.F_CARRY;
+        this.F_CARRY = (temp >> 7) & 1;
+        this.F_OVERFLOW = ((temp >> 7) ^ (temp >> 6)) & 1;
+        break;
+      }
+      case 59: {
+        // *******
+        // * AXS *
+        // *******
+
+        // Set X to (X AND A) - value.
+        temp = (this.REG_X & this.REG_ACC) - this.load(addr);
+        this.F_SIGN = (temp >> 7) & 1;
+        this.F_ZERO = temp & 0xff;
+        if (
+          ((this.REG_X ^ temp) & 0x80) !== 0 &&
+          ((this.REG_X ^ this.load(addr)) & 0x80) !== 0
+        ) {
+          this.F_OVERFLOW = 1;
+        } else {
+          this.F_OVERFLOW = 0;
+        }
+        this.F_CARRY = temp < 0 ? 0 : 1;
+        this.REG_X = temp & 0xff;
+        break;
+      }
+      case 60: {
+        // *******
+        // * LAX *
+        // *******
+
+        // Load A and X with memory:
+        this.REG_ACC = this.REG_X = this.F_ZERO = this.load(addr);
+        this.F_SIGN = (this.REG_ACC >> 7) & 1;
+        cycleCount += cycleAdd;
+        break;
+      }
+      case 61: {
+        // *******
+        // * SAX *
+        // *******
+
+        // Store A AND X in memory:
+        this.write(addr, this.REG_ACC & this.REG_X);
+        break;
+      }
+      case 62: {
+        // *******
+        // * DCP *
+        // *******
+
+        // Decrement memory by one:
+        temp = (this.load(addr) - 1) & 0xff;
+        this.write(addr, temp);
+
+        // Then compare with the accumulator:
+        temp = this.REG_ACC - temp;
+        this.F_CARRY = temp >= 0 ? 1 : 0;
+        this.F_SIGN = (temp >> 7) & 1;
+        this.F_ZERO = temp & 0xff;
+        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
+        break;
+      }
+      case 63: {
+        // *******
+        // * ISC *
+        // *******
+
+        // Increment memory by one:
+        temp = (this.load(addr) + 1) & 0xff;
+        this.write(addr, temp);
+
+        // Then subtract from the accumulator:
+        temp = this.REG_ACC - temp - (1 - this.F_CARRY);
+        this.F_SIGN = (temp >> 7) & 1;
+        this.F_ZERO = temp & 0xff;
+        if (
+          ((this.REG_ACC ^ temp) & 0x80) !== 0 &&
+          ((this.REG_ACC ^ this.load(addr)) & 0x80) !== 0
+        ) {
+          this.F_OVERFLOW = 1;
+        } else {
+          this.F_OVERFLOW = 0;
+        }
+        this.F_CARRY = temp < 0 ? 0 : 1;
+        this.REG_ACC = temp & 0xff;
+        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
+        break;
+      }
+      case 64: {
+        // *******
+        // * RLA *
+        // *******
+
+        // Rotate one bit left
+        temp = this.load(addr);
+        add = this.F_CARRY;
+        this.F_CARRY = (temp >> 7) & 1;
+        temp = ((temp << 1) & 0xff) + add;
+        this.write(addr, temp);
+
+        // Then AND with the accumulator.
+        this.REG_ACC = this.REG_ACC & temp;
+        this.F_SIGN = (this.REG_ACC >> 7) & 1;
+        this.F_ZERO = this.REG_ACC;
+        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
+        break;
+      }
+      case 65: {
+        // *******
+        // * RRA *
+        // *******
+
+        // Rotate one bit right
+        temp = this.load(addr);
+        add = this.F_CARRY << 7;
+        this.F_CARRY = temp & 1;
+        temp = (temp >> 1) + add;
+        this.write(addr, temp);
+
+        // Then add to the accumulator
+        temp = this.REG_ACC + this.load(addr) + this.F_CARRY;
+
+        if (
+          ((this.REG_ACC ^ this.load(addr)) & 0x80) === 0 &&
+          ((this.REG_ACC ^ temp) & 0x80) !== 0
+        ) {
+          this.F_OVERFLOW = 1;
+        } else {
+          this.F_OVERFLOW = 0;
+        }
+        this.F_CARRY = temp > 255 ? 1 : 0;
+        this.F_SIGN = (temp >> 7) & 1;
+        this.F_ZERO = temp & 0xff;
+        this.REG_ACC = temp & 255;
+        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
+        break;
+      }
+      case 66: {
+        // *******
+        // * SLO *
+        // *******
+
+        // Shift one bit left
+        temp = this.load(addr);
+        this.F_CARRY = (temp >> 7) & 1;
+        temp = (temp << 1) & 255;
+        this.write(addr, temp);
+
+        // Then OR with the accumulator.
+        this.REG_ACC = this.REG_ACC | temp;
+        this.F_SIGN = (this.REG_ACC >> 7) & 1;
+        this.F_ZERO = this.REG_ACC;
+        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
+        break;
+      }
+      case 67: {
+        // *******
+        // * SRE *
+        // *******
+
+        // Shift one bit right
+        temp = this.load(addr) & 0xff;
+        this.F_CARRY = temp & 1;
+        temp >>= 1;
+        this.write(addr, temp);
+
+        // Then XOR with the accumulator.
+        this.REG_ACC = this.REG_ACC ^ temp;
+        this.F_SIGN = (this.REG_ACC >> 7) & 1;
+        this.F_ZERO = this.REG_ACC;
+        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
+        break;
+      }
+      case 68: {
+        // *******
+        // * SKB *
+        // *******
+
+        // Do nothing
+        break;
+      }
+      case 69: {
+        // *******
+        // * IGN *
+        // *******
+
+        // Do nothing but load.
+        // TODO: Properly implement the double-reads.
+        this.load(addr);
+        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
+        break;
+      }
+
       default: {
         // *******
         // * ??? *
@@ -1361,7 +1585,13 @@ var OpData = function() {
   this.setOp(this.INS_LSR, 0x5e, this.ADDR_ABSX, 3, 7);
 
   // NOP:
+  this.setOp(this.INS_NOP, 0x1a, this.ADDR_IMP, 1, 2);
+  this.setOp(this.INS_NOP, 0x3a, this.ADDR_IMP, 1, 2);
+  this.setOp(this.INS_NOP, 0x5a, this.ADDR_IMP, 1, 2);
+  this.setOp(this.INS_NOP, 0x7a, this.ADDR_IMP, 1, 2);
+  this.setOp(this.INS_NOP, 0xda, this.ADDR_IMP, 1, 2);
   this.setOp(this.INS_NOP, 0xea, this.ADDR_IMP, 1, 2);
+  this.setOp(this.INS_NOP, 0xfa, this.ADDR_IMP, 1, 2);
 
   // ORA:
   this.setOp(this.INS_ORA, 0x09, this.ADDR_IMM, 2, 2);
@@ -1461,6 +1691,112 @@ var OpData = function() {
   // TYA:
   this.setOp(this.INS_TYA, 0x98, this.ADDR_IMP, 1, 2);
 
+  // ALR:
+  this.setOp(this.INS_ALR, 0x4b, this.ADDR_IMM, 2, 2);
+
+  // ANC:
+  this.setOp(this.INS_ANC, 0x0b, this.ADDR_IMM, 2, 2);
+  this.setOp(this.INS_ANC, 0x2b, this.ADDR_IMM, 2, 2);
+
+  // ARR:
+  this.setOp(this.INS_ARR, 0x6b, this.ADDR_IMM, 2, 2);
+
+  // AXS:
+  this.setOp(this.INS_AXS, 0xcb, this.ADDR_IMM, 2, 2);
+
+  // LAX:
+  this.setOp(this.INS_LAX, 0xa3, this.ADDR_PREIDXIND, 2, 6);
+  this.setOp(this.INS_LAX, 0xa7, this.ADDR_ZP, 2, 3);
+  this.setOp(this.INS_LAX, 0xaf, this.ADDR_ABS, 3, 4);
+  this.setOp(this.INS_LAX, 0xb3, this.ADDR_POSTIDXIND, 2, 5);
+  this.setOp(this.INS_LAX, 0xb7, this.ADDR_ZPY, 2, 4);
+  this.setOp(this.INS_LAX, 0xbf, this.ADDR_ABSY, 3, 4);
+
+  // SAX:
+  this.setOp(this.INS_SAX, 0x83, this.ADDR_PREIDXIND, 2, 6);
+  this.setOp(this.INS_SAX, 0x87, this.ADDR_ZP, 2, 3);
+  this.setOp(this.INS_SAX, 0x8f, this.ADDR_ABS, 3, 4);
+  this.setOp(this.INS_SAX, 0x97, this.ADDR_ZPY, 2, 4);
+
+  // DCP:
+  this.setOp(this.INS_DCP, 0xc3, this.ADDR_PREIDXIND, 2, 8);
+  this.setOp(this.INS_DCP, 0xc7, this.ADDR_ZP, 2, 5);
+  this.setOp(this.INS_DCP, 0xcf, this.ADDR_ABS, 3, 6);
+  this.setOp(this.INS_DCP, 0xd3, this.ADDR_POSTIDXIND, 2, 8);
+  this.setOp(this.INS_DCP, 0xd7, this.ADDR_ZPX, 2, 6);
+  this.setOp(this.INS_DCP, 0xdb, this.ADDR_ABSY, 3, 7);
+  this.setOp(this.INS_DCP, 0xdf, this.ADDR_ABSX, 3, 7);
+
+  // ISC:
+  this.setOp(this.INS_ISC, 0xe3, this.ADDR_PREIDXIND, 2, 8);
+  this.setOp(this.INS_ISC, 0xe7, this.ADDR_ZP, 2, 5);
+  this.setOp(this.INS_ISC, 0xef, this.ADDR_ABS, 3, 6);
+  this.setOp(this.INS_ISC, 0xf3, this.ADDR_POSTIDXIND, 2, 8);
+  this.setOp(this.INS_ISC, 0xf7, this.ADDR_ZPX, 2, 6);
+  this.setOp(this.INS_ISC, 0xfb, this.ADDR_ABSY, 3, 7);
+  this.setOp(this.INS_ISC, 0xff, this.ADDR_ABSX, 3, 7);
+
+  // RLA:
+  this.setOp(this.INS_RLA, 0x23, this.ADDR_PREIDXIND, 2, 8);
+  this.setOp(this.INS_RLA, 0x27, this.ADDR_ZP, 2, 5);
+  this.setOp(this.INS_RLA, 0x2f, this.ADDR_ABS, 3, 6);
+  this.setOp(this.INS_RLA, 0x33, this.ADDR_POSTIDXIND, 2, 8);
+  this.setOp(this.INS_RLA, 0x37, this.ADDR_ZPX, 2, 6);
+  this.setOp(this.INS_RLA, 0x3b, this.ADDR_ABSY, 3, 7);
+  this.setOp(this.INS_RLA, 0x3f, this.ADDR_ABSX, 3, 7);
+
+  // RRA:
+  this.setOp(this.INS_RRA, 0x63, this.ADDR_PREIDXIND, 2, 8);
+  this.setOp(this.INS_RRA, 0x67, this.ADDR_ZP, 2, 5);
+  this.setOp(this.INS_RRA, 0x6f, this.ADDR_ABS, 3, 6);
+  this.setOp(this.INS_RRA, 0x73, this.ADDR_POSTIDXIND, 2, 8);
+  this.setOp(this.INS_RRA, 0x77, this.ADDR_ZPX, 2, 6);
+  this.setOp(this.INS_RRA, 0x7b, this.ADDR_ABSY, 3, 7);
+  this.setOp(this.INS_RRA, 0x7f, this.ADDR_ABSX, 3, 7);
+
+  // SLO:
+  this.setOp(this.INS_SLO, 0x03, this.ADDR_PREIDXIND, 2, 8);
+  this.setOp(this.INS_SLO, 0x07, this.ADDR_ZP, 2, 5);
+  this.setOp(this.INS_SLO, 0x0f, this.ADDR_ABS, 3, 6);
+  this.setOp(this.INS_SLO, 0x13, this.ADDR_POSTIDXIND, 2, 8);
+  this.setOp(this.INS_SLO, 0x17, this.ADDR_ZPX, 2, 6);
+  this.setOp(this.INS_SLO, 0x1b, this.ADDR_ABSY, 3, 7);
+  this.setOp(this.INS_SLO, 0x1f, this.ADDR_ABSX, 3, 7);
+
+  // SRE:
+  this.setOp(this.INS_SRE, 0x43, this.ADDR_PREIDXIND, 2, 8);
+  this.setOp(this.INS_SRE, 0x47, this.ADDR_ZP, 2, 5);
+  this.setOp(this.INS_SRE, 0x4f, this.ADDR_ABS, 3, 6);
+  this.setOp(this.INS_SRE, 0x53, this.ADDR_POSTIDXIND, 2, 8);
+  this.setOp(this.INS_SRE, 0x57, this.ADDR_ZPX, 2, 6);
+  this.setOp(this.INS_SRE, 0x5b, this.ADDR_ABSY, 3, 7);
+  this.setOp(this.INS_SRE, 0x5f, this.ADDR_ABSX, 3, 7);
+
+  // SKB:
+  this.setOp(this.INS_SKB, 0x80, this.ADDR_IMM, 2, 2);
+  this.setOp(this.INS_SKB, 0x82, this.ADDR_IMM, 2, 2);
+  this.setOp(this.INS_SKB, 0x89, this.ADDR_IMM, 2, 2);
+  this.setOp(this.INS_SKB, 0xc2, this.ADDR_IMM, 2, 2);
+  this.setOp(this.INS_SKB, 0xe2, this.ADDR_IMM, 2, 2);
+
+  // SKB:
+  this.setOp(this.INS_IGN, 0x0c, this.ADDR_ABS, 3, 4);
+  this.setOp(this.INS_IGN, 0x1c, this.ADDR_ABSX, 3, 4);
+  this.setOp(this.INS_IGN, 0x3c, this.ADDR_ABSX, 3, 4);
+  this.setOp(this.INS_IGN, 0x5c, this.ADDR_ABSX, 3, 4);
+  this.setOp(this.INS_IGN, 0x7c, this.ADDR_ABSX, 3, 4);
+  this.setOp(this.INS_IGN, 0xdc, this.ADDR_ABSX, 3, 4);
+  this.setOp(this.INS_IGN, 0xfc, this.ADDR_ABSX, 3, 4);
+  this.setOp(this.INS_IGN, 0x04, this.ADDR_ZP, 2, 3);
+  this.setOp(this.INS_IGN, 0x44, this.ADDR_ZP, 2, 3);
+  this.setOp(this.INS_IGN, 0x64, this.ADDR_ZP, 2, 3);
+  this.setOp(this.INS_IGN, 0x14, this.ADDR_ZPX, 2, 4);
+  this.setOp(this.INS_IGN, 0x34, this.ADDR_ZPX, 2, 4);
+  this.setOp(this.INS_IGN, 0x54, this.ADDR_ZPX, 2, 4);
+  this.setOp(this.INS_IGN, 0x74, this.ADDR_ZPX, 2, 4);
+  this.setOp(this.INS_IGN, 0xd4, this.ADDR_ZPX, 2, 4);
+  this.setOp(this.INS_IGN, 0xf4, this.ADDR_ZPX, 2, 4);
+
   // prettier-ignore
   this.cycTable = new Array(
     /*0x00*/ 7,6,2,8,3,3,5,5,3,2,2,2,4,4,6,6,
@@ -1481,7 +1817,7 @@ var OpData = function() {
     /*0xF0*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7
   );
 
-  this.instname = new Array(56);
+  this.instname = new Array(70);
 
   // Instruction Names:
   this.instname[0] = "ADC";
@@ -1540,6 +1876,20 @@ var OpData = function() {
   this.instname[53] = "TXA";
   this.instname[54] = "TXS";
   this.instname[55] = "TYA";
+  this.instname[56] = "ALR";
+  this.instname[57] = "ANC";
+  this.instname[58] = "ARR";
+  this.instname[59] = "AXS";
+  this.instname[60] = "LAX";
+  this.instname[61] = "SAX";
+  this.instname[62] = "DCP";
+  this.instname[63] = "ISC";
+  this.instname[64] = "RLA";
+  this.instname[65] = "RRA";
+  this.instname[66] = "SLO";
+  this.instname[67] = "SRE";
+  this.instname[68] = "SKB";
+  this.instname[69] = "IGN";
 
   this.addrDesc = new Array(
     "Zero Page           ",
@@ -1629,7 +1979,22 @@ OpData.prototype = {
   INS_TXS: 54,
   INS_TYA: 55,
 
-  INS_DUMMY: 56, // dummy instruction used for 'halting' the processor some cycles
+  INS_ALR: 56,
+  INS_ANC: 57,
+  INS_ARR: 58,
+  INS_AXS: 59,
+  INS_LAX: 60,
+  INS_SAX: 61,
+  INS_DCP: 62,
+  INS_ISC: 63,
+  INS_RLA: 64,
+  INS_RRA: 65,
+  INS_SLO: 66,
+  INS_SRE: 67,
+  INS_SKB: 68,
+  INS_IGN: 69,
+
+  INS_DUMMY: 70, // dummy instruction used for 'halting' the processor some cycles
 
   // -------------------------------- //
 
