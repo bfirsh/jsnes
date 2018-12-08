@@ -64,6 +64,14 @@ This will create `dist/jsnes.min.js`.
 
     $ yarn test
 
+## Embedding JSNES in a web page
+
+You can use JSNES to embed a playable version of a ROM in a web page. This is handy if you are a homebrew ROM developer and want to put a playable version of your ROM on its web page. An example is in the `example/` directory.
+
+For a more complex example, see [jsnes-web](https://github.com/bfirsh/jsnes-web), a web UI written in React.
+
+A potential improvement (hello contributors!) would be to make the React components in jsnes-web reusable so you could use them to embed a single ROM in a web page.
+
 ## Formatting code
 
 All code must conform to [Prettier](https://prettier.io/) formatting. The test suite won't pass unless it does.
