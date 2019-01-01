@@ -183,9 +183,8 @@ CPU.prototype = {
         break;
       }
       case 4: {
-        // Accumulator mode. The address is in the accumulator
+        // Accumulator mode. The operand value is in the accumulator
         // register.
-        addr = this.REG_ACC;
         break;
       }
       case 5: {
