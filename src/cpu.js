@@ -314,7 +314,6 @@ CPU.prototype = {
         this.REG_ACC = this.REG_ACC & this.load(addr);
         this.F_SIGN = (this.REG_ACC >> 7) & 1;
         this.F_ZERO = this.REG_ACC;
-        //this.REG_ACC = temp;
         if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
         break;
       }
