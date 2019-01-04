@@ -86,3 +86,5 @@ To automatically format all your code, run:
 - [Ben Jones](https://github.com/BenShelton)
 - [Stephen Hicks](https://github.com/shicks)
 - [Alison Saia](https://github.com/allie)
+
+JSNES is based on [James Sanders' vNES](https://github.com/bfirsh/vNES), and owes an awful lot to it. It also wouldn't have happened without [Matt Wescott's JSSpeccy](http://jsspeccy.zxdemo.org/), which sparked the original idea. (Ben, circa 2008: "Hmm, I wonder what else could run in a browser?!")
