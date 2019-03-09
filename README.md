@@ -64,7 +64,7 @@ This will create `dist/jsnes.min.js`.
 
     $ yarn test
 
-## Embedding JSNES in a web page
+## Embedding JSNES in a web page
 
 You can use JSNES to embed a playable version of a ROM in a web page. This is handy if you are a homebrew ROM developer and want to put a playable version of your ROM on its web page. An example is in the `example/` directory.
 
