@@ -1986,8 +1986,8 @@ prettier-check@^2.0.0:
     execa "^0.6.0"
 
 prettier@^1.14.3:
-  version "1.16.4"
-  resolved "https://registry.yarnpkg.com/prettier/-/prettier-1.16.4.tgz#73e37e73e018ad2db9c76742e2647e21790c9717"
+  version "1.17.0"
+  resolved "https://registry.yarnpkg.com/prettier/-/prettier-1.17.0.tgz#53b303676eed22cc14a9f0cec09b477b3026c008"
 
 process-nextick-args@~1.0.6:
   version "1.0.7"
