@@ -22,7 +22,7 @@
     "eslint": "^5.0.0",
     "eslint-config-prettier": "^4.0.0",
     "eslint-loader": "^2.0.0",
-    "mocha": "^5.0.0",
+    "mocha": "^6.1.4",
     "prettier": "^1.14.3",
     "prettier-check": "^2.0.0",
     "sinon": "^7.1.0",
