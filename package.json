@@ -23,7 +23,7 @@
     "eslint-config-prettier": "^6.10.1",
     "eslint-loader": "^2.0.0",
     "mocha": "^7.1.1",
-    "prettier": "^1.14.3",
+    "prettier": "^2.0.4",
     "prettier-check": "^2.0.0",
     "sinon": "^9.0.1",
     "webpack": "^3.9.1"
