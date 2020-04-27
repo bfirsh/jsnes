@@ -1,4 +1,4 @@
-var Tile = function() {
+var Tile = function () {
   // Tile data:
   this.pix = new Array(64);
 
@@ -18,13 +18,13 @@ var Tile = function() {
 };
 
 Tile.prototype = {
-  setBuffer: function(scanline) {
+  setBuffer: function (scanline) {
     for (this.y = 0; this.y < 8; this.y++) {
       this.setScanline(this.y, scanline[this.y], scanline[this.y + 8]);
     }
   },
 
-  setScanline: function(sline, b1, b2) {
+  setScanline: function (sline, b1, b2) {
     this.initialized = true;
     this.tIndex = sline << 3;
     for (this.x = 0; this.x < 8; this.x++) {
@@ -36,7 +36,7 @@ Tile.prototype = {
     }
   },
 
-  render: function(
+  render: function (
     buffer,
     srcx1,
     srcy1,
@@ -178,21 +178,21 @@ Tile.prototype = {
     }
   },
 
-  isTransparent: function(x, y) {
+  isTransparent: function (x, y) {
     return this.pix[(y << 3) + x] === 0;
   },
 
-  toJSON: function() {
+  toJSON: function () {
     return {
       opaque: this.opaque,
-      pix: this.pix
+      pix: this.pix,
     };
   },
 
-  fromJSON: function(s) {
+  fromJSON: function (s) {
     this.opaque = s.opaque;
     this.pix = s.pix;
-  }
+  },
 };
 
 module.exports = Tile;

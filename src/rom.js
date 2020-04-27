@@ -1,7 +1,7 @@
 var Mappers = require("./mappers");
 var Tile = require("./tile");
 
-var ROM = function(nes) {
+var ROM = function (nes) {
   this.nes = nes;
 
   this.mapperName = new Array(92);
@@ -73,7 +73,7 @@ ROM.prototype = {
   mapperType: null,
   valid: false,
 
-  load: function(data) {
+  load: function (data) {
     var i, j, v;
 
     if (data.indexOf("NES\x1a") === -1) {
@@ -165,7 +165,7 @@ ROM.prototype = {
     this.valid = true;
   },
 
-  getMirroringType: function() {
+  getMirroringType: function () {
     if (this.fourScreen) {
       return this.FOURSCREEN_MIRRORING;
     }
@@ -175,18 +175,18 @@ ROM.prototype = {
     return this.VERTICAL_MIRRORING;
   },
 
-  getMapperName: function() {
+  getMapperName: function () {
     if (this.mapperType >= 0 && this.mapperType < this.mapperName.length) {
       return this.mapperName[this.mapperType];
     }
     return "Unknown Mapper, " + this.mapperType;
   },
 
-  mapperSupported: function() {
+  mapperSupported: function () {
     return typeof Mappers[this.mapperType] !== "undefined";
   },
 
-  createMapper: function() {
+  createMapper: function () {
     if (this.mapperSupported()) {
       return new Mappers[this.mapperType](this.nes);
     } else {
@@ -198,7 +198,7 @@ ROM.prototype = {
           ")"
       );
     }
-  }
+  },
 };
 
 module.exports = ROM;

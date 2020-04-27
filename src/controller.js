@@ -1,4 +1,4 @@
-var Controller = function() {
+var Controller = function () {
   this.state = new Array(8);
   for (var i = 0; i < this.state.length; i++) {
     this.state[i] = 0x40;
@@ -15,13 +15,13 @@ Controller.BUTTON_LEFT = 6;
 Controller.BUTTON_RIGHT = 7;
 
 Controller.prototype = {
-  buttonDown: function(key) {
+  buttonDown: function (key) {
     this.state[key] = 0x41;
   },
 
-  buttonUp: function(key) {
+  buttonUp: function (key) {
     this.state[key] = 0x40;
-  }
+  },
 };
 
 module.exports = Controller;
