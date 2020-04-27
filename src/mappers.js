@@ -2,12 +2,12 @@ var utils = require("./utils");
 
 var Mappers = {};
 
-Mappers[0] = function(nes) {
+Mappers[0] = function (nes) {
   this.nes = nes;
 };
 
 Mappers[0].prototype = {
-  reset: function() {
+  reset: function () {
     this.joy1StrobeState = 0;
     this.joy2StrobeState = 0;
     this.joypadLastWrite = 0;
@@ -17,7 +17,7 @@ Mappers[0].prototype = {
     this.zapperY = null;
   },
 
-  write: function(address, value) {
+  write: function (address, value) {
     if (address < 0x2000) {
       // Mirroring of RAM:
       this.nes.cpu.mem[address & 0x7ff] = value;
@@ -34,7 +34,7 @@ Mappers[0].prototype = {
     }
   },
 
-  writelow: function(address, value) {
+  writelow: function (address, value) {
     if (address < 0x2000) {
       // Mirroring of RAM:
       this.nes.cpu.mem[address & 0x7ff] = value;
@@ -47,7 +47,7 @@ Mappers[0].prototype = {
     }
   },
 
-  load: function(address) {
+  load: function (address) {
     // Wrap around:
     address &= 0xffff;
 
@@ -64,7 +64,7 @@ Mappers[0].prototype = {
     }
   },
 
-  regLoad: function(address) {
+  regLoad: function (address) {
     switch (
       address >> 12 // use fourth nibble (0xF000)
     ) {
@@ -164,7 +164,7 @@ Mappers[0].prototype = {
     return 0;
   },
 
-  regWrite: function(address, value) {
+  regWrite: function (address, value) {
     switch (address) {
       case 0x2000:
         // PPU Control register 1
@@ -236,7 +236,7 @@ Mappers[0].prototype = {
     }
   },
 
-  joy1Read: function() {
+  joy1Read: function () {
     var ret;
 
     switch (this.joy1StrobeState) {
@@ -278,7 +278,7 @@ Mappers[0].prototype = {
     return ret;
   },
 
-  joy2Read: function() {
+  joy2Read: function () {
     var ret;
 
     switch (this.joy2StrobeState) {
@@ -320,7 +320,7 @@ Mappers[0].prototype = {
     return ret;
   },
 
-  loadROM: function() {
+  loadROM: function () {
     if (!this.nes.rom.valid || this.nes.rom.romCount < 1) {
       throw new Error("NoMapper: Invalid ROM! Unable to load.");
     }
@@ -339,7 +339,7 @@ Mappers[0].prototype = {
     this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
   },
 
-  loadPRGROM: function() {
+  loadPRGROM: function () {
     if (this.nes.rom.romCount > 1) {
       // Load the two first banks into memory.
       this.loadRomBank(0, 0x8000);
@@ -351,7 +351,7 @@ Mappers[0].prototype = {
     }
   },
 
-  loadCHRROM: function() {
+  loadCHRROM: function () {
     // console.log("Loading CHR ROM..");
     if (this.nes.rom.vromCount > 0) {
       if (this.nes.rom.vromCount === 1) {
@@ -366,7 +366,7 @@ Mappers[0].prototype = {
     }
   },
 
-  loadBatteryRam: function() {
+  loadBatteryRam: function () {
     if (this.nes.rom.batteryRam) {
       var ram = this.nes.rom.batteryRam;
       if (ram !== null && ram.length === 0x2000) {
@@ -376,7 +376,7 @@ Mappers[0].prototype = {
     }
   },
 
-  loadRomBank: function(bank, address) {
+  loadRomBank: function (bank, address) {
     // Loads a ROM bank into the specified address.
     bank %= this.nes.rom.romCount;
     //var data = this.nes.rom.rom[bank];
@@ -390,7 +390,7 @@ Mappers[0].prototype = {
     );
   },
 
-  loadVromBank: function(bank, address) {
+  loadVromBank: function (bank, address) {
     if (this.nes.rom.vromCount === 0) {
       return;
     }
@@ -414,12 +414,12 @@ Mappers[0].prototype = {
     );
   },
 
-  load32kRomBank: function(bank, address) {
+  load32kRomBank: function (bank, address) {
     this.loadRomBank((bank * 2) % this.nes.rom.romCount, address);
     this.loadRomBank((bank * 2 + 1) % this.nes.rom.romCount, address + 16384);
   },
 
-  load8kVromBank: function(bank4kStart, address) {
+  load8kVromBank: function (bank4kStart, address) {
     if (this.nes.rom.vromCount === 0) {
       return;
     }
@@ -432,7 +432,7 @@ Mappers[0].prototype = {
     );
   },
 
-  load1kVromBank: function(bank1k, address) {
+  load1kVromBank: function (bank1k, address) {
     if (this.nes.rom.vromCount === 0) {
       return;
     }
@@ -456,7 +456,7 @@ Mappers[0].prototype = {
     }
   },
 
-  load2kVromBank: function(bank2k, address) {
+  load2kVromBank: function (bank2k, address) {
     if (this.nes.rom.vromCount === 0) {
       return;
     }
@@ -480,7 +480,7 @@ Mappers[0].prototype = {
     }
   },
 
-  load8kRomBank: function(bank8k, address) {
+  load8kRomBank: function (bank8k, address) {
     var bank16k = Math.floor(bank8k / 2) % this.nes.rom.romCount;
     var offset = (bank8k % 2) * 8192;
 
@@ -494,37 +494,37 @@ Mappers[0].prototype = {
     );
   },
 
-  clockIrqCounter: function() {
+  clockIrqCounter: function () {
     // Does nothing. This is used by the MMC3 mapper.
   },
 
   // eslint-disable-next-line no-unused-vars
-  latchAccess: function(address) {
+  latchAccess: function (address) {
     // Does nothing. This is used by MMC2.
   },
 
-  toJSON: function() {
+  toJSON: function () {
     return {
       joy1StrobeState: this.joy1StrobeState,
       joy2StrobeState: this.joy2StrobeState,
-      joypadLastWrite: this.joypadLastWrite
+      joypadLastWrite: this.joypadLastWrite,
     };
   },
 
-  fromJSON: function(s) {
+  fromJSON: function (s) {
     this.joy1StrobeState = s.joy1StrobeState;
     this.joy2StrobeState = s.joy2StrobeState;
     this.joypadLastWrite = s.joypadLastWrite;
-  }
+  },
 };
 
-Mappers[1] = function(nes) {
+Mappers[1] = function (nes) {
   this.nes = nes;
 };
 
 Mappers[1].prototype = new Mappers[0]();
 
-Mappers[1].prototype.reset = function() {
+Mappers[1].prototype.reset = function () {
   Mappers[0].prototype.reset.apply(this);
 
   // 5-bit buffer:
@@ -548,7 +548,7 @@ Mappers[1].prototype.reset = function() {
   this.romBankSelect = 0;
 };
 
-Mappers[1].prototype.write = function(address, value) {
+Mappers[1].prototype.write = function (address, value) {
   // Writes to addresses other than MMC registers are handled by NoMapper.
   if (address < 0x8000) {
     Mappers[0].prototype.write.apply(this, arguments);
@@ -585,7 +585,7 @@ Mappers[1].prototype.write = function(address, value) {
   }
 };
 
-Mappers[1].prototype.setReg = function(reg, value) {
+Mappers[1].prototype.setReg = function (reg, value) {
   var tmp;
 
   switch (reg) {
@@ -711,7 +711,7 @@ Mappers[1].prototype.setReg = function(reg, value) {
 };
 
 // Returns the register number from the address written to:
-Mappers[1].prototype.getRegNumber = function(address) {
+Mappers[1].prototype.getRegNumber = function (address) {
   if (address >= 0x8000 && address <= 0x9fff) {
     return 0;
   } else if (address >= 0xa000 && address <= 0xbfff) {
@@ -723,7 +723,7 @@ Mappers[1].prototype.getRegNumber = function(address) {
   }
 };
 
-Mappers[1].prototype.loadROM = function() {
+Mappers[1].prototype.loadROM = function () {
   if (!this.nes.rom.valid) {
     throw new Error("MMC1: Invalid ROM! Unable to load.");
   }
@@ -743,19 +743,19 @@ Mappers[1].prototype.loadROM = function() {
 };
 
 // eslint-disable-next-line no-unused-vars
-Mappers[1].prototype.switchLowHighPrgRom = function(oldSetting) {
+Mappers[1].prototype.switchLowHighPrgRom = function (oldSetting) {
   // not yet.
 };
 
-Mappers[1].prototype.switch16to32 = function() {
+Mappers[1].prototype.switch16to32 = function () {
   // not yet.
 };
 
-Mappers[1].prototype.switch32to16 = function() {
+Mappers[1].prototype.switch32to16 = function () {
   // not yet.
 };
 
-Mappers[1].prototype.toJSON = function() {
+Mappers[1].prototype.toJSON = function () {
   var s = Mappers[0].prototype.toJSON.apply(this);
   s.mirroring = this.mirroring;
   s.oneScreenMirroring = this.oneScreenMirroring;
@@ -770,7 +770,7 @@ Mappers[1].prototype.toJSON = function() {
   return s;
 };
 
-Mappers[1].prototype.fromJSON = function(s) {
+Mappers[1].prototype.fromJSON = function (s) {
   Mappers[0].prototype.fromJSON.apply(this, arguments);
   this.mirroring = s.mirroring;
   this.oneScreenMirroring = s.oneScreenMirroring;
@@ -784,13 +784,13 @@ Mappers[1].prototype.fromJSON = function(s) {
   this.regBufferCounter = s.regBufferCounter;
 };
 
-Mappers[2] = function(nes) {
+Mappers[2] = function (nes) {
   this.nes = nes;
 };
 
 Mappers[2].prototype = new Mappers[0]();
 
-Mappers[2].prototype.write = function(address, value) {
+Mappers[2].prototype.write = function (address, value) {
   // Writes to addresses other than MMC registers are handled by NoMapper.
   if (address < 0x8000) {
     Mappers[0].prototype.write.apply(this, arguments);
@@ -802,7 +802,7 @@ Mappers[2].prototype.write = function(address, value) {
   }
 };
 
-Mappers[2].prototype.loadROM = function() {
+Mappers[2].prototype.loadROM = function () {
   if (!this.nes.rom.valid) {
     throw new Error("UNROM: Invalid ROM! Unable to load.");
   }
@@ -825,13 +825,13 @@ Mappers[2].prototype.loadROM = function() {
  * @example Solomon's Key, Arkanoid, Arkista's Ring, Bump 'n' Jump, Cybernoid
  * @description http://wiki.nesdev.com/w/index.php/INES_Mapper_003
  */
-Mappers[3] = function(nes) {
+Mappers[3] = function (nes) {
   this.nes = nes;
 };
 
 Mappers[3].prototype = new Mappers[0]();
 
-Mappers[3].prototype.write = function(address, value) {
+Mappers[3].prototype.write = function (address, value) {
   // Writes to addresses other than MMC registers are handled by NoMapper.
   if (address < 0x8000) {
     Mappers[0].prototype.write.apply(this, arguments);
@@ -848,7 +848,7 @@ Mappers[3].prototype.write = function(address, value) {
   }
 };
 
-Mappers[4] = function(nes) {
+Mappers[4] = function (nes) {
   this.nes = nes;
 
   this.CMD_SEL_2_1K_VROM_0000 = 0;
@@ -872,7 +872,7 @@ Mappers[4] = function(nes) {
 
 Mappers[4].prototype = new Mappers[0]();
 
-Mappers[4].prototype.write = function(address, value) {
+Mappers[4].prototype.write = function (address, value) {
   // Writes to addresses other than MMC registers are handled by NoMapper.
   if (address < 0x8000) {
     Mappers[0].prototype.write.apply(this, arguments);
@@ -941,7 +941,7 @@ Mappers[4].prototype.write = function(address, value) {
   }
 };
 
-Mappers[4].prototype.executeCommand = function(cmd, arg) {
+Mappers[4].prototype.executeCommand = function (cmd, arg) {
   switch (cmd) {
     case this.CMD_SEL_2_1K_VROM_0000:
       // Select 2 1KB VROM pages at 0x0000:
@@ -1037,7 +1037,7 @@ Mappers[4].prototype.executeCommand = function(cmd, arg) {
   }
 };
 
-Mappers[4].prototype.loadROM = function() {
+Mappers[4].prototype.loadROM = function () {
   if (!this.nes.rom.valid) {
     throw new Error("MMC3: Invalid ROM! Unable to load.");
   }
@@ -1060,7 +1060,7 @@ Mappers[4].prototype.loadROM = function() {
   this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
 };
 
-Mappers[4].prototype.clockIrqCounter = function() {
+Mappers[4].prototype.clockIrqCounter = function () {
   if (this.irqEnable === 1) {
     this.irqCounter--;
     if (this.irqCounter < 0) {
@@ -1072,7 +1072,7 @@ Mappers[4].prototype.clockIrqCounter = function() {
   }
 };
 
-Mappers[4].prototype.toJSON = function() {
+Mappers[4].prototype.toJSON = function () {
   var s = Mappers[0].prototype.toJSON.apply(this);
   s.command = this.command;
   s.prgAddressSelect = this.prgAddressSelect;
@@ -1085,7 +1085,7 @@ Mappers[4].prototype.toJSON = function() {
   return s;
 };
 
-Mappers[4].prototype.fromJSON = function(s) {
+Mappers[4].prototype.fromJSON = function (s) {
   Mappers[0].prototype.fromJSON.apply(this, arguments);
   this.command = s.command;
   this.prgAddressSelect = s.prgAddressSelect;
@@ -1104,13 +1104,13 @@ Mappers[4].prototype.fromJSON = function(s) {
  * @description http://wiki.nesdev.com/w/index.php/INES_Mapper_005
  * @constructor
  */
-Mappers[5] = function(nes) {
+Mappers[5] = function (nes) {
   this.nes = nes;
 };
 
 Mappers[5].prototype = new Mappers[0]();
 
-Mappers[5].prototype.write = function(address, value) {
+Mappers[5].prototype.write = function (address, value) {
   // Writes to addresses other than MMC registers are handled by NoMapper.
   if (address < 0x8000) {
     Mappers[0].prototype.write.apply(this, arguments);
@@ -1119,7 +1119,7 @@ Mappers[5].prototype.write = function(address, value) {
   }
 };
 
-Mappers[5].prototype.write = function(address, value) {
+Mappers[5].prototype.write = function (address, value) {
   // Writes to addresses other than MMC registers are handled by NoMapper.
   if (address < 0x5000) {
     Mappers[0].prototype.write.apply(this, arguments);
@@ -1239,7 +1239,7 @@ Mappers[5].prototype.write = function(address, value) {
   }
 };
 
-Mappers[5].prototype.loadROM = function() {
+Mappers[5].prototype.loadROM = function () {
   if (!this.nes.rom.valid) {
     throw new Error("UNROM: Invalid ROM! Unable to load.");
   }
@@ -1263,13 +1263,13 @@ Mappers[5].prototype.loadROM = function() {
  * @description http://wiki.nesdev.com/w/index.php/INES_Mapper_007
  * @constructor
  */
-Mappers[7] = function(nes) {
+Mappers[7] = function (nes) {
   this.nes = nes;
 };
 
 Mappers[7].prototype = new Mappers[0]();
 
-Mappers[7].prototype.write = function(address, value) {
+Mappers[7].prototype.write = function (address, value) {
   // Writes to addresses other than MMC registers are handled by NoMapper.
   if (address < 0x8000) {
     Mappers[0].prototype.write.apply(this, arguments);
@@ -1283,7 +1283,7 @@ Mappers[7].prototype.write = function(address, value) {
   }
 };
 
-Mappers[7].prototype.loadROM = function() {
+Mappers[7].prototype.loadROM = function () {
   if (!this.nes.rom.valid) {
     throw new Error("AOROM: Invalid ROM! Unable to load.");
   }
@@ -1305,13 +1305,13 @@ Mappers[7].prototype.loadROM = function() {
  * @example Crystal Mines, Metal Fighter
  * @constructor
  */
-Mappers[11] = function(nes) {
+Mappers[11] = function (nes) {
   this.nes = nes;
 };
 
 Mappers[11].prototype = new Mappers[0]();
 
-Mappers[11].prototype.write = function(address, value) {
+Mappers[11].prototype.write = function (address, value) {
   if (address < 0x8000) {
     Mappers[0].prototype.write.apply(this, arguments);
     return;
@@ -1339,13 +1339,13 @@ Mappers[11].prototype.write = function(address, value) {
  * @example Darkseed, Mashou, Mission Impossible 2
  * @constructor
  */
-Mappers[34] = function(nes) {
+Mappers[34] = function (nes) {
   this.nes = nes;
 };
 
 Mappers[34].prototype = new Mappers[0]();
 
-Mappers[34].prototype.write = function(address, value) {
+Mappers[34].prototype.write = function (address, value) {
   if (address < 0x8000) {
     Mappers[0].prototype.write.apply(this, arguments);
     return;
@@ -1361,13 +1361,13 @@ Mappers[34].prototype.write = function(address, value) {
  * @example Crime Busters
  * @constructor
  */
-Mappers[38] = function(nes) {
+Mappers[38] = function (nes) {
   this.nes = nes;
 };
 
 Mappers[38].prototype = new Mappers[0]();
 
-Mappers[38].prototype.write = function(address, value) {
+Mappers[38].prototype.write = function (address, value) {
   if (address < 0x7000 || address > 0x7fff) {
     Mappers[0].prototype.write.apply(this, arguments);
     return;
@@ -1388,13 +1388,13 @@ Mappers[38].prototype.write = function(address, value) {
  * Super Mario Bros. + Duck Hunt
  * @constructor
  */
-Mappers[66] = function(nes) {
+Mappers[66] = function (nes) {
   this.nes = nes;
 };
 
 Mappers[66].prototype = new Mappers[0]();
 
-Mappers[66].prototype.write = function(address, value) {
+Mappers[66].prototype.write = function (address, value) {
   if (address < 0x8000) {
     Mappers[0].prototype.write.apply(this, arguments);
     return;
@@ -1414,13 +1414,13 @@ Mappers[66].prototype.write = function(address, value) {
  * @example Senjou no Ookami
  * @constructor
  */
-Mappers[94] = function(nes) {
+Mappers[94] = function (nes) {
   this.nes = nes;
 };
 
 Mappers[94].prototype = new Mappers[0]();
 
-Mappers[94].prototype.write = function(address, value) {
+Mappers[94].prototype.write = function (address, value) {
   // Writes to addresses other than MMC registers are handled by NoMapper.
   if (address < 0x8000) {
     Mappers[0].prototype.write.apply(this, arguments);
@@ -1432,7 +1432,7 @@ Mappers[94].prototype.write = function(address, value) {
   }
 };
 
-Mappers[94].prototype.loadROM = function() {
+Mappers[94].prototype.loadROM = function () {
   if (!this.nes.rom.valid) {
     throw new Error("UN1ROM: Invalid ROM! Unable to load.");
   }
@@ -1455,13 +1455,13 @@ Mappers[94].prototype.loadROM = function() {
  * @example Bio Senshi Dan - Increaser Tono Tatakai
  * @constructor
  */
-Mappers[140] = function(nes) {
+Mappers[140] = function (nes) {
   this.nes = nes;
 };
 
 Mappers[140].prototype = new Mappers[0]();
 
-Mappers[140].prototype.write = function(address, value) {
+Mappers[140].prototype.write = function (address, value) {
   if (address < 0x6000 || address > 0x7fff) {
     Mappers[0].prototype.write.apply(this, arguments);
     return;
@@ -1481,13 +1481,13 @@ Mappers[140].prototype.write = function(address, value) {
  * @example Crazy Climber
  * @constructor
  */
-Mappers[180] = function(nes) {
+Mappers[180] = function (nes) {
   this.nes = nes;
 };
 
 Mappers[180].prototype = new Mappers[0]();
 
-Mappers[180].prototype.write = function(address, value) {
+Mappers[180].prototype.write = function (address, value) {
   // Writes to addresses other than MMC registers are handled by NoMapper.
   if (address < 0x8000) {
     Mappers[0].prototype.write.apply(this, arguments);
@@ -1499,7 +1499,7 @@ Mappers[180].prototype.write = function(address, value) {
   }
 };
 
-Mappers[180].prototype.loadROM = function() {
+Mappers[180].prototype.loadROM = function () {
   if (!this.nes.rom.valid) {
     throw new Error("Mapper 180: Invalid ROM! Unable to load.");
   }

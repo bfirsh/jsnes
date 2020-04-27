@@ -1,6 +1,6 @@
 var utils = require("./utils");
 
-var CPU = function(nes) {
+var CPU = function (nes) {
   this.nes = nes;
 
   // Keep Chrome happy
@@ -38,7 +38,7 @@ CPU.prototype = {
   IRQ_NMI: 1,
   IRQ_RESET: 2,
 
-  reset: function() {
+  reset: function () {
     // Main memory
     this.mem = new Array(0x10000);
 
@@ -96,7 +96,7 @@ CPU.prototype = {
   },
 
   // Emulates a single CPU instruction, returns the number of cycles
-  emulate: function() {
+  emulate: function () {
     var temp;
     var add;
 
@@ -1258,7 +1258,7 @@ CPU.prototype = {
     return cycleCount;
   },
 
-  load: function(addr) {
+  load: function (addr) {
     if (addr < 0x2000) {
       return this.mem[addr & 0x7ff];
     } else {
@@ -1266,7 +1266,7 @@ CPU.prototype = {
     }
   },
 
-  load16bit: function(addr) {
+  load16bit: function (addr) {
     if (addr < 0x1fff) {
       return this.mem[addr & 0x7ff] | (this.mem[(addr + 1) & 0x7ff] << 8);
     } else {
@@ -1274,7 +1274,7 @@ CPU.prototype = {
     }
   },
 
-  write: function(addr, val) {
+  write: function (addr, val) {
     if (addr < 0x2000) {
       this.mem[addr & 0x7ff] = val;
     } else {
@@ -1282,7 +1282,7 @@ CPU.prototype = {
     }
   },
 
-  requestIrq: function(type) {
+  requestIrq: function (type) {
     if (this.irqRequested) {
       if (type === this.IRQ_NORMAL) {
         return;
@@ -1293,31 +1293,31 @@ CPU.prototype = {
     this.irqType = type;
   },
 
-  push: function(value) {
+  push: function (value) {
     this.nes.mmap.write(this.REG_SP, value);
     this.REG_SP--;
     this.REG_SP = 0x0100 | (this.REG_SP & 0xff);
   },
 
-  stackWrap: function() {
+  stackWrap: function () {
     this.REG_SP = 0x0100 | (this.REG_SP & 0xff);
   },
 
-  pull: function() {
+  pull: function () {
     this.REG_SP++;
     this.REG_SP = 0x0100 | (this.REG_SP & 0xff);
     return this.nes.mmap.load(this.REG_SP);
   },
 
-  pageCrossed: function(addr1, addr2) {
+  pageCrossed: function (addr1, addr2) {
     return (addr1 & 0xff00) !== (addr2 & 0xff00);
   },
 
-  haltCycles: function(cycles) {
+  haltCycles: function (cycles) {
     this.cyclesToHalt += cycles;
   },
 
-  doNonMaskableInterrupt: function(status) {
+  doNonMaskableInterrupt: function (status) {
     if ((this.nes.mmap.load(0x2000) & 128) !== 0) {
       // Check whether VBlank Interrupts are enabled
 
@@ -1333,13 +1333,13 @@ CPU.prototype = {
     }
   },
 
-  doResetInterrupt: function() {
+  doResetInterrupt: function () {
     this.REG_PC_NEW =
       this.nes.mmap.load(0xfffc) | (this.nes.mmap.load(0xfffd) << 8);
     this.REG_PC_NEW--;
   },
 
-  doIrq: function(status) {
+  doIrq: function (status) {
     this.REG_PC_NEW++;
     this.push((this.REG_PC_NEW >> 8) & 0xff);
     this.push(this.REG_PC_NEW & 0xff);
@@ -1352,7 +1352,7 @@ CPU.prototype = {
     this.REG_PC_NEW--;
   },
 
-  getStatus: function() {
+  getStatus: function () {
     return (
       this.F_CARRY |
       (this.F_ZERO << 1) |
@@ -1365,7 +1365,7 @@ CPU.prototype = {
     );
   },
 
-  setStatus: function(st) {
+  setStatus: function (st) {
     this.F_CARRY = st & 1;
     this.F_ZERO = (st >> 1) & 1;
     this.F_INTERRUPT = (st >> 2) & 1;
@@ -1400,20 +1400,20 @@ CPU.prototype = {
     "F_NOTUSED",
     "F_NOTUSED_NEW",
     "F_BRK",
-    "F_BRK_NEW"
+    "F_BRK_NEW",
   ],
 
-  toJSON: function() {
+  toJSON: function () {
     return utils.toJSON(this);
   },
 
-  fromJSON: function(s) {
+  fromJSON: function (s) {
     utils.fromJSON(this, s);
-  }
+  },
 };
 
 // Generates and provides an array of details about instructions
-var OpData = function() {
+var OpData = function () {
   this.opdata = new Array(256);
 
   // Set all to invalid instruction (to detect crashes):
@@ -2012,13 +2012,13 @@ OpData.prototype = {
   ADDR_POSTIDXIND: 11,
   ADDR_INDABS: 12,
 
-  setOp: function(inst, op, addr, size, cycles) {
+  setOp: function (inst, op, addr, size, cycles) {
     this.opdata[op] =
       (inst & 0xff) |
       ((addr & 0xff) << 8) |
       ((size & 0xff) << 16) |
       ((cycles & 0xff) << 24);
-  }
+  },
 };
 
 module.exports = CPU;
