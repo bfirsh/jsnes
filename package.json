@@ -9,7 +9,7 @@
     "type": "git",
     "url": "git://github.com/bfirsh/jsnes.git"
   },
-  "license": "GPL-3.0",
+  "license": "Apache-2.0",
   "scripts": {
     "build": "webpack",
     "test": "prettier-check src/**/*.js && mocha ./test/*.spec.js",
