@@ -15,7 +15,7 @@ var NES = function (opts) {
     preferredFrameRate: 60,
 
     emulateSound: true,
-    sampleRate: 44100, // Sound sample rate in hz
+    sampleRate: 48000, // Sound sample rate in hz
   };
   if (typeof opts !== "undefined") {
     var key;
