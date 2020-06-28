@@ -28,7 +28,6 @@ function onAnimationFrame(){
 	
 	image.data.set(framebuffer_u8);
 	canvas_ctx.putImageData(image, 0, 0);
-	nes.frame();
 }
 
 function audio_remain(){
