@@ -66,11 +66,13 @@ This will create `dist/jsnes.min.js`.
 
 ## Embedding JSNES in a web page
 
-You can use JSNES to embed a playable version of a ROM in a web page. This is handy if you are a homebrew ROM developer and want to put a playable version of your ROM on its web page. An example is in the `example/` directory.
+You can use JSNES to embed a playable version of a ROM in a web page. This is handy if you are a homebrew ROM developer and want to put a playable version of your ROM on its web page.
 
-For a more complex example, see [jsnes-web](https://github.com/bfirsh/jsnes-web), a web UI written in React.
+The best implementation is [jsnes-web](https://github.com/bfirsh/jsnes-web) but unfortunately it is not trivial to reuse the code. You'll have to copy and paste the code from that repository, the use the [`<Emulator>`](https://github.com/bfirsh/jsnes-web/blob/master/src/Emulator.js) React component. [Here is a usage example.](https://github.com/bfirsh/jsnes-web/blob/d3c35eec11986412626cbd08668dbac700e08751/src/RunPage.js#L119-L125).
 
-A potential improvement (hello contributors!) would be to make the React components in jsnes-web reusable so you could use them to embed a single ROM in a web page.
+A project for potential contributors (hello!): jsnes-web should be reusable and on NPM! It just needs compiling and bundling.
+
+A more basic example is in the `example/` directory of this repository. Unfortunately this is known to be flawed, and doesn't do timing and sound as well as jsnes-web.
 
 ## Formatting code
 
