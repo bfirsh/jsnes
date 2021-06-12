@@ -54,6 +54,12 @@ var NES = function (opts) {
 NES.prototype = {
   fpsFrameCount: 0,
   romData: null,
+  break: false
+  
+  // Set break to true to stop frame loop.
+  stop: function() {
+   this.break = true; 
+  }
 
   // Resets the system
   reset: function () {
@@ -67,6 +73,7 @@ NES.prototype = {
 
     this.lastFpsTime = null;
     this.fpsFrameCount = 0;
+    this.break = false;
   },
 
   frame: function () {
@@ -77,6 +84,10 @@ NES.prototype = {
     var ppu = this.ppu;
     var papu = this.papu;
     FRAMELOOP: for (;;) {
+      // If someone called `this.nes.stop()` we will break the loop in order to avoid hang of entire application due to lot of errors.
+      if(this.break) {
+        break;
+      }
       if (cpu.cyclesToHalt === 0) {
         // Execute a CPU instruction
         cycles = cpu.emulate();
