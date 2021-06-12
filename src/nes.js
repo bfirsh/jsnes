@@ -59,7 +59,7 @@ NES.prototype = {
   // Set break to true to stop frame loop.
   stop: function() {
    this.break = true; 
-  }
+  },
 
   // Resets the system
   reset: function () {
