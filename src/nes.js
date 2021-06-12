@@ -54,7 +54,7 @@ var NES = function (opts) {
 NES.prototype = {
   fpsFrameCount: 0,
   romData: null,
-  break: false
+  break: false,
   
   // Set break to true to stop frame loop.
   stop: function() {
