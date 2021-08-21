@@ -200,10 +200,11 @@ NES.prototype = {
   },
 
   fromJSON: function (s) {
-    this.loadROM(s.romData);
-    this.cpu.fromJSON(s.cpu);
-    this.mmap.fromJSON(s.mmap);
-    this.ppu.fromJSON(s.ppu);
+      this.reset();
+      this.romData = s.romData;
+      this.cpu.fromJSON(s.cpu);
+      this.mmap.fromJSON(s.mmap);
+      this.ppu.fromJSON(s.ppu);
   },
 };
 
