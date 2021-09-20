@@ -54,6 +54,12 @@ var NES = function (opts) {
 NES.prototype = {
   fpsFrameCount: 0,
   romData: null,
+  break: false,
+
+  // Set break to true to stop frame loop.
+  stop: function() {
+   this.break = true;
+  },
 
   // Resets the system
   reset: function () {
@@ -67,6 +73,8 @@ NES.prototype = {
 
     this.lastFpsTime = null;
     this.fpsFrameCount = 0;
+
+    this.break = false;
   },
 
   frame: function () {
@@ -77,6 +85,7 @@ NES.prototype = {
     var ppu = this.ppu;
     var papu = this.papu;
     FRAMELOOP: for (;;) {
+      if(this.break) break;
       if (cpu.cyclesToHalt === 0) {
         // Execute a CPU instruction
         cycles = cpu.emulate();
@@ -192,19 +201,21 @@ NES.prototype = {
 
   toJSON: function () {
     return {
-      romData: this.romData,
+      // romData: this.romData,
       cpu: this.cpu.toJSON(),
       mmap: this.mmap.toJSON(),
       ppu: this.ppu.toJSON(),
+      papu: this.papu.toJSON(),
     };
   },
 
   fromJSON: function (s) {
     this.reset();
-    this.romData = s.romData;
+    // this.romData = s.romData;
     this.cpu.fromJSON(s.cpu);
     this.mmap.fromJSON(s.mmap);
     this.ppu.fromJSON(s.ppu);
+    this.papu.fromJSON(s.papu);
   },
 };
 
