@@ -986,7 +986,7 @@ ChannelDM.prototype = {
     "reg4013",
     "sample",
     "dacLsb",
-    "data"
+    "data",
   ],
 
   toJSON: function () {
@@ -1142,7 +1142,7 @@ ChannelNoise.prototype = {
     "sampleValue",
     "accValue",
     "accCount",
-    "tmp"
+    "tmp",
   ],
 
   toJSON: function () {
