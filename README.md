@@ -38,6 +38,16 @@ var romData = fs.readFileSync('path/to/rom.nes', {encoding: 'binary'});
 // Load ROM data as a string or byte array
 nes.loadROM(romData);
 
+// Save state
+var saveData = JSON.stringify(
+    nes.toJSON()
+);
+
+// Load state (Note: the corresponding ROM must be loaded)
+nes.fromJSON(
+    JSON.parse(saveData)
+);
+
 // Run frames at 60 fps, or as fast as you can.
 // You are responsible for reliable timing as best you can on your platform.
 nes.frame();
