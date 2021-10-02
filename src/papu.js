@@ -768,7 +768,7 @@ PAPU.prototype = {
   ],
 
   toJSON: function () {
-    let obj = utils.toJSON(this);
+    var obj = utils.toJSON(this);
     obj.dmc = this.dmc.toJSON();
     obj.noise = this.noise.toJSON();
     obj.square1 = this.square1.toJSON();
