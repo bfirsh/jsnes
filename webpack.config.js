@@ -1,9 +1,9 @@
 var path = require("path");
-var webpack = require("webpack");
+const UglifyJsPlugin = require("uglifyjs-webpack-plugin");
 
 module.exports = {
   entry: {
-    "jsnes": "./src/index.js",
+    jsnes: "./src/index.js",
     "jsnes.min": "./src/index.js",
   },
   devtool: "source-map",
@@ -12,7 +12,7 @@ module.exports = {
     filename: "[name].js",
     library: "jsnes",
     libraryTarget: "umd",
-    umdNamedDefine: true
+    umdNamedDefine: true,
   },
   module: {
     rules: [
@@ -22,16 +22,16 @@ module.exports = {
         exclude: /node_modules/,
         use: [
           {
-            loader: "eslint-loader"
-          }
-        ]
-      }
-    ]
+            loader: "eslint-loader",
+          },
+        ],
+      },
+    ],
   },
   plugins: [
-    new webpack.optimize.UglifyJsPlugin({
+    new UglifyJsPlugin({
       include: /\.min\.js$/,
-      sourceMap: true
-    })
-  ]
+      sourceMap: true,
+    }),
+  ],
 };
