@@ -49,7 +49,8 @@ Tile.prototype = {
     flipHorizontal,
     flipVertical,
     pri,
-    priTable
+    priTable,
+    disableLeft8 = false
   ) {
     if (dx < -7 || dx >= 256 || dy < -7 || dy >= 240) {
       return;
@@ -85,7 +86,7 @@ Tile.prototype = {
           ) {
             this.palIndex = this.pix[this.tIndex];
             this.tpri = priTable[this.fbIndex];
-            if (this.palIndex !== 0 && pri <= (this.tpri & 0xff)) {
+            if (this.palIndex !== 0 && pri <= (this.tpri & 0xff) && (!disableLeft8 || this.fbIndex % 256 >= 8)) {
               //console.log("Rendering upright tile to buffer");
               buffer[this.fbIndex] = palette[this.palIndex + palAdd];
               this.tpri = (this.tpri & 0xf00) | pri;
@@ -111,7 +112,7 @@ Tile.prototype = {
           ) {
             this.palIndex = this.pix[this.tIndex];
             this.tpri = priTable[this.fbIndex];
-            if (this.palIndex !== 0 && pri <= (this.tpri & 0xff)) {
+            if (this.palIndex !== 0 && pri <= (this.tpri & 0xff) && (!disableLeft8 || this.fbIndex % 256 >= 8)) {
               buffer[this.fbIndex] = palette[this.palIndex + palAdd];
               this.tpri = (this.tpri & 0xf00) | pri;
               priTable[this.fbIndex] = this.tpri;
@@ -137,7 +138,7 @@ Tile.prototype = {
           ) {
             this.palIndex = this.pix[this.tIndex];
             this.tpri = priTable[this.fbIndex];
-            if (this.palIndex !== 0 && pri <= (this.tpri & 0xff)) {
+            if (this.palIndex !== 0 && pri <= (this.tpri & 0xff) && (!disableLeft8 || this.fbIndex % 256 >= 8)) {
               buffer[this.fbIndex] = palette[this.palIndex + palAdd];
               this.tpri = (this.tpri & 0xf00) | pri;
               priTable[this.fbIndex] = this.tpri;
@@ -163,7 +164,7 @@ Tile.prototype = {
           ) {
             this.palIndex = this.pix[this.tIndex];
             this.tpri = priTable[this.fbIndex];
-            if (this.palIndex !== 0 && pri <= (this.tpri & 0xff)) {
+            if (this.palIndex !== 0 && pri <= (this.tpri & 0xff) && (!disableLeft8 || this.fbIndex % 256 >= 8)) {
               buffer[this.fbIndex] = palette[this.palIndex + palAdd];
               this.tpri = (this.tpri & 0xf00) | pri;
               priTable[this.fbIndex] = this.tpri;
