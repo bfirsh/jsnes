@@ -1515,4 +1515,30 @@ Mappers[180].prototype.loadROM = function () {
   this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
 };
 
+/**
+			 * Mapper 240
+			 *
+			 * @description https://www.nesdev.org/wiki/INES_Mapper_240
+			 * @example Jing Ke Xin Zhuan,Sheng Huo Lie Zhuan
+			 * @constructor https://blog.heheda.top
+			 */
+ Mappers[240] = function(nes) {
+  this.nes = nes;
+};
+
+Mappers[240].prototype = new Mappers[0]();
+
+Mappers[240].prototype.write = function(address, value) {
+  if (address < 0x4020 || address > 0x5FFF) {
+    Mappers[0].prototype.write.apply(this, arguments);
+    return;
+  } else {
+    // Swap in the given PRG-ROM bank at 0x8000:
+    this.load32kRomBank((value >> 4) & 3, 0x8000);
+
+    // Swap in the given VROM bank at 0x0000:
+    this.load8kVromBank((value & 0xf) * 2, 0x0000);
+  }
+};
+
 module.exports = Mappers;
