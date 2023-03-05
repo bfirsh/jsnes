@@ -143,6 +143,7 @@ CPU.prototype = {
       this.irqRequested = false;
     }
 
+    if (null == this.nes.mmap) return 32;
     var opinf = this.opdata[this.nes.mmap.load(this.REG_PC + 1)];
     var cycleCount = opinf >> 24;
     var cycleAdd = 0;
@@ -1318,6 +1319,7 @@ CPU.prototype = {
   },
 
   doNonMaskableInterrupt: function (status) {
+    if (null == this.nes.mmap) return;
     if ((this.nes.mmap.load(0x2000) & 128) !== 0) {
       // Check whether VBlank Interrupts are enabled
 
