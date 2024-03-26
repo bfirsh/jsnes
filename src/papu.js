@@ -2,7 +2,8 @@ var utils = require("./utils");
 
 var CPU_FREQ_NTSC = 1789772.5; //1789772.72727272d;
 // var CPU_FREQ_PAL = 1773447.4;
-var APU_TO_CPU_CYCLE = 14915;
+var APU_TO_CPU_CYCLE_NTSC = 14915;
+// var APU_TO_CPU_CYCLE_PAL = 16627;
 
 var PAPU = function (nes) {
   this.nes = nes;
@@ -107,7 +108,7 @@ PAPU.prototype = {
       (1024.0 * CPU_FREQ_NTSC) / this.sampleRate
     );
 
-    this.frameTime = APU_TO_CPU_CYCLE;
+    this.frameTime = APU_TO_CPU_CYCLE_NTSC;
 
     this.sampleTimer = 0;
 
@@ -381,7 +382,7 @@ PAPU.prototype = {
     // Clock frame counter at double CPU speed:
     this.masterFrameCounter += nCycles << 1;
     if (this.masterFrameCounter >= this.frameTime) {
-      // 240Hz tick:
+      // 240Hz tick (NTSC):
       this.masterFrameCounter -= this.frameTime;
       this.frameCounterTick();
     }
