@@ -25,7 +25,7 @@ var nes = new jsnes.NES({
 
 function onAnimationFrame(){
 	window.requestAnimationFrame(onAnimationFrame);
-	
+
 	image.data.set(framebuffer_u8);
 	canvas_ctx.putImageData(image, 0, 0);
 }
@@ -37,10 +37,10 @@ function audio_remain(){
 function audio_callback(event){
 	var dst = event.outputBuffer;
 	var len = dst.length;
-	
+
 	// Attempt to avoid buffer underruns.
 	if(audio_remain() < AUDIO_BUFFERING) nes.frame();
-	
+
 	var dst_l = dst.getChannelData(0);
 	var dst_r = dst.getChannelData(1);
 	for(var i = 0; i < len; i++){
@@ -48,7 +48,7 @@ function audio_callback(event){
 		dst_l[i] = audio_samples_L[src_idx];
 		dst_r[i] = audio_samples_R[src_idx];
 	}
-	
+
 	audio_read_cursor = (audio_read_cursor + len) & SAMPLE_MASK;
 }
 
@@ -63,15 +63,13 @@ function keyboard(callback, event){
 			callback(player, jsnes.Controller.BUTTON_LEFT); break;
 		case 39: // Right
 			callback(player, jsnes.Controller.BUTTON_RIGHT); break;
-		case 65: // 'a' - qwerty, dvorak
-		case 81: // 'q' - azerty
+		case 88: // A = X
 			callback(player, jsnes.Controller.BUTTON_A); break;
-		case 83: // 's' - qwerty, azerty
-		case 79: // 'o' - dvorak
+		case 90: // B = Z
 			callback(player, jsnes.Controller.BUTTON_B); break;
-		case 9: // Tab
+		case 16: // SELECT = Shift
 			callback(player, jsnes.Controller.BUTTON_SELECT); break;
-		case 13: // Return
+		case 13: // START = Return
 			callback(player, jsnes.Controller.BUTTON_START); break;
 		default: break;
 	}
@@ -81,15 +79,15 @@ function nes_init(canvas_id){
 	var canvas = document.getElementById(canvas_id);
 	canvas_ctx = canvas.getContext("2d");
 	image = canvas_ctx.getImageData(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-	
+
 	canvas_ctx.fillStyle = "black";
 	canvas_ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-	
+
 	// Allocate framebuffer array.
 	var buffer = new ArrayBuffer(image.data.length);
 	framebuffer_u8 = new Uint8ClampedArray(buffer);
 	framebuffer_u32 = new Uint32Array(buffer);
-	
+
 	// Setup audio.
 	var audio_ctx = new window.AudioContext();
 	var script_processor = audio_ctx.createScriptProcessor(AUDIO_BUFFERING, 0, 2);
@@ -109,23 +107,47 @@ function nes_load_data(canvas_id, rom_data){
 
 function nes_load_url(canvas_id, path){
 	nes_init(canvas_id);
-	
+
 	var req = new XMLHttpRequest();
 	req.open("GET", path);
 	req.overrideMimeType("text/plain; charset=x-user-defined");
 	req.onerror = () => console.log(`Error loading ${path}: ${req.statusText}`);
-	
+
 	req.onload = function() {
 		if (this.status === 200) {
-		nes_boot(this.responseText);
+			nes_boot(this.responseText);
 		} else if (this.status === 0) {
 			// Aborted, so ignore error
 		} else {
 			req.onerror();
 		}
 	};
-	
+
 	req.send();
+}
+
+function nes_load_nvram(item){
+	if (nes != null && nes.cpu != null && nes.cpu.mem != null && window.localStorage != null) {
+		let data = window.localStorage.getItem("jsnes-nvram-" + item);
+		if (data != null){
+			data = JSON.parse(data);
+			for (let i = 0; i < 8192; i++){
+				nes.cpu.mem[24576 + i] = data.mem[i]; //$6000-$7FFF (2K)
+			}
+		}
+	}
+}
+
+function nes_save_nvram(item){
+	if (nes != null && nes.cpu != null && nes.cpu.mem != null && window.localStorage != null) {
+		window.localStorage.setItem("jsnes-nvram-" + item, JSON.stringify({ mem: nes.cpu.mem.slice(24576, 32768)})); //$6000-$7FFF (2K)
+	}
+}
+
+function nes_volume(value){
+  if (nes != null && nes.papu != null) {
+	  nes.papu.setMasterVolume(value);
+  }
 }
 
 document.addEventListener('keydown', (event) => {keyboard(nes.buttonDown, event)});

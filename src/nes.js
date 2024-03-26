@@ -11,11 +11,7 @@ var NES = function (opts) {
     onStatusUpdate: function () {},
     onBatteryRamWrite: function () {},
 
-    // FIXME: not actually used except for in PAPU
-    preferredFrameRate: 60,
-
     emulateSound: true,
-    sampleRate: 48000, // Sound sample rate in hz
   };
   if (typeof opts !== "undefined") {
     var key;
@@ -25,8 +21,6 @@ var NES = function (opts) {
       }
     }
   }
-
-  this.frameTime = 1000 / this.opts.preferredFrameRate;
 
   this.ui = {
     writeFrame: this.opts.onFrame,
@@ -78,6 +72,7 @@ NES.prototype = {
   },
 
   frame: function () {
+    if (!this.mmap) return;
     this.ppu.startFrame();
     var cycles = 0;
     var emulateSound = this.opts.emulateSound;
@@ -191,12 +186,6 @@ NES.prototype = {
     this.mmap.loadROM();
     this.ppu.setMirroring(this.rom.getMirroringType());
     this.romData = data;
-  },
-
-  setFramerate: function (rate) {
-    this.opts.preferredFrameRate = rate;
-    this.frameTime = 1000 / rate;
-    this.papu.setSampleRate(this.opts.sampleRate, false);
   },
 
   toJSON: function () {
