@@ -19,7 +19,7 @@ var PAPU = function (nes) {
   this.initCounter = 2048;
   this.channelEnableValue = null;
 
-  this.sampleRate = 44100; // 22050*2
+  this.sampleRate = 48000;
 
   this.lengthLookup = null;
   this.dmcFreqLookup = null;
