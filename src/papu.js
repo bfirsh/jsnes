@@ -2,6 +2,8 @@ var utils = require("./utils");
 
 var CPU_FREQ_NTSC = 1789772.5; //1789772.72727272d;
 // var CPU_FREQ_PAL = 1773447.4;
+var APU_TO_CPU_CYCLE_NTSC = 14915;
+// var APU_TO_CPU_CYCLE_PAL = 16627;
 
 var PAPU = function (nes) {
   this.nes = nes;
@@ -17,7 +19,7 @@ var PAPU = function (nes) {
   this.initCounter = 2048;
   this.channelEnableValue = null;
 
-  this.sampleRate = 44100;
+  this.sampleRate = 48000;
 
   this.lengthLookup = null;
   this.dmcFreqLookup = null;
@@ -103,13 +105,10 @@ PAPU.prototype = {
   reset: function () {
     this.sampleRate = this.nes.opts.sampleRate;
     this.sampleTimerMax = Math.floor(
-      (1024.0 * CPU_FREQ_NTSC * this.nes.opts.preferredFrameRate) /
-        (this.sampleRate * 60.0)
+      (1024.0 * CPU_FREQ_NTSC) / this.sampleRate
     );
 
-    this.frameTime = Math.floor(
-      (14915.0 * this.nes.opts.preferredFrameRate) / 60.0
-    );
+    this.frameTime = APU_TO_CPU_CYCLE_NTSC;
 
     this.sampleTimer = 0;
 
@@ -383,7 +382,7 @@ PAPU.prototype = {
     // Clock frame counter at double CPU speed:
     this.masterFrameCounter += nCycles << 1;
     if (this.masterFrameCounter >= this.frameTime) {
-      // 240Hz tick:
+      // 240Hz (NTSC) tick:
       this.masterFrameCounter -= this.frameTime;
       this.frameCounterTick();
     }
@@ -468,7 +467,7 @@ PAPU.prototype = {
       this.frameIrqActive = true;
     }
 
-    // End of 240Hz tick
+    // End of 240Hz (NSTC) tick
   },
 
   // Samples the channels, mixes the output together, then writes to buffer.
