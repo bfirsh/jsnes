@@ -850,7 +850,6 @@ describe("CPU", function () {
     });
     
     it("tsx", function(done) {
-        this.skip("TODO");
         cpu_set_register("SP", 0xff);
         cpu_pc(0x100);
         memory_set(0x100, 0xba);
@@ -862,7 +861,6 @@ describe("CPU", function () {
     });
     
     it("txs", function(done) {
-        this.skip("TODO");
         cpu_set_register("X", 0xff);
         cpu_pc(0x100);
         memory_set(0x100, 0x9a);
@@ -874,7 +872,6 @@ describe("CPU", function () {
     });
     
     it("pha", function(done) {
-        this.skip();
         cpu_set_register("A", 0xff);
         cpu_pc(0x100);
         memory_set(0x100, 0x48);
@@ -886,7 +883,6 @@ describe("CPU", function () {
     });
     
     it("php", function(done) {
-        this.skip("TODO:");
         cpu_set_register("P", 0xff);
         cpu_pc(0x100);
         memory_set(0x100, 0x8);
@@ -898,7 +894,6 @@ describe("CPU", function () {
     });
     
     it("pla", function(done) {
-        this.skip();
         cpu_pc(0x100);
         cpu_push_byte(0xff);
         memory_set(0x100, 0x68);
@@ -921,7 +916,6 @@ describe("CPU", function () {
     });
     
     it("pla z flag unset", function(done) {
-        this.skip();
         cpu_push_byte(0x1);
         cpu_pc(0x100);
         memory_set(0x100, 0x68);
@@ -933,7 +927,6 @@ describe("CPU", function () {
     });
     
     it("pla n flag set", function(done) {
-        this.skip();
         cpu_push_byte(0x81);
         cpu_pc(0x100);
         memory_set(0x100, 0x68);
@@ -3478,7 +3471,6 @@ describe("CPU", function () {
     });
     
     it("jsr", function(done) {
-        this.skip("TODO: check SP register");
         cpu_pc(0x100);
         memory_set(0x100, 0x20);
         memory_set(0x101, 0xff);
@@ -3493,7 +3485,6 @@ describe("CPU", function () {
     });
     
     it("jsr stack pointer", function(done) {
-        this.skip("TODO:");
         cpu_pc(0x100);
         memory_set(0x100, 0x20);
         memory_set(0x101, 0x84);
@@ -3539,7 +3530,6 @@ describe("CPU", function () {
     });
     
     it("rts", function(done) {
-        this.skip("TODO");
         cpu_pc(0x100);
         cpu_push_word(0x102);
         memory_set(0x100, 0x60);
@@ -3864,7 +3854,6 @@ describe("CPU", function () {
     });
     
     it("rti", function(done) {
-        this.skip("TODO");
         cpu_pc(0x100);
         cpu_push_word(0x102);
         cpu_push_byte(0x3);

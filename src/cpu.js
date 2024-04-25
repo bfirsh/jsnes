@@ -982,7 +982,7 @@ CPU.prototype = {
         // *******
 
         // Transfer stack pointer to index X:
-        this.REG_X = this.REG_SP - 0x0100;
+        this.REG_X = this.REG_SP & 0xff;
         this.F_SIGN = (this.REG_SP >> 7) & 1;
         this.F_ZERO = this.REG_X;
         break;
@@ -1004,8 +1004,7 @@ CPU.prototype = {
         // *******
 
         // Transfer index X to stack pointer:
-        this.REG_SP = this.REG_X + 0x0100;
-        this.stackWrap();
+        this.REG_SP = this.REG_X & 0xff;
         break;
       }
       case 55: {
@@ -1294,19 +1293,16 @@ CPU.prototype = {
   },
 
   push: function (value) {
-    this.nes.mmap.write(this.REG_SP, value);
+    this.nes.mmap.write(this.REG_SP | 0x100, value);
     this.REG_SP--;
-    this.REG_SP = 0x0100 | (this.REG_SP & 0xff);
-  },
-
-  stackWrap: function () {
-    this.REG_SP = 0x0100 | (this.REG_SP & 0xff);
+    // this.REG_SP = 0x0100 | (this.REG_SP & 0xff);
+    this.REG_SP = this.REG_SP & 0xff;
   },
 
   pull: function () {
     this.REG_SP++;
-    this.REG_SP = 0x0100 | (this.REG_SP & 0xff);
-    return this.nes.mmap.load(this.REG_SP);
+    this.REG_SP = this.REG_SP & 0xff;
+    return this.nes.mmap.load(0x100 | this.REG_SP);
   },
 
   pageCrossed: function (addr1, addr2) {
