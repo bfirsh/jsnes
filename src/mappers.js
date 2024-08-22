@@ -1047,8 +1047,8 @@ Mappers[4].prototype.loadROM = function () {
   this.load8kRomBank((this.nes.rom.romCount - 1) * 2 + 1, 0xe000);
 
   // Load swappable PRG banks (0x8000 and 0xA000):
-  this.load8kRomBank(0, 0x8000);
-  this.load8kRomBank(1, 0xa000);
+  this.load8kRomBank((this.nes.rom.romCount - 1) * 2, 0x8000);
+  this.load8kRomBank((this.nes.rom.romCount - 1) * 2, 0xa000);
 
   // Load CHR-ROM:
   this.loadCHRROM();
@@ -1513,6 +1513,54 @@ Mappers[180].prototype.loadROM = function () {
 
   // Do Reset-Interrupt:
   this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
+};
+
+/**
+* Mapper 240
+*
+* @description https://www.nesdev.org/wiki/INES_Mapper_240
+* @example Jing Ke Xin Zhuan,Sheng Huo Lie Zhuan
+* @constructor https://blog.heheda.top
+*/
+Mappers[240] = function(nes) {
+  this.nes = nes;
+};
+
+Mappers[240].prototype = new Mappers[0]();
+
+Mappers[240].prototype.write = function(address, value) {
+  if (address < 0x4020 || address > 0x5FFF) {
+    Mappers[0].prototype.write.apply(this, arguments);
+    return;
+  } else {
+    // Swap in the given PRG-ROM bank at 0x8000:
+    this.load32kRomBank((value >> 4) & 3, 0x8000);
+
+    // Swap in the given VROM bank at 0x0000:
+    this.load8kVromBank((value & 0xf) * 2, 0x0000);
+  }
+};
+
+/**
+* Mapper 241 (BNROM, NINA-01)
+*
+* @description http://wiki.nesdev.com/w/index.php/INES_Mapper_241
+* @example 
+* @constructor https://blog.heheda.top
+*/
+Mappers[241] = function(nes) {
+  this.nes = nes;
+};
+
+Mappers[241].prototype = new Mappers[0]();
+
+Mappers[241].prototype.write = function(address, value) {
+if (address < 0x8000) {
+  Mappers[0].prototype.write.apply(this, arguments);
+  return;
+} else {
+  this.load32kRomBank(value, 0x8000);
+}
 };
 
 module.exports = Mappers;
