@@ -1047,8 +1047,8 @@ Mappers[4].prototype.loadROM = function () {
   this.load8kRomBank((this.nes.rom.romCount - 1) * 2 + 1, 0xe000);
 
   // Load swappable PRG banks (0x8000 and 0xA000):
-  this.load8kRomBank(0, 0x8000);
-  this.load8kRomBank(1, 0xa000);
+  this.load8kRomBank((this.nes.rom.romCount - 1) * 2, 0x8000);
+  this.load8kRomBank((this.nes.rom.romCount - 1) * 2, 0xa000);
 
   // Load CHR-ROM:
   this.loadCHRROM();
