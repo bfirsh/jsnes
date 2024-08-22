@@ -75,7 +75,8 @@ var PPU = function (nes) {
 
   // Rendering Options:
   this.showSpr0Hit = false;
-  this.clipToTvSize = true;
+  this.clipToTvSizeH = false;
+  this.clipToTvSizeV = true;
 
   this.reset();
 };
@@ -333,6 +334,8 @@ PPU.prototype = {
         break;
 
       case 20:
+        this.nes.ui.writeFrameStart(); // Start of frame: Where VBlank ends.
+
         // Clear VBlank flag:
         this.setStatusFlag(this.STATUS_VBLANK, false);
 
@@ -505,14 +508,7 @@ PPU.prototype = {
       }
     }
 
-    // This is a bit lazy..
-    // if either the sprites or the background should be clipped,
-    // both are clipped after rendering is finished.
-    if (
-      this.clipToTvSize ||
-      this.f_bgClipping === 0 ||
-      this.f_spClipping === 0
-    ) {
+    if (this.clipToTvSizeH) {
       // Clip left 8-pixels column:
       for (y = 0; y < 240; y++) {
         for (x = 0; x < 8; x++) {
@@ -521,7 +517,7 @@ PPU.prototype = {
       }
     }
 
-    if (this.clipToTvSize) {
+    if (this.clipToTvSizeH) {
       // Clip right 8-pixels column too:
       for (y = 0; y < 240; y++) {
         for (x = 0; x < 8; x++) {
@@ -529,9 +525,9 @@ PPU.prototype = {
         }
       }
     }
-
+      
     // Clip top and bottom 8 pixels:
-    if (this.clipToTvSize) {
+    if (this.clipToTvSizeV) {
       for (y = 0; y < 8; y++) {
         for (x = 0; x < 256; x++) {
           buffer[(y << 8) + x] = 0;
@@ -909,7 +905,8 @@ PPU.prototype = {
 
   renderBgScanline: function (bgbuffer, scan) {
     var baseTile = this.regS === 0 ? 0 : 256;
-    var destIndex = (scan << 8) - this.regFH;
+    var leftIndex = (scan << 8);
+    var destIndex = leftIndex - this.regFH;
 
     this.curNt = this.ntable1[this.cntV + this.cntV + this.cntH];
 
@@ -929,7 +926,7 @@ PPU.prototype = {
 
       var t, tpix, att, col;
 
-      for (var tile = 0; tile < 32; tile++) {
+      for (var tile = 0; tile < 33; tile++) {
         if (scan >= 0) {
           // Fetch tile & attrib data:
           if (this.validTileData) {
@@ -960,6 +957,10 @@ PPU.prototype = {
           var sx = 0;
           var x = (tile << 3) - this.regFH;
 
+          //if (x > -8 && x < 0) {
+          //  x += 256;
+          //}
+
           if (x > -8) {
             if (x < 0) {
               destIndex -= x;
@@ -967,6 +968,8 @@ PPU.prototype = {
             }
             if (t.opaque[this.cntFV]) {
               for (; sx < 8; sx++) {
+                if (x + sx >= 256) continue;
+
                 targetBuffer[destIndex] =
                   imgPalette[tpix[tscanoffset + sx] + att];
                 pixrendered[destIndex] |= 256;
@@ -974,6 +977,8 @@ PPU.prototype = {
               }
             } else {
               for (; sx < 8; sx++) {
+                if (x + sx >= 256) continue;
+
                 col = tpix[tscanoffset + sx];
                 if (col !== 0) {
                   targetBuffer[destIndex] = imgPalette[col + att];
@@ -997,6 +1002,15 @@ PPU.prototype = {
       // Tile data for one row should now have been fetched,
       // so the data in the array is valid.
       this.validTileData = true;
+
+      // Lastly, block out first 8 horizontal pixels of bg if bgClipping is set:
+      var bgColor = this.imgPalette[0];
+      if (this.f_bgClipping === 0) {
+        // Clip left 8-pixels column:
+        for (x = 0; x < 8; x++) {
+          targetBuffer[leftIndex + x] = bgColor;
+        }
+      }
     }
 
     // update vertical scroll:
@@ -1057,7 +1071,8 @@ PPU.prototype = {
                 this.horiFlip[i],
                 this.vertFlip[i],
                 i,
-                this.pixrendered
+                this.pixrendered,
+                this.f_spClipping === 0
               );
             } else {
               this.ptTile[this.sprTile[i] + 256].render(
@@ -1073,7 +1088,8 @@ PPU.prototype = {
                 this.horiFlip[i],
                 this.vertFlip[i],
                 i,
-                this.pixrendered
+                this.pixrendered,
+                this.f_spClipping === 0
               );
             }
           } else {
@@ -1107,7 +1123,8 @@ PPU.prototype = {
               this.horiFlip[i],
               this.vertFlip[i],
               i,
-              this.pixrendered
+              this.pixrendered,
+              this.f_spClipping === 0
             );
 
             srcy1 = 0;
@@ -1134,7 +1151,8 @@ PPU.prototype = {
               this.horiFlip[i],
               this.vertFlip[i],
               i,
-              this.pixrendered
+              this.pixrendered,
+              this.f_spClipping === 0
             );
           }
         }
@@ -1602,7 +1620,17 @@ PaletteTable.prototype = {
 
   loadNTSCPalette: function () {
     // prettier-ignore
-    this.curTable = [0x525252, 0xB40000, 0xA00000, 0xB1003D, 0x740069, 0x00005B, 0x00005F, 0x001840, 0x002F10, 0x084A08, 0x006700, 0x124200, 0x6D2800, 0x000000, 0x000000, 0x000000, 0xC4D5E7, 0xFF4000, 0xDC0E22, 0xFF476B, 0xD7009F, 0x680AD7, 0x0019BC, 0x0054B1, 0x006A5B, 0x008C03, 0x00AB00, 0x2C8800, 0xA47200, 0x000000, 0x000000, 0x000000, 0xF8F8F8, 0xFFAB3C, 0xFF7981, 0xFF5BC5, 0xFF48F2, 0xDF49FF, 0x476DFF, 0x00B4F7, 0x00E0FF, 0x00E375, 0x03F42B, 0x78B82E, 0xE5E218, 0x787878, 0x000000, 0x000000, 0xFFFFFF, 0xFFF2BE, 0xF8B8B8, 0xF8B8D8, 0xFFB6FF, 0xFFC3FF, 0xC7D1FF, 0x9ADAFF, 0x88EDF8, 0x83FFDD, 0xB8F8B8, 0xF5F8AC, 0xFFFFB0, 0xF8D8F8, 0x000000, 0x000000];
+    //this.curTable = [0x525252, 0xB40000, 0xA00000, 0xB1003D, 0x740069, 0x00005B, 0x00005F, 0x001840, 0x002F10, 0x084A08, 0x006700, 0x124200, 0x6D2800, 0x000000, 0x000000, 0x000000, 0xC4D5E7, 0xFF4000, 0xDC0E22, 0xFF476B, 0xD7009F, 0x680AD7, 0x0019BC, 0x0054B1, 0x006A5B, 0x008C03, 0x00AB00, 0x2C8800, 0xA47200, 0x000000, 0x000000, 0x000000, 0xF8F8F8, 0xFFAB3C, 0xFF7981, 0xFF5BC5, 0xFF48F2, 0xDF49FF, 0x476DFF, 0x00B4F7, 0x00E0FF, 0x00E375, 0x03F42B, 0x78B82E, 0xE5E218, 0x787878, 0x000000, 0x000000, 0xFFFFFF, 0xFFF2BE, 0xF8B8B8, 0xF8B8D8, 0xFFB6FF, 0xFFC3FF, 0xC7D1FF, 0x9ADAFF, 0x88EDF8, 0x83FFDD, 0xB8F8B8, 0xF5F8AC, 0xFFFFB0, 0xF8D8F8, 0x000000, 0x000000];
+    this.curTable = [
+      0x656565, 0x9B2B00, 0xC00E11, 0xBC003F, 0x8F0066, 0x45007B, 0x000179, 0x001C60,
+        0x003836, 0x004F08, 0x005A00, 0x025700, 0x554500, 0x000000, 0x000000, 0x000000,
+      0xAEAEAE, 0xF56107, 0xFF3B3E, 0xFF1D7C, 0xE50EAF, 0x8313CB, 0x152ACB, 0x004DA7,
+        0x00726F, 0x009132, 0x009F00, 0x2A9B00, 0x988400, 0x000000, 0x000000, 0x000000,
+      0xFFFFFF, 0xFFB156, 0xFF8B8E, 0xFF6CCC, 0xFF5DFF, 0xD462FF, 0x6479FF, 0x069DF8,
+        0x00C3C0, 0x00E281, 0x16F14D, 0x7AEC30, 0xEAD534, 0x4E4E4E, 0x000000, 0x000000,
+      0xFFFFFF, 0xFFDFBA, 0xFFD0D1, 0xFFC3EB, 0xFFBDFF, 0xFFBFFF, 0xC0C8FF, 0x99D7FC,
+        0x84E7E5, 0x87F3CC, 0xA0F9B6, 0xC9F8AA, 0xF7EEAC, 0xB7B7B7, 0x000000, 0x000000
+    ];
     this.makeTables();
     this.setEmphasis(0);
   },

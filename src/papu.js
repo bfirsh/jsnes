@@ -77,8 +77,10 @@ var PAPU = function (nes) {
   this.maxSample = null;
   this.minSample = null;
 
-  // Panning:
-  this.panning = [80, 170, 100, 150, 128];
+  // Mixing:
+  this.enabled = [true, true, true, true, true];
+  this.volume  = [1.15, 1.15, 1.0, 1.0, 1.0];
+  this.panning = [128, 128, 128, 128, 128];
   this.setPanning(this.panning);
 
   // Initialize lookup tables:
@@ -403,15 +405,8 @@ PAPU.prototype = {
   accSample: function (cycles) {
     // Special treatment for triangle channel - need to interpolate.
     if (this.triangle.sampleCondition) {
-      this.triValue = Math.floor(
-        (this.triangle.progTimerCount << 4) / (this.triangle.progTimerMax + 1)
-      );
-      if (this.triValue > 16) {
-        this.triValue = 16;
-      }
-      if (this.triangle.triangleCounter >= 16) {
-        this.triValue = 16 - this.triValue;
-      }
+      // Remove triangle interpolation:
+      this.triValue = 0;
 
       // Add non-interpolated sample value:
       this.triValue += this.triangle.sampleValue;
@@ -607,17 +602,17 @@ PAPU.prototype = {
   },
 
   updateStereoPos: function () {
-    this.stereoPosLSquare1 = (this.panning[0] * this.masterVolume) >> 8;
-    this.stereoPosLSquare2 = (this.panning[1] * this.masterVolume) >> 8;
-    this.stereoPosLTriangle = (this.panning[2] * this.masterVolume) >> 8;
-    this.stereoPosLNoise = (this.panning[3] * this.masterVolume) >> 8;
-    this.stereoPosLDMC = (this.panning[4] * this.masterVolume) >> 8;
+    this.stereoPosLSquare1  = (this.panning[0] * this.volume[0] * +this.enabled[0] * this.masterVolume) >> 8;
+    this.stereoPosLSquare2  = (this.panning[1] * this.volume[1] * +this.enabled[1] * this.masterVolume) >> 8;
+    this.stereoPosLTriangle = (this.panning[2] * this.volume[2] * +this.enabled[2] * this.masterVolume) >> 8;
+    this.stereoPosLNoise    = (this.panning[3] * this.volume[3] * +this.enabled[3] * this.masterVolume) >> 8;
+    this.stereoPosLDMC      = (this.panning[4] * this.volume[4] * +this.enabled[4] * this.masterVolume) >> 8;
 
-    this.stereoPosRSquare1 = this.masterVolume - this.stereoPosLSquare1;
-    this.stereoPosRSquare2 = this.masterVolume - this.stereoPosLSquare2;
-    this.stereoPosRTriangle = this.masterVolume - this.stereoPosLTriangle;
-    this.stereoPosRNoise = this.masterVolume - this.stereoPosLNoise;
-    this.stereoPosRDMC = this.masterVolume - this.stereoPosLDMC;
+    this.stereoPosRSquare1  = (256 - this.panning[0]) * this.volume[0] * +this.enabled[0] * this.masterVolume >> 8;
+    this.stereoPosRSquare2  = (256 - this.panning[1]) * this.volume[1] * +this.enabled[1] * this.masterVolume >> 8;
+    this.stereoPosRTriangle = (256 - this.panning[2]) * this.volume[2] * +this.enabled[2] * this.masterVolume >> 8;
+    this.stereoPosRNoise    = (256 - this.panning[3]) * this.volume[3] * +this.enabled[3] * this.masterVolume >> 8;
+    this.stereoPosRDMC      = (256 - this.panning[4]) * this.volume[4] * +this.enabled[4] * this.masterVolume >> 8;
   },
 
   initLengthLookup: function () {
@@ -1011,6 +1006,7 @@ var ChannelNoise = function (papu) {
   this.lengthCounter = null;
   this.progTimerCount = null;
   this.progTimerMax = null;
+  this.rawNoisePeriod = null;
   this.envDecayRate = null;
   this.envDecayCounter = null;
   this.envVolume = null;
@@ -1030,6 +1026,7 @@ ChannelNoise.prototype = {
   reset: function () {
     this.progTimerCount = 0;
     this.progTimerMax = 0;
+    this.rawNoisePeriod = 0;
     this.isEnabled = false;
     this.lengthCounter = 0;
     this.lengthCounterEnable = false;
@@ -1099,6 +1096,7 @@ ChannelNoise.prototype = {
       }
     } else if (address === 0x400e) {
       // Programmable timer:
+      this.rawNoisePeriod = value & 0xf;
       this.progTimerMax = this.papu.getNoiseWaveLength(value & 0xf);
       this.randomMode = value >> 7;
     } else if (address === 0x400f) {
