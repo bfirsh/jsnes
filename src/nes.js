@@ -113,6 +113,16 @@ NES.prototype = {
         }
       }
 
+      var finalCurX = ppu.curX + cycles;
+      if (
+        !ppu.requestEndFrame &&
+        finalCurX < 341 &&
+        (ppu.spr0HitX < ppu.curX || ppu.spr0HitX >= finalCurX)
+      ) {
+        ppu.curX = finalCurX;
+        continue FRAMELOOP;
+      }
+
       for (; cycles > 0; cycles--) {
         if (
           ppu.curX === ppu.spr0HitX &&
