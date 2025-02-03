@@ -11,6 +11,8 @@
 		<script>
 		window.onload = function() {
 			nes_load_url("nes-canvas", "./InterglacticTransmissing.nes");
+			// nes_load_url("nes-canvas", "./InterglacticTransmissing.nes", function(){nes_load_nvram("intergalactic-transmissing");});
+			// nes.opts.onBatteryRamWrite = function(){nes_save_nvram("intergalactic-transmissing");};
 			let slider = document.getElementById("volume");
 			let label = document.getElementById("label");
 
