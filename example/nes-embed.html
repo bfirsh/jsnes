@@ -6,14 +6,61 @@
 		<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=0"/>
 		<title>Embedding Example</title>
 
-		<script type="text/javascript" src="https://unpkg.com/jsnes/dist/jsnes.min.js"></script>
-		<script type="text/javascript" src="nes-embed.js"></script>
-		<script>window.onload = function(){nes_load_url("nes-canvas", "InterglacticTransmissing.nes");}</script>
+		<script type="text/javascript" src="./jsnes.min.js"></script>
+		<script type="text/javascript" src="./nes-embed.js"></script>
+		<script>
+		window.onload = function() {
+			nes_load_url("nes-canvas", "./InterglacticTransmissing.nes");
+			let slider = document.getElementById("volume");
+			let label = document.getElementById("label");
+
+			let data = parseInt(window.localStorage.getItem("jsnes-volume"));
+			if (data > 0 && data <= 256) {
+				slider.value = data;
+				label.innerHTML = "&#128266; " + Math.round(data*100/256);
+				nes_volume(data);
+			} else {
+				slider.value = 256;
+			}
+
+			slider.onkeydown = function(){return false;}
+			slider.oninput = function() {
+				label.innerHTML = (this.value > 0 ? "&#128266; " : "&#128263; ") + Math.round(this.value*100/256);
+				nes_volume(this.value);
+				window.localStorage.setItem("jsnes-volume", this.value);
+			}
+		}
+		</script>
+		<style>
+		#nes-canvas {
+			width: 256px;
+			image-rendering: crisp-edges;
+			image-rendering: pixelated;
+			image-rendering: optimizespeed;
+		}
+		@media (min-height: 480px) { #nes-canvas { width: 512px; } }
+		@media (min-height: 720px) { #nes-canvas { width: 768px; } }
+		@media (min-height: 960px) { #nes-canvas { width: 1024px; } }
+		@media (min-height: 1200px) { #nes-canvas { width: 1280px; } }
+		@media (min-height: 1440px) { #nes-canvas { width: 1536px; } }
+		@media (min-height: 1680px) { #nes-canvas { width: 1792px; } }
+		@media (min-height: 1920px) { #nes-canvas { width: 2048px; } }
+		@media (min-height: 2160px) { #nes-canvas { width: 2304px; } }
+		@media (min-height: 2400px) { #nes-canvas { width: 2560px; } }
+		@media (min-height: 2640px) { #nes-canvas { width: 2816px; } }
+		@media (min-height: 2880px) { #nes-canvas { width: 3072px; } }
+		@media (min-height: 3120px) { #nes-canvas { width: 3328px; } }
+		@media (min-height: 3360px) { #nes-canvas { width: 3584px; } }
+		@media (min-height: 3600px) { #nes-canvas { width: 3840px; } }
+		@media (min-height: 3840px) { #nes-canvas { width: 4096px; } }
+		@media (min-height: 4080px) { #nes-canvas { width: 4352px; } }
+		@media (min-height: 4320px) { #nes-canvas { width: 4608px; } }
+		</style>
 	</head>
 	<body>
 		<center>
-			<canvas id="nes-canvas" width="256" height="240" style="width: 512px; image-rendering: crisp-edges; image-rendering: pixelated; image-rendering: optimizespeed;"></canvas>
+			<canvas id="nes-canvas" width="256" height="240"></canvas>
+			<p><div><input id="volume" type="range" min="0" max="256" value="256" style="vertical-align: middle;"> <span id="label">&#128263; 0</span>%</div></p>
 		</center>
-		<p>DPad: Arrow keys<br/>Start: Return, Select: Shift<br/>A Button: X, B Button: Z</p>
 	</body>
 </html>
