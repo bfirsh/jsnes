@@ -308,7 +308,7 @@ PPU.prototype = {
     if (this.lastRenderedScanline < 239) {
       this.renderFramePartially(
         this.lastRenderedScanline + 1,
-        240 - this.lastRenderedScanline
+        240 - this.lastRenderedScanline,
       );
     }
 
@@ -871,7 +871,7 @@ PPU.prototype = {
       // Render sprites, and combine:
       this.renderFramePartially(
         this.lastRenderedScanline + 1,
-        this.scanline - 21 - this.lastRenderedScanline
+        this.scanline - 21 - this.lastRenderedScanline,
       );
 
       // Set last rendered scanline:
@@ -1057,7 +1057,7 @@ PPU.prototype = {
                 this.horiFlip[i],
                 this.vertFlip[i],
                 i,
-                this.pixrendered
+                this.pixrendered,
               );
             } else {
               this.ptTile[this.sprTile[i] + 256].render(
@@ -1073,7 +1073,7 @@ PPU.prototype = {
                 this.horiFlip[i],
                 this.vertFlip[i],
                 i,
-                this.pixrendered
+                this.pixrendered,
               );
             }
           } else {
@@ -1107,7 +1107,7 @@ PPU.prototype = {
               this.horiFlip[i],
               this.vertFlip[i],
               i,
-              this.pixrendered
+              this.pixrendered,
             );
 
             srcy1 = 0;
@@ -1134,7 +1134,7 @@ PPU.prototype = {
               this.horiFlip[i],
               this.vertFlip[i],
               i,
-              this.pixrendered
+              this.pixrendered,
             );
           }
         }
@@ -1330,22 +1330,22 @@ PPU.prototype = {
     for (i = 0; i < 16; i++) {
       if (this.f_dispType === 0) {
         this.imgPalette[i] = this.palTable.getEntry(
-          this.vramMem[0x3f00 + i] & 63
+          this.vramMem[0x3f00 + i] & 63,
         );
       } else {
         this.imgPalette[i] = this.palTable.getEntry(
-          this.vramMem[0x3f00 + i] & 32
+          this.vramMem[0x3f00 + i] & 32,
         );
       }
     }
     for (i = 0; i < 16; i++) {
       if (this.f_dispType === 0) {
         this.sprPalette[i] = this.palTable.getEntry(
-          this.vramMem[0x3f10 + i] & 63
+          this.vramMem[0x3f10 + i] & 63,
         );
       } else {
         this.sprPalette[i] = this.palTable.getEntry(
-          this.vramMem[0x3f10 + i] & 32
+          this.vramMem[0x3f10 + i] & 32,
         );
       }
     }
@@ -1361,13 +1361,13 @@ PPU.prototype = {
       this.ptTile[tileIndex].setScanline(
         leftOver,
         value,
-        this.vramMem[address + 8]
+        this.vramMem[address + 8],
       );
     } else {
       this.ptTile[tileIndex].setScanline(
         leftOver - 8,
         this.vramMem[address - 8],
-        value
+        value,
       );
     }
   },

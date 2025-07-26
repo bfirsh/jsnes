@@ -49,7 +49,7 @@ Tile.prototype = {
     flipHorizontal,
     flipVertical,
     pri,
-    priTable
+    priTable,
   ) {
     if (dx < -7 || dx >= 256 || dy < -7 || dy >= 240) {
       return;

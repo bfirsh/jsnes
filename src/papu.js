@@ -104,11 +104,11 @@ PAPU.prototype = {
     this.sampleRate = this.nes.opts.sampleRate;
     this.sampleTimerMax = Math.floor(
       (1024.0 * CPU_FREQ_NTSC * this.nes.opts.preferredFrameRate) /
-        (this.sampleRate * 60.0)
+        (this.sampleRate * 60.0),
     );
 
     this.frameTime = Math.floor(
-      (14915.0 * this.nes.opts.preferredFrameRate) / 60.0
+      (14915.0 * this.nes.opts.preferredFrameRate) / 60.0,
     );
 
     this.sampleTimer = 0;
@@ -404,7 +404,7 @@ PAPU.prototype = {
     // Special treatment for triangle channel - need to interpolate.
     if (this.triangle.sampleCondition) {
       this.triValue = Math.floor(
-        (this.triangle.progTimerCount << 4) / (this.triangle.progTimerMax + 1)
+        (this.triangle.progTimerCount << 4) / (this.triangle.progTimerMax + 1),
       );
       if (this.triValue > 16) {
         this.triValue = 16;

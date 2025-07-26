@@ -266,7 +266,7 @@ CPU.prototype = {
           addr =
             this.nes.mmap.load(addr) +
             (this.nes.mmap.load(
-              (addr & 0xff00) | (((addr & 0xff) + 1) & 0xff)
+              (addr & 0xff00) | (((addr & 0xff) + 1) & 0xff),
             ) <<
               8);
         }
@@ -442,7 +442,7 @@ CPU.prototype = {
             (this.F_BRK << 4) |
             (this.F_NOTUSED << 5) |
             (this.F_OVERFLOW << 6) |
-            (this.F_SIGN << 7)
+            (this.F_SIGN << 7),
         );
 
         this.F_INTERRUPT = 1;
@@ -755,7 +755,7 @@ CPU.prototype = {
             (this.F_BRK << 4) |
             (this.F_NOTUSED << 5) |
             (this.F_OVERFLOW << 6) |
-            (this.F_SIGN << 7)
+            (this.F_SIGN << 7),
         );
         break;
       }
@@ -1899,7 +1899,7 @@ var OpData = function () {
     "Absolute,Y          ",
     "Preindexed Indirect ",
     "Postindexed Indirect",
-    "Indirect Absolute   "
+    "Indirect Absolute   ",
   );
 };
 

@@ -150,13 +150,13 @@ ROM.prototype = {
           this.vromTile[v][tileIndex].setScanline(
             leftOver,
             this.vrom[v][i],
-            this.vrom[v][i + 8]
+            this.vrom[v][i + 8],
           );
         } else {
           this.vromTile[v][tileIndex].setScanline(
             leftOver - 8,
             this.vrom[v][i - 8],
-            this.vrom[v][i]
+            this.vrom[v][i],
           );
         }
       }
@@ -195,7 +195,7 @@ ROM.prototype = {
           this.getMapperName() +
           "(" +
           this.mapperType +
-          ")"
+          ")",
       );
     }
   },
