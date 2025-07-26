@@ -386,7 +386,7 @@ Mappers[0].prototype = {
       0,
       this.nes.cpu.mem,
       address,
-      16384
+      16384,
     );
   },
 
@@ -401,7 +401,7 @@ Mappers[0].prototype = {
       0,
       this.nes.ppu.vramMem,
       address,
-      4096
+      4096,
     );
 
     var vromTile = this.nes.rom.vromTile[bank % this.nes.rom.vromCount];
@@ -410,7 +410,7 @@ Mappers[0].prototype = {
       0,
       this.nes.ppu.ptTile,
       address >> 4,
-      256
+      256,
     );
   },
 
@@ -428,7 +428,7 @@ Mappers[0].prototype = {
     this.loadVromBank(bank4kStart % this.nes.rom.vromCount, address);
     this.loadVromBank(
       (bank4kStart + 1) % this.nes.rom.vromCount,
-      address + 4096
+      address + 4096,
     );
   },
 
@@ -445,7 +445,7 @@ Mappers[0].prototype = {
       bankoffset,
       this.nes.ppu.vramMem,
       address,
-      1024
+      1024,
     );
 
     // Update tiles:
@@ -469,7 +469,7 @@ Mappers[0].prototype = {
       bankoffset,
       this.nes.ppu.vramMem,
       address,
-      2048
+      2048,
     );
 
     // Update tiles:
@@ -490,7 +490,7 @@ Mappers[0].prototype = {
       offset,
       this.nes.cpu.mem,
       address,
-      8192
+      8192,
     );
   },
 
@@ -631,7 +631,7 @@ Mappers[1].prototype.setReg = function (reg, value) {
           } else {
             this.load8kVromBank(
               Math.floor(this.nes.rom.vromCount / 2) + (value & 0xf),
-              0x0000
+              0x0000,
             );
           }
         } else {
@@ -641,7 +641,7 @@ Mappers[1].prototype.setReg = function (reg, value) {
           } else {
             this.loadVromBank(
               Math.floor(this.nes.rom.vromCount / 2) + (value & 0xf),
-              0x0000
+              0x0000,
             );
           }
         }
@@ -663,7 +663,7 @@ Mappers[1].prototype.setReg = function (reg, value) {
           } else {
             this.loadVromBank(
               Math.floor(this.nes.rom.vromCount / 2) + (value & 0xf),
-              0x1000
+              0x1000,
             );
           }
         }
