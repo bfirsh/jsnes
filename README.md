@@ -10,7 +10,6 @@ For Node.js or Webpack:
 
     $ npm install jsnes
 
-(Or `yarn add jsnes`.)
 
 In the browser, you can use [unpkg](https://unpkg.com):
 
@@ -56,13 +55,13 @@ nes.frame();
 
 To build a distribution:
 
-    $ yarn run build
+    $ npm run build
 
 This will create `dist/jsnes.min.js`.
 
 ## Running tests
 
-    $ yarn test
+    $ npm test
 
 ## Embedding JSNES in a web page
 
@@ -80,7 +79,7 @@ All code must conform to [Prettier](https://prettier.io/) formatting. The test s
 
 To automatically format all your code, run:
 
-    $ yarn run format
+    $ npm run format
 
 ## Maintainers
 
