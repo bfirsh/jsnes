@@ -1225,18 +1225,20 @@ PPU.prototype = {
 
         if (toffset < 8) {
           // first half of sprite.
-          t = this.ptTile[
-            this.sprTile[0] +
-              (this.vertFlip[0] ? 1 : 0) +
-              ((this.sprTile[0] & 1) !== 0 ? 255 : 0)
-          ];
+          t =
+            this.ptTile[
+              this.sprTile[0] +
+                (this.vertFlip[0] ? 1 : 0) +
+                ((this.sprTile[0] & 1) !== 0 ? 255 : 0)
+            ];
         } else {
           // second half of sprite.
-          t = this.ptTile[
-            this.sprTile[0] +
-              (this.vertFlip[0] ? 0 : 1) +
-              ((this.sprTile[0] & 1) !== 0 ? 255 : 0)
-          ];
+          t =
+            this.ptTile[
+              this.sprTile[0] +
+                (this.vertFlip[0] ? 0 : 1) +
+                ((this.sprTile[0] & 1) !== 0 ? 255 : 0)
+            ];
           if (this.vertFlip[0]) {
             toffset = 15 - toffset;
           } else {
