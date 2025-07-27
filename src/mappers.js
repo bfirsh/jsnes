@@ -1522,14 +1522,14 @@ Mappers[180].prototype.loadROM = function () {
  * @example Jing Ke Xin Zhuan,Sheng Huo Lie Zhuan
  * @constructor https://blog.heheda.top
  */
-Mappers[240] = function(nes) {
+Mappers[240] = function (nes) {
   this.nes = nes;
 };
 
 Mappers[240].prototype = new Mappers[0]();
 
-Mappers[240].prototype.write = function(address, value) {
-  if (address < 0x4020 || address > 0x5FFF) {
+Mappers[240].prototype.write = function (address, value) {
+  if (address < 0x4020 || address > 0x5fff) {
     Mappers[0].prototype.write.apply(this, arguments);
     return;
   } else {
