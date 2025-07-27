@@ -31,6 +31,6 @@
     "terser-webpack-plugin": "^5.3.10",
     "typescript": "^5.8.3",
     "webpack": "^5.100.2",
-    "webpack-cli": "^5.1.4"
+    "webpack-cli": "^6.0.1"
   }
 }
