@@ -5,6 +5,9 @@
         "es6": true,
         "commonjs": true
     },
+    "parserOptions": {
+        "ecmaVersion": 2017
+    },
     "extends": ["eslint:recommended", "prettier"],
     "rules": {
       "eqeqeq": ["error", "always"],
