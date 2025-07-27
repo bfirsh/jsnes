@@ -1,11 +1,13 @@
-var path = require("path");
-const UglifyJsPlugin = require("uglifyjs-webpack-plugin");
+const path = require("path");
+const TerserPlugin = require("terser-webpack-plugin");
+const ESLintPlugin = require("eslint-webpack-plugin");
 
 module.exports = {
   entry: {
     jsnes: "./src/index.js",
     "jsnes.min": "./src/index.js",
   },
+  mode: "production",
   devtool: "source-map",
   output: {
     path: path.resolve(__dirname, "dist"),
@@ -13,25 +15,21 @@ module.exports = {
     library: "jsnes",
     libraryTarget: "umd",
     umdNamedDefine: true,
+    clean: true,
   },
-  module: {
-    rules: [
-      {
-        test: /\.js$/,
-        enforce: "pre",
-        exclude: /node_modules/,
-        use: [
-          {
-            loader: "eslint-loader",
-          },
-        ],
-      },
+  optimization: {
+    minimize: true,
+    minimizer: [
+      new TerserPlugin({
+        include: /\.min\.js$/,
+        extractComments: false,
+      }),
     ],
   },
   plugins: [
-    new UglifyJsPlugin({
-      include: /\.min\.js$/,
-      sourceMap: true,
+    new ESLintPlugin({
+      extensions: ["js"],
+      exclude: "node_modules",
     }),
   ],
 };

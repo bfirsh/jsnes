@@ -5,8 +5,3 @@ updates:
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
-  ignore:
-  - dependency-name: webpack
-    versions:
-    - "< 5"
-    - ">= 4.0.a"
