@@ -22,7 +22,7 @@
     "@types/node": "^24.1.0",
     "chai": "^5.2.1",
     "eslint": "^9.15.0",
-    "eslint-config-prettier": "^9.1.0",
+    "eslint-config-prettier": "^10.1.8",
     "eslint-webpack-plugin": "^4.0.1",
     "mocha": "^11.7.1",
     "prettier": "^3.6.2",
