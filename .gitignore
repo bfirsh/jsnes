@@ -1,5 +1,6 @@
 ._*
 .DS_Store
+.claude/settings.local.json
 /dist
 /local-roms
 /node_modules
