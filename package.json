@@ -20,7 +20,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.1.0",
-    "chai": "^5.2.1",
+    "chai": "^6.2.0",
     "eslint": "^9.15.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-webpack-plugin": "^4.0.1",
