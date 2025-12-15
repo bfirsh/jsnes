@@ -19,7 +19,7 @@
     "format": "prettier --write src/**/*.js"
   },
   "devDependencies": {
-    "@types/node": "^24.1.0",
+    "@types/node": "^25.0.2",
     "chai": "^5.2.1",
     "eslint": "^9.15.0",
     "eslint-config-prettier": "^10.1.8",
