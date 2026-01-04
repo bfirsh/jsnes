@@ -458,7 +458,7 @@ Mappers[0].prototype = {
     var vromTile = this.nes.rom.vromTile[bank4k];
     var baseIndex = address >> 4;
     for (var i = 0; i < 64; i++) {
-      this.nes.ppu.ptTile[baseIndex + i] = vromTile[(bank1k % 4 << 6) + i];
+      this.nes.ppu.ptTile[baseIndex + i] = vromTile[((bank1k % 4) << 6) + i];
     }
   },
 
@@ -482,7 +482,7 @@ Mappers[0].prototype = {
     var vromTile = this.nes.rom.vromTile[bank4k];
     var baseIndex = address >> 4;
     for (var i = 0; i < 128; i++) {
-      this.nes.ppu.ptTile[baseIndex + i] = vromTile[(bank2k % 2 << 7) + i];
+      this.nes.ppu.ptTile[baseIndex + i] = vromTile[((bank2k % 2) << 7) + i];
     }
   },
 
