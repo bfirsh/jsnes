@@ -215,6 +215,8 @@ CPU.prototype = {
         // indexed, but with the high byte.
         addr = this.load16bit(opaddr + 2);
         if ((addr & 0xff00) !== ((addr + this.REG_X) & 0xff00)) {
+          // Page boundary crossed - dummy read from wrong address first
+          this.load((addr & 0xff00) | ((addr + this.REG_X) & 0xff));
           cycleAdd = 1;
         }
         addr += this.REG_X;
@@ -225,6 +227,8 @@ CPU.prototype = {
         // indexed, but with the high byte.
         addr = this.load16bit(opaddr + 2);
         if ((addr & 0xff00) !== ((addr + this.REG_Y) & 0xff00)) {
+          // Page boundary crossed - dummy read from wrong address first
+          this.load((addr & 0xff00) | ((addr + this.REG_Y) & 0xff));
           cycleAdd = 1;
         }
         addr += this.REG_Y;
@@ -234,13 +238,9 @@ CPU.prototype = {
         // Pre-indexed Indirect mode. Find the 16-bit address
         // starting at the given location plus
         // the current X register. The value is the contents of that
-        // address.
+        // address. No page crossing or dummy read - wraps within zero page.
         addr = this.load(opaddr + 2);
-        if ((addr & 0xff00) !== ((addr + this.REG_X) & 0xff00)) {
-          cycleAdd = 1;
-        }
-        addr += this.REG_X;
-        addr &= 0xff;
+        addr = (addr + this.REG_X) & 0xff;
         addr = this.load16bit(addr);
         break;
       }
@@ -252,6 +252,8 @@ CPU.prototype = {
         // stored at that adress.
         addr = this.load16bit(this.load(opaddr + 2));
         if ((addr & 0xff00) !== ((addr + this.REG_Y) & 0xff00)) {
+          // Page boundary crossed - dummy read from wrong address first
+          this.load((addr & 0xff00) | ((addr + this.REG_Y) & 0xff));
           cycleAdd = 1;
         }
         addr += this.REG_Y;
@@ -936,6 +938,14 @@ CPU.prototype = {
         // *******
 
         // Store accumulator in memory
+        // For indexed addressing modes, STA always does a dummy read.
+        // Page-crossing case is handled in address mode; handle non-crossing here.
+        if (
+          cycleAdd === 0 &&
+          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+        ) {
+          this.load(addr);
+        }
         this.write(addr, this.REG_ACC);
         break;
       }
