@@ -121,13 +121,15 @@ CPU.prototype = {
             // console.log("Interrupt was masked.");
             break;
           }
-          this.doIrq(temp);
+          // Clear the B flag (bit 4) for hardware interrupts
+          this.doIrq(temp & 0xef);
           // console.log("Did normal IRQ. I="+this.F_INTERRUPT);
           break;
         }
         case 1: {
           // NMI:
-          this.doNonMaskableInterrupt(temp);
+          // Clear the B flag (bit 4) for hardware interrupts
+          this.doNonMaskableInterrupt(temp & 0xef);
           break;
         }
         case 2: {
