@@ -1260,10 +1260,9 @@ CPU.prototype = {
         // * ??? *
         // *******
 
-        this.nes.stop();
-        this.nes.crashMessage =
-          "Game crashed, invalid opcode at address $" + opaddr.toString(16);
-        break;
+        throw new Error(
+          "Game crashed, invalid opcode at address $" + opaddr.toString(16),
+        );
       }
     } // end of switch
 

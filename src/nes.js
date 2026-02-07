@@ -54,12 +54,6 @@ var NES = function (opts) {
 NES.prototype = {
   fpsFrameCount: 0,
   romData: null,
-  break: false,
-
-  // Set break to true to stop frame loop.
-  stop: function () {
-    this.break = true;
-  },
 
   // Resets the system
   reset: function () {
@@ -74,76 +68,85 @@ NES.prototype = {
     this.lastFpsTime = null;
     this.fpsFrameCount = 0;
 
-    this.break = false;
+    this.crashed = false;
   },
 
   frame: function () {
+    if (this.crashed) {
+      throw new Error(
+        "Game has crashed. Call reset() or loadROM() to restart.",
+      );
+    }
     this.ppu.startFrame();
     var cycles = 0;
     var emulateSound = this.opts.emulateSound;
     var cpu = this.cpu;
     var ppu = this.ppu;
     var papu = this.papu;
-    FRAMELOOP: for (;;) {
-      if (this.break) break;
-      if (cpu.cyclesToHalt === 0) {
-        // Execute a CPU instruction
-        cycles = cpu.emulate();
-        if (emulateSound) {
-          papu.clockFrameCounter(cycles);
-        }
-        cycles *= 3;
-      } else {
-        if (cpu.cyclesToHalt > 8) {
-          cycles = 24;
+    try {
+      FRAMELOOP: for (;;) {
+        if (cpu.cyclesToHalt === 0) {
+          // Execute a CPU instruction
+          cycles = cpu.emulate();
           if (emulateSound) {
-            papu.clockFrameCounter(8);
+            papu.clockFrameCounter(cycles);
           }
-          cpu.cyclesToHalt -= 8;
+          cycles *= 3;
         } else {
-          cycles = cpu.cyclesToHalt * 3;
-          if (emulateSound) {
-            papu.clockFrameCounter(cpu.cyclesToHalt);
+          if (cpu.cyclesToHalt > 8) {
+            cycles = 24;
+            if (emulateSound) {
+              papu.clockFrameCounter(8);
+            }
+            cpu.cyclesToHalt -= 8;
+          } else {
+            cycles = cpu.cyclesToHalt * 3;
+            if (emulateSound) {
+              papu.clockFrameCounter(cpu.cyclesToHalt);
+            }
+            cpu.cyclesToHalt = 0;
           }
-          cpu.cyclesToHalt = 0;
         }
-      }
 
-      var finalCurX = ppu.curX + cycles;
-      if (
-        !ppu.requestEndFrame &&
-        finalCurX < 341 &&
-        (ppu.spr0HitX < ppu.curX || ppu.spr0HitX >= finalCurX)
-      ) {
-        ppu.curX = finalCurX;
-        continue FRAMELOOP;
-      }
-
-      for (; cycles > 0; cycles--) {
+        var finalCurX = ppu.curX + cycles;
         if (
-          ppu.curX === ppu.spr0HitX &&
-          ppu.f_spVisibility === 1 &&
-          ppu.scanline - 21 === ppu.spr0HitY
+          !ppu.requestEndFrame &&
+          finalCurX < 341 &&
+          (ppu.spr0HitX < ppu.curX || ppu.spr0HitX >= finalCurX)
         ) {
-          // Set sprite 0 hit flag:
-          ppu.setStatusFlag(ppu.STATUS_SPRITE0HIT, true);
+          ppu.curX = finalCurX;
+          continue FRAMELOOP;
         }
 
-        if (ppu.requestEndFrame) {
-          ppu.nmiCounter--;
-          if (ppu.nmiCounter === 0) {
-            ppu.requestEndFrame = false;
-            ppu.startVBlank();
-            break FRAMELOOP;
+        for (; cycles > 0; cycles--) {
+          if (
+            ppu.curX === ppu.spr0HitX &&
+            ppu.f_spVisibility === 1 &&
+            ppu.scanline - 21 === ppu.spr0HitY
+          ) {
+            // Set sprite 0 hit flag:
+            ppu.setStatusFlag(ppu.STATUS_SPRITE0HIT, true);
+          }
+
+          if (ppu.requestEndFrame) {
+            ppu.nmiCounter--;
+            if (ppu.nmiCounter === 0) {
+              ppu.requestEndFrame = false;
+              ppu.startVBlank();
+              break FRAMELOOP;
+            }
+          }
+
+          ppu.curX++;
+          if (ppu.curX === 341) {
+            ppu.curX = 0;
+            ppu.endScanline();
           }
         }
-
-        ppu.curX++;
-        if (ppu.curX === 341) {
-          ppu.curX = 0;
-          ppu.endScanline();
-        }
       }
+    } catch (e) {
+      this.crashed = true;
+      throw e;
     }
     this.fpsFrameCount++;
   },
