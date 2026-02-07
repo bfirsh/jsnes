@@ -1,6 +1,9 @@
 var assert = require("chai").assert;
 var CPU = require("../src/cpu");
 
+// Based on https://github.com/gutomaia/wedNESday/blob/0.0.x/wednesday/cpu_6502_spec.py
+// ... which was based on https://github.com/nwidger/nintengo/blob/master/m65go2/instructions_test.go
+
 Status = {
     C: 0b00000001, // Carry
     Z: 0b00000010, // Zero
@@ -116,7 +119,7 @@ describe("CPU", function () {
     function cpu_register(register) {
         var val = null
         if (register == 'P') {
-            return cpu.getStatus() ^ 0b10;
+            return (cpu.getStatus() ^ 0b10) & 0xcf;
         }
         var reg = REGISTER_MAP[register];
         var val = cpu[reg];
@@ -949,7 +952,6 @@ describe("CPU", function () {
     });
     
     it("plp", function(done) {
-        this.skip("TODO:");
         cpu_push_byte(0xff);
         cpu_pc(0x100);
         memory_set(0x100, 0x28);
