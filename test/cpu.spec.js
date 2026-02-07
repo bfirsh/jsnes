@@ -3505,27 +3505,18 @@ describe("CPU", function () {
         done();
     });
     
-    it("jsr with illegal opcode", function(done) {
-        this.skip();
+    it("jsr and rts", function(done) {
         cpu_pc(0x100);
-        memory_set(0x100, 0x20);
+        memory_set(0x100, 0x20);  // JSR $0084
         memory_set(0x101, 0x84);
         memory_set(0x102, 0x0);
-        memory_set(0x103, 0xa9);
+        memory_set(0x103, 0xa9);  // LDA #$FF
         memory_set(0x104, 0xff);
-        memory_set(0x105, 0x2);
-        memory_set(0x84, 0x60);
+        memory_set(0x84, 0x60);   // RTS
 
-        execute();
-
-
-        execute();
-
-
-        execute();
-
-
-        execute();
+        execute();  // JSR $0084
+        execute();  // RTS
+        execute();  // LDA #$FF
 
         assert.equal(cpu_register("A"), 0xff);
         done();
