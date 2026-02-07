@@ -239,9 +239,8 @@ CPU.prototype = {
         // starting at the given location plus
         // the current X register. The value is the contents of that
         // address. No page crossing or dummy read - wraps within zero page.
-        addr = this.load(opaddr + 2);
-        addr = (addr + this.REG_X) & 0xff;
-        addr = this.load16bit(addr);
+        var zpAddr10 = (this.load(opaddr + 2) + this.REG_X) & 0xff;
+        addr = this.load(zpAddr10) | (this.load((zpAddr10 + 1) & 0xff) << 8);
         break;
       }
       case 11: {
@@ -250,7 +249,8 @@ CPU.prototype = {
         // (and the one following). Add to that address the contents
         // of the Y register. Fetch the value
         // stored at that adress.
-        addr = this.load16bit(this.load(opaddr + 2));
+        var zpAddr = this.load(opaddr + 2);
+        addr = this.load(zpAddr) | (this.load((zpAddr + 1) & 0xff) << 8);
         if ((addr & 0xff00) !== ((addr + this.REG_Y) & 0xff00)) {
           // Page boundary crossed - dummy read from wrong address first
           this.load((addr & 0xff00) | ((addr + this.REG_Y) & 0xff));

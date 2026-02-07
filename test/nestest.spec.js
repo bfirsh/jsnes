@@ -491,10 +491,7 @@ describe("nestest (CPU test ROM)", function () {
 
   // Generate individual test cases for each group in byte 0x02
   TEST_GROUPS_02.forEach(function (group) {
-    // Skip (indirect),y tests — jsnes doesn't wrap zeropage addresses
-    // correctly for indirect addressing modes yet (error 0xEC).
-    var fn = group.name === "(indirect),y tests" ? it.skip : it;
-    fn(group.name, function () {
+    it(group.name, function () {
       var code = results.result02;
       if (code >= group.from && code <= group.to) {
         assert.fail(describeError("0x02", code, ERRORS_02));
@@ -519,8 +516,7 @@ describe("nestest (CPU test ROM)", function () {
     });
   });
 
-  // Skip until indirect addressing zeropage wrapping is fixed (error 0xEC)
-  it.skip("all official opcode tests pass (byte 0x02 = 0x00)", function () {
+  it("all official opcode tests pass (byte 0x02 = 0x00)", function () {
     var code = results.result02;
     if (code !== 0) {
       assert.fail(
