@@ -1329,19 +1329,16 @@ CPU.prototype = {
 
   doNonMaskableInterrupt: function (status) {
     if (this.nes.mmap === null) return;
-    if ((this.nes.mmap.load(0x2000) & 128) !== 0) {
-      // Check whether VBlank Interrupts are enabled
 
-      this.REG_PC_NEW++;
-      this.push((this.REG_PC_NEW >> 8) & 0xff);
-      this.push(this.REG_PC_NEW & 0xff);
-      //this.F_INTERRUPT_NEW = 1;
-      this.push(status);
+    this.REG_PC_NEW++;
+    this.push((this.REG_PC_NEW >> 8) & 0xff);
+    this.push(this.REG_PC_NEW & 0xff);
+    //this.F_INTERRUPT_NEW = 1;
+    this.push(status);
 
-      this.REG_PC_NEW =
-        this.nes.mmap.load(0xfffa) | (this.nes.mmap.load(0xfffb) << 8);
-      this.REG_PC_NEW--;
-    }
+    this.REG_PC_NEW =
+      this.nes.mmap.load(0xfffa) | (this.nes.mmap.load(0xfffb) << 8);
+    this.REG_PC_NEW--;
   },
 
   doResetInterrupt: function () {
