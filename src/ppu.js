@@ -301,8 +301,10 @@ PPU.prototype = {
   },
 
   startVBlank: function () {
-    // Do NMI:
-    this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NMI);
+    // Do NMI only if VBlank NMI is enabled (bit 7 of $2000):
+    if (this.f_nmiOnVblank !== 0) {
+      this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NMI);
+    }
 
     // Make sure everything is rendered:
     if (this.lastRenderedScanline < 239) {
