@@ -82,6 +82,16 @@ var ERRORS_02 = {
   0x4b: "ASL A failed",
   0x4c: "ROR A failed",
   0x4d: "ROL A failed",
+  0x4e: "absolute,X NOPs less than 3 bytes long",
+  0x4f: "implied NOPs affects regs/flags",
+  0x50: "ZP,X NOPs less than 2 bytes long",
+  0x51: "absolute NOP less than 3 bytes long",
+  0x52: "ZP NOPs less than 2 bytes long",
+  0x53: "absolute,X NOPs less than 3 bytes long",
+  0x54: "implied NOPs affects regs/flags",
+  0x55: "ZP,X NOPs less than 2 bytes long",
+  0x56: "absolute NOP less than 3 bytes long",
+  0x57: "ZP NOPs less than 2 bytes long",
   0x58: "(indirect,x) LDA didn't load expected data",
   0x59: "(indirect,x) STA didn't store data where it was supposed to",
   0x5a: "(indirect,x) ORA failure",
@@ -376,6 +386,136 @@ var ERRORS_03 = {
   0x79: "absolute,x DEC failure",
   0x7a: "absolute,x LDX,Y failure",
   0x7b: "absolute,x LDX,Y failure",
+  0x7c: "LAX (indr,x) failure",
+  0x7d: "LAX (indr,x) failure",
+  0x7e: "LAX zeropage failure",
+  0x7f: "LAX zeropage failure",
+  0x80: "LAX absolute failure",
+  0x81: "LAX absolute failure",
+  0x82: "LAX (indr),y failure",
+  0x83: "LAX (indr),y failure",
+  0x84: "LAX zp,y failure",
+  0x85: "LAX zp,y failure",
+  0x86: "LAX abs,y failure",
+  0x87: "LAX abs,y failure",
+  0x88: "SAX (indr,x) failure",
+  0x89: "SAX (indr,x) failure",
+  0x8a: "SAX zeropage failure",
+  0x8b: "SAX zeropage failure",
+  0x8c: "SAX absolute failure",
+  0x8d: "SAX absolute failure",
+  0x8e: "SAX zp,y failure",
+  0x8f: "SAX zp,y failure",
+  0x90: "SBC (unofficial) failure",
+  0x91: "SBC (unofficial) failure",
+  0x92: "SBC (unofficial) failure",
+  0x93: "SBC (unofficial) failure",
+  0x94: "SBC (unofficial) failure",
+  0x95: "DCP (indr,x) failure",
+  0x96: "DCP (indr,x) failure",
+  0x97: "DCP (indr,x) failure",
+  0x98: "DCP zeropage failure",
+  0x99: "DCP zeropage failure",
+  0x9a: "DCP zeropage failure",
+  0x9b: "DCP absolute failure",
+  0x9c: "DCP absolute failure",
+  0x9d: "DCP absolute failure",
+  0x9e: "DCP (indr),y failure",
+  0x9f: "DCP (indr),y failure",
+  0xa0: "DCP (indr),y failure",
+  0xa1: "DCP zp,x failure",
+  0xa2: "DCP zp,x failure",
+  0xa3: "DCP zp,x failure",
+  0xa4: "DCP abs,y failure",
+  0xa5: "DCP abs,y failure",
+  0xa6: "DCP abs,y failure",
+  0xa7: "DCP abs,x failure",
+  0xa8: "DCP abs,x failure",
+  0xa9: "DCP abs,x failure",
+  0xaa: "ISC (indr,x) failure",
+  0xab: "ISC (indr,x) failure",
+  0xac: "ISC (indr,x) failure",
+  0xad: "ISC zeropage failure",
+  0xae: "ISC zeropage failure",
+  0xaf: "ISC zeropage failure",
+  0xb0: "ISC absolute failure",
+  0xb1: "ISC absolute failure",
+  0xb2: "ISC absolute failure",
+  0xb3: "ISC (indr),y failure",
+  0xb4: "ISC (indr),y failure",
+  0xb5: "ISC (indr),y failure",
+  0xb6: "ISC zp,x failure",
+  0xb7: "ISC zp,x failure",
+  0xb8: "ISC zp,x failure",
+  0xb9: "ISC abs,y failure",
+  0xba: "ISC abs,y failure",
+  0xbb: "ISC abs,y failure",
+  0xbc: "ISC abs,x failure",
+  0xbd: "ISC abs,x failure",
+  0xbe: "ISC abs,x failure",
+  0xbf: "SLO (indr,x) failure",
+  0xc0: "SLO (indr,x) failure",
+  0xc1: "SLO (indr,x) failure",
+  0xc2: "SLO zeropage failure",
+  0xc3: "SLO zeropage failure",
+  0xc4: "SLO zeropage failure",
+  0xc5: "SLO absolute failure",
+  0xc6: "SLO absolute failure",
+  0xc7: "SLO absolute failure",
+  0xc8: "SLO (indr),y failure",
+  0xc9: "SLO (indr),y failure",
+  0xca: "SLO (indr),y failure",
+  0xcb: "SLO zp,x failure",
+  0xcc: "SLO zp,x failure",
+  0xcd: "SLO zp,x failure",
+  0xce: "SLO abs,y failure",
+  0xcf: "SLO abs,y failure",
+  0xd0: "SLO abs,y failure",
+  0xd1: "SLO abs,x failure",
+  0xd2: "SLO abs,x failure",
+  0xd3: "SLO abs,x failure",
+  0xd4: "RLA (indr,x) failure",
+  0xd5: "RLA (indr,x) failure",
+  0xd6: "RLA (indr,x) failure",
+  0xd7: "RLA zeropage failure",
+  0xd8: "RLA zeropage failure",
+  0xd9: "RLA zeropage failure",
+  0xda: "RLA absolute failure",
+  0xdb: "RLA absolute failure",
+  0xdc: "RLA absolute failure",
+  0xdd: "RLA (indr),y failure",
+  0xde: "RLA (indr),y failure",
+  0xdf: "RLA (indr),y failure",
+  0xe0: "RLA zp,x failure",
+  0xe1: "RLA zp,x failure",
+  0xe2: "RLA zp,x failure",
+  0xe3: "RLA abs,y failure",
+  0xe4: "RLA abs,y failure",
+  0xe5: "RLA abs,y failure",
+  0xe6: "RLA abs,x failure",
+  0xe7: "RLA abs,x failure",
+  0xe8: "RLA abs,x failure",
+  0xe9: "SRE (indr,x) failure",
+  0xea: "SRE (indr,x) failure",
+  0xeb: "SRE (indr,x) failure",
+  0xec: "SRE zeropage failure",
+  0xed: "SRE zeropage failure",
+  0xee: "SRE zeropage failure",
+  0xef: "SRE absolute failure",
+  0xf0: "SRE absolute failure",
+  0xf1: "SRE absolute failure",
+  0xf2: "SRE (indr),y failure",
+  0xf3: "SRE (indr),y failure",
+  0xf4: "SRE (indr),y failure",
+  0xf5: "SRE zp,x failure",
+  0xf6: "SRE zp,x failure",
+  0xf7: "SRE zp,x failure",
+  0xf8: "SRE abs,y failure",
+  0xf9: "SRE abs,y failure",
+  0xfa: "SRE abs,y failure",
+  0xfb: "SRE abs,x failure",
+  0xfc: "SRE abs,x failure",
+  0xfd: "SRE abs,x failure",
 };
 
 // Group test ranges for byte 0x02 into named test groups.
@@ -387,6 +527,7 @@ var TEST_GROUPS_02 = [
   { name: "Implied instruction tests (INX/DEX/TAX/etc)", from: 0x3e, to: 0x45 },
   { name: "Stack tests", from: 0x46, to: 0x49 },
   { name: "Accumulator shift tests (LSR/ASL/ROR/ROL A)", from: 0x4a, to: 0x4d },
+  { name: "Unofficial NOP tests", from: 0x4e, to: 0x57 },
   { name: "(indirect,x) tests", from: 0x58, to: 0x70 },
   { name: "SBC # tests", from: 0x71, to: 0x75 },
   { name: "Zeropage tests", from: 0x76, to: 0xaf },
@@ -401,6 +542,14 @@ var TEST_GROUPS_03 = [
   { name: "Zeropage,x LDX,Y / STX,Y tests", from: 0x32, to: 0x35 },
   { name: "Absolute,y tests", from: 0x36, to: 0x50 },
   { name: "Absolute,x tests", from: 0x51, to: 0x7b },
+  { name: "Unofficial LAX tests", from: 0x7c, to: 0x87 },
+  { name: "Unofficial SAX tests", from: 0x88, to: 0x8f },
+  { name: "Unofficial SBC tests", from: 0x90, to: 0x94 },
+  { name: "Unofficial DCP tests", from: 0x95, to: 0xa9 },
+  { name: "Unofficial ISC tests", from: 0xaa, to: 0xbe },
+  { name: "Unofficial SLO tests", from: 0xbf, to: 0xd3 },
+  { name: "Unofficial RLA tests", from: 0xd4, to: 0xe8 },
+  { name: "Unofficial SRE tests", from: 0xe9, to: 0xfd },
 ];
 
 /**
@@ -478,14 +627,15 @@ describe("nestest (CPU test ROM)", function () {
     });
   });
 
-  it("should run without unexpected crash", function () {
-    // The ROM will crash on unofficial opcodes (which jsnes doesn't
-    // implement), but only after completing all official opcode tests.
-    // We just verify the test actually ran.
+  it("should run without crashing", function () {
     assert.isAbove(
       results.instructions,
       1000,
       "Test ROM didn't run enough instructions",
+    );
+    assert.isFalse(
+      results.crashed,
+      "ROM crashed: " + results.crashMessage,
     );
   });
 
@@ -500,15 +650,11 @@ describe("nestest (CPU test ROM)", function () {
   });
 
   // Generate individual test cases for each group in byte 0x03.
-  // These test unofficial opcodes which jsnes doesn't implement —
-  // the ROM crashes on the first invalid opcode before writing any
-  // result to mem[0x11], so skip when the ROM crashed.
+  // This covers official addressing mode tests and unofficial opcode tests.
+  // Note: RRA tests (codes 0x01-0x15) overlap with official (indirect),y
+  // codes and run last, so a RRA failure would overwrite earlier results.
   TEST_GROUPS_03.forEach(function (group) {
     it(group.name, function () {
-      if (results.crashed) {
-        this.skip();
-        return;
-      }
       var code = results.result03;
       if (code >= group.from && code <= group.to) {
         assert.fail(describeError("0x03", code, ERRORS_03));
@@ -526,11 +672,7 @@ describe("nestest (CPU test ROM)", function () {
     }
   });
 
-  it("all tests pass (byte 0x03 = 0x00)", function () {
-    if (results.crashed) {
-      this.skip();
-      return;
-    }
+  it("all unofficial opcode tests pass (byte 0x03 = 0x00)", function () {
     var code = results.result03;
     if (code !== 0) {
       assert.fail(

@@ -1645,6 +1645,7 @@ var OpData = function () {
 
   // SBC:
   this.setOp(this.INS_SBC, 0xe9, this.ADDR_IMM, 2, 2);
+  this.setOp(this.INS_SBC, 0xeb, this.ADDR_IMM, 2, 2); // unofficial alternate
   this.setOp(this.INS_SBC, 0xe5, this.ADDR_ZP, 2, 3);
   this.setOp(this.INS_SBC, 0xf5, this.ADDR_ZPX, 2, 4);
   this.setOp(this.INS_SBC, 0xed, this.ADDR_ABS, 3, 4);
