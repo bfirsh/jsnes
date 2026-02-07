@@ -178,16 +178,56 @@ describe("CPU", function () {
         return b1 + b2;
     }
 
-    function cpu_force_interrupt() {
-        //TODO
+    function cpu_force_interrupt(type) {
+        var typeMap = {
+            'irq': cpu.IRQ_NORMAL,
+            'nmi': cpu.IRQ_NMI,
+            'rst': cpu.IRQ_RESET,
+        };
+        cpu.requestIrq(typeMap[type]);
     }
 
-    function cpu_get_interrupt() {
-        //TODO
+    function cpu_get_interrupt(type) {
+        return cpu.irqRequested;
     }
 
     function execute_interrupt() {
-        // TODO
+        // Replicate interrupt handling from cpu.emulate() without
+        // executing the instruction at the target address
+        var temp =
+            cpu.F_CARRY |
+            ((cpu.F_ZERO === 0 ? 1 : 0) << 1) |
+            (cpu.F_INTERRUPT << 2) |
+            (cpu.F_DECIMAL << 3) |
+            (cpu.F_BRK << 4) |
+            (cpu.F_NOTUSED << 5) |
+            (cpu.F_OVERFLOW << 6) |
+            (cpu.F_SIGN << 7);
+
+        cpu.REG_PC_NEW = cpu.REG_PC;
+        cpu.F_INTERRUPT_NEW = cpu.F_INTERRUPT;
+        switch (cpu.irqType) {
+            case 0: {
+                if (cpu.F_INTERRUPT !== 0) {
+                    break;
+                }
+                cpu.doIrq(temp & 0xef);
+                break;
+            }
+            case 1: {
+                cpu.doNonMaskableInterrupt(temp & 0xef);
+                break;
+            }
+            case 2: {
+                cpu.doResetInterrupt();
+                break;
+            }
+        }
+
+        cpu.REG_PC = cpu.REG_PC_NEW;
+        cpu.F_INTERRUPT = cpu.F_INTERRUPT_NEW;
+        cpu.F_BRK = cpu.F_BRK_NEW;
+        cpu.irqRequested = false;
     }
 
     it("lda imediate", function(done) {
@@ -3868,7 +3908,6 @@ describe("CPU", function () {
     });
     
     it("irq interrupt", function(done) {
-        this.skip("TODO");
         cpu_set_register("P", 0xfb);
         cpu_pc(0x100);
         cpu_force_interrupt("irq");
@@ -3877,7 +3916,7 @@ describe("CPU", function () {
 
         execute_interrupt();
 
-        assert.equal(cpu_pull_byte(), 0xfb);
+        assert.equal(cpu_pull_byte(), 0xeb);
         assert.equal(cpu_pull_word(), 0x100);
         assert.equal(cpu_register("PC"), 0x140);
         assert.isFalse(cpu_get_interrupt("irq"));
@@ -3885,7 +3924,6 @@ describe("CPU", function () {
     });
     
     it("nmi interrupt", function(done) {
-        this.skip("TODO");
         cpu_set_register("P", 0xff);
         cpu_pc(0x100);
         cpu_force_interrupt("nmi");
@@ -3894,7 +3932,7 @@ describe("CPU", function () {
 
         execute_interrupt();
 
-        assert.equal(cpu_pull_byte(), 0xff);
+        assert.equal(cpu_pull_byte(), 0xef);
         assert.equal(cpu_pull_word(), 0x100);
         assert.equal(cpu_register("PC"), 0x140);
         assert.isFalse(cpu_get_interrupt("nmi"));
@@ -3902,7 +3940,6 @@ describe("CPU", function () {
     });
     
     it("rst interrupt", function(done) {
-        this.skip("TODO");
         cpu_pc(0x100);
         cpu_force_interrupt("rst");
         memory_set(0xfffc, 0x40);
