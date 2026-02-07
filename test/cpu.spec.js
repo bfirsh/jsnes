@@ -60,7 +60,7 @@ describe("CPU", function () {
 
     beforeEach(function (done) {
         mem = Array.apply(
-            null, Array(0xffff)
+            null, Array(0x10000)
         ).map(Number.prototype.valueOf, 0);
 
         mmap = new MMAP(mem);
@@ -90,7 +90,7 @@ describe("CPU", function () {
         if (pos < 0x2000) {
             mem[pos & 0x7ff] = val;
         } else {
-            nes.mmap.write(pos);
+            nes.mmap.write(pos, val);
         }
     }
 
@@ -3841,7 +3841,6 @@ describe("CPU", function () {
     });
     
     it("brk", function(done) {
-        this.skip("TODO");
         cpu_set_register("P", 0xff - Status.B);
         cpu_pc(0x100);
         memory_set(0x100, 0x0);
