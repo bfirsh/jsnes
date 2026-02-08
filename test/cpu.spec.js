@@ -1,6 +1,9 @@
 var assert = require("chai").assert;
 var CPU = require("../src/cpu");
 
+// Based on https://github.com/gutomaia/wedNESday/blob/0.0.x/wednesday/cpu_6502_spec.py
+// ... which was based on https://github.com/nwidger/nintengo/blob/master/m65go2/instructions_test.go
+
 Status = {
     C: 0b00000001, // Carry
     Z: 0b00000010, // Zero
