@@ -213,6 +213,8 @@ PAPU.prototype = {
       this.dmc.writeReg(address, value);
     } else if (address === 0x4017) {
       // Frame counter control
+      // Bit 7: sequence mode (0=4-step, 1=5-step)
+      // Bit 6: IRQ inhibit (0=IRQs enabled, 1=IRQs disabled)
       this.countSequence = (value >> 7) & 1;
       this.masterFrameCounter = 0;
       this.frameIrqActive = false;
@@ -470,7 +472,9 @@ PAPU.prototype = {
     }
 
     if (this.derivedFrameCounter === 3 && this.countSequence === 0) {
-      // Enable IRQ:
+      // Set frame interrupt flag unconditionally in step 4 of 4-step mode.
+      // The flag is always visible in $4015 bit 6, but the actual IRQ is
+      // only fired when frameIrqEnabled is true (see clockFrameCounter).
       this.frameIrqActive = true;
     }
 

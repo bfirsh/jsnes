@@ -28,6 +28,10 @@ var CPU = function (nes) {
   this.crash = null;
   this.irqRequested = null;
   this.irqType = null;
+  // Tracks the last value on the CPU data bus. When reading from unmapped
+  // addresses ("open bus"), the NES returns this value. Updated on every
+  // read, write, push, pull, and interrupt vector fetch.
+  // See https://www.nesdev.org/wiki/Open_bus_behavior
   this.dataBus = null;
 
   this.reset();
@@ -225,7 +229,11 @@ CPU.prototype = {
         // indexed, but with the high byte.
         addr = this.load16bit(opaddr + 2);
         if ((addr & 0xff00) !== ((addr + this.REG_X) & 0xff00)) {
-          // Page boundary crossed - dummy read from wrong address first
+          // Page boundary crossed - the 6502 first reads from the "wrong"
+          // address (uncorrected high byte) before reading the correct one.
+          // This dummy read is a real bus cycle: it updates the data bus and
+          // can trigger side effects on I/O registers (e.g., reading $4015
+          // clears its interrupt flags).
           this.load((addr & 0xff00) | ((addr + this.REG_X) & 0xff));
           cycleAdd = 1;
         }
@@ -237,7 +245,7 @@ CPU.prototype = {
         // indexed, but with the high byte.
         addr = this.load16bit(opaddr + 2);
         if ((addr & 0xff00) !== ((addr + this.REG_Y) & 0xff00)) {
-          // Page boundary crossed - dummy read from wrong address first
+          // Page boundary crossed - dummy read from wrong address (see case 8)
           this.load((addr & 0xff00) | ((addr + this.REG_Y) & 0xff));
           cycleAdd = 1;
         }
@@ -262,7 +270,7 @@ CPU.prototype = {
         var zpAddr = this.load(opaddr + 2);
         addr = this.load(zpAddr) | (this.load((zpAddr + 1) & 0xff) << 8);
         if ((addr & 0xff00) !== ((addr + this.REG_Y) & 0xff00)) {
-          // Page boundary crossed - dummy read from wrong address first
+          // Page boundary crossed - dummy read from wrong address (see case 8)
           this.load((addr & 0xff00) | ((addr + this.REG_Y) & 0xff));
           cycleAdd = 1;
         }
@@ -1346,6 +1354,7 @@ CPU.prototype = {
     this.cyclesToHalt += cycles;
   },
 
+  // Interrupt vector fetches update the data bus, just like normal reads.
   doNonMaskableInterrupt: function (status) {
     if (this.nes.mmap === null) return;
 

@@ -11,6 +11,9 @@ var PPU = function (nes) {
   this.vramTmpAddress = null;
   this.vramBufferedReadValue = null;
   this.firstWrite = null;
+  // PPU has its own internal I/O bus. All PPU register writes update this
+  // latch. Reading write-only registers ($2000,$2001,$2003,$2005,$2006)
+  // returns this value. $2002 uses bits 4-0 from this latch.
   this.openBusLatch = null;
   this.sramAddress = null;
   this.currentMirroring = null;

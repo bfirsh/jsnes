@@ -55,7 +55,11 @@ Tests use Mocha + Chai + Sinon in `test/nes.spec.js`:
 
 Test ROMs:
 - `roms/croom/` - Simple test ROM for automated testing
+- `roms/AccuracyCoin/` - Comprehensive accuracy test ROM (134 tests covering CPU, PPU, APU behavior)
+- `roms/nestest/` - CPU instruction test ROM (official + unofficial opcodes)
 - `local-roms/` - Collection of ROMs for manual testing
+
+AccuracyCoin test results are encoded as `(subTestNumber << 2) | 2` for failures. The test harness in `test/accuracycoin.spec.js` runs all tests and reports individual pass/fail status. Known failures are listed in the `KNOWN_FAILURES` object.
 
 ## Build Process
 
@@ -71,6 +75,31 @@ Webpack configuration creates UMD modules compatible with browsers and Node.js:
 - ESLint rules are enforced during build
 - Tests must pass before commits
 - Frame buffer regression tests prevent rendering regressions
+
+## NES Hardware Accuracy
+
+The emulator implements several hardware-accurate behaviors verified by the AccuracyCoin test ROM. Key reference: https://www.nesdev.org/wiki/Open_bus_behavior
+
+### Open Bus
+
+The NES data bus retains the last value from any read/write. Reading from unmapped or write-only addresses returns this "open bus" value. The CPU tracks this in `cpu.dataBus`, updated on every load, write, push, pull, opcode fetch, and interrupt vector fetch.
+
+- **CPU open bus regions**: $4018-$5FFF (unmapped expansion), $4000-$4014 (write-only APU registers)
+- **PPU open bus**: The PPU has its own internal I/O latch (`ppu.openBusLatch`), updated on every PPU register write. Write-only PPU registers ($2000, $2001, $2003, $2005, $2006) return this latch. $2002 returns status in bits 7-5 with the latch in bits 4-0.
+- **Controller open bus**: $4016/$4017 only drive bits 0-4; bits 5-7 come from the CPU data bus
+- **$4015 bit 5**: Not driven by APU; comes from the CPU data bus
+
+### Dummy Reads
+
+The 6502 performs "dummy reads" from incorrect addresses during page-crossing indexed addressing. These are real bus cycles that update the data bus and trigger I/O side effects (e.g., reading $4015 clears interrupt flags). See addressing mode cases 8, 9, 11 in `cpu.js`.
+
+### JSR Cycle Order
+
+The real 6502 reads JSR's target high byte *after* pushing the return address, making it the last bus operation before entering the target. This matters when JSR targets unmapped addresses — the data bus value on entry is the high byte of the target.
+
+### APU Frame IRQ
+
+The frame interrupt flag (`frameIrqActive`) is set unconditionally in step 4 of the 4-step frame counter sequence. The $4017 IRQ inhibit bit only prevents the IRQ from firing; the flag is still visible in $4015 bit 6. This distinction matters for tests that check $4015 while IRQs are inhibited.
 
 ## Development Notes
 
