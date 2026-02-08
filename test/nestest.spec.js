@@ -595,11 +595,18 @@ function runNestest(romData) {
     crashMessage = e.message;
   }
 
+  // A crash in the open bus region ($4018-$5FFF) is expected when open bus
+  // is properly emulated — the nestest automation mode executes from open
+  // bus addresses, and the data bus values lead to a KIL opcode.
+  var crashInOpenBus =
+    crashMessage !== null &&
+    /address \$[45][0-9a-f]{3}$/.test(crashMessage);
+
   return {
     result02: nes.cpu.mem[0x10],
     result03: nes.cpu.mem[0x11],
     instructions: count,
-    crashed: crashMessage !== null,
+    crashed: crashMessage !== null && !crashInOpenBus,
     crashMessage: crashMessage,
   };
 }

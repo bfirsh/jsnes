@@ -28,6 +28,7 @@ var CPU = function (nes) {
   this.crash = null;
   this.irqRequested = null;
   this.irqType = null;
+  this.dataBus = null;
 
   this.reset();
 };
@@ -97,6 +98,9 @@ CPU.prototype = {
     // Interrupt notification:
     this.irqRequested = false;
     this.irqType = null;
+
+    // Data bus (open bus):
+    this.dataBus = 0;
   },
 
   // Emulates a single CPU instruction, returns the number of cycles
@@ -150,7 +154,9 @@ CPU.prototype = {
     }
 
     if (this.nes.mmap === null) return 32;
-    var opinf = this.opdata[this.nes.mmap.load(this.REG_PC + 1)];
+    var opcode = this.nes.mmap.load(this.REG_PC + 1);
+    this.dataBus = opcode;
+    var opinf = this.opdata[opcode];
     var cycleCount = opinf >> 24;
     var cycleAdd = 0;
 
@@ -656,6 +662,11 @@ CPU.prototype = {
         // Push return address on stack:
         this.push((this.REG_PC >> 8) & 255);
         this.push(this.REG_PC & 255);
+        // On real 6502, JSR reads the high byte of the target address as its
+        // last cycle (after the pushes), updating the data bus. This matters
+        // for open bus behavior when JSR targets unmapped addresses.
+        // See https://www.nesdev.org/wiki/Open_bus_behavior
+        this.dataBus = this.load(opaddr + 3);
         this.REG_PC = addr - 1;
         break;
       }
@@ -1271,21 +1282,29 @@ CPU.prototype = {
 
   load: function (addr) {
     if (addr < 0x2000) {
-      return this.mem[addr & 0x7ff];
+      this.dataBus = this.mem[addr & 0x7ff];
     } else {
-      return this.nes.mmap.load(addr);
+      this.dataBus = this.nes.mmap.load(addr);
     }
+    return this.dataBus;
   },
 
   load16bit: function (addr) {
     if (addr < 0x1fff) {
-      return this.mem[addr & 0x7ff] | (this.mem[(addr + 1) & 0x7ff] << 8);
+      this.dataBus = this.mem[addr & 0x7ff];
+      var lo = this.dataBus;
+      this.dataBus = this.mem[(addr + 1) & 0x7ff];
+      return lo | (this.dataBus << 8);
     } else {
-      return this.nes.mmap.load(addr) | (this.nes.mmap.load(addr + 1) << 8);
+      this.dataBus = this.nes.mmap.load(addr);
+      var lo = this.dataBus;
+      this.dataBus = this.nes.mmap.load(addr + 1);
+      return lo | (this.dataBus << 8);
     }
   },
 
   write: function (addr, val) {
+    this.dataBus = val;
     if (addr < 0x2000) {
       this.mem[addr & 0x7ff] = val;
     } else {
@@ -1305,6 +1324,7 @@ CPU.prototype = {
   },
 
   push: function (value) {
+    this.dataBus = value;
     this.nes.mmap.write(this.REG_SP | 0x100, value);
     this.REG_SP--;
     // this.REG_SP = 0x0100 | (this.REG_SP & 0xff);
@@ -1314,7 +1334,8 @@ CPU.prototype = {
   pull: function () {
     this.REG_SP++;
     this.REG_SP = this.REG_SP & 0xff;
-    return this.nes.mmap.load(0x100 | this.REG_SP);
+    this.dataBus = this.nes.mmap.load(0x100 | this.REG_SP);
+    return this.dataBus;
   },
 
   pageCrossed: function (addr1, addr2) {
@@ -1334,14 +1355,18 @@ CPU.prototype = {
     //this.F_INTERRUPT_NEW = 1;
     this.push(status);
 
-    this.REG_PC_NEW =
-      this.nes.mmap.load(0xfffa) | (this.nes.mmap.load(0xfffb) << 8);
+    this.dataBus = this.nes.mmap.load(0xfffa);
+    var lo = this.dataBus;
+    this.dataBus = this.nes.mmap.load(0xfffb);
+    this.REG_PC_NEW = lo | (this.dataBus << 8);
     this.REG_PC_NEW--;
   },
 
   doResetInterrupt: function () {
-    this.REG_PC_NEW =
-      this.nes.mmap.load(0xfffc) | (this.nes.mmap.load(0xfffd) << 8);
+    this.dataBus = this.nes.mmap.load(0xfffc);
+    var lo = this.dataBus;
+    this.dataBus = this.nes.mmap.load(0xfffd);
+    this.REG_PC_NEW = lo | (this.dataBus << 8);
     this.REG_PC_NEW--;
   },
 
@@ -1353,8 +1378,10 @@ CPU.prototype = {
     this.F_INTERRUPT_NEW = 1;
     this.F_BRK_NEW = 0;
 
-    this.REG_PC_NEW =
-      this.nes.mmap.load(0xfffe) | (this.nes.mmap.load(0xffff) << 8);
+    this.dataBus = this.nes.mmap.load(0xfffe);
+    var lo = this.dataBus;
+    this.dataBus = this.nes.mmap.load(0xffff);
+    this.REG_PC_NEW = lo | (this.dataBus << 8);
     this.REG_PC_NEW--;
   },
 

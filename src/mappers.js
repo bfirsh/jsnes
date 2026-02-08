@@ -59,7 +59,11 @@ Mappers[0].prototype = {
 
     // Check address range:
     if (address > 0x4017) {
-      // ROM:
+      if (address < 0x6000) {
+        // Open bus: $4018-$5FFF (unmapped expansion area)
+        return this.nes.cpu.dataBus;
+      }
+      // Cartridge RAM ($6000-$7FFF) and ROM ($8000-$FFFF):
       return this.nes.cpu.mem[address];
     } else if (address >= 0x2000) {
       // I/O Ports.
@@ -86,48 +90,35 @@ Mappers[0].prototype = {
         // PPU Registers
         switch (address & 0x7) {
           case 0x0:
-            // 0x2000:
-            // PPU Control Register 1.
-            // (the value is stored both
-            // in main memory and in the
-            // PPU as flags):
-            // (not in the real NES)
-            return this.nes.cpu.mem[0x2000];
+            // 0x2000: PPU Control Register 1 (write-only, returns open bus)
+            return this.nes.ppu.openBusLatch;
 
           case 0x1:
-            // 0x2001:
-            // PPU Control Register 2.
-            // (the value is stored both
-            // in main memory and in the
-            // PPU as flags):
-            // (not in the real NES)
-            return this.nes.cpu.mem[0x2001];
+            // 0x2001: PPU Control Register 2 (write-only, returns open bus)
+            return this.nes.ppu.openBusLatch;
 
           case 0x2:
-            // 0x2002:
-            // PPU Status Register.
-            // The value is stored in
-            // main memory in addition
-            // to as flags in the PPU.
-            // (not in the real NES)
+            // 0x2002: PPU Status Register (bits 7-5 from status, 4-0 from open bus)
             return this.nes.ppu.readStatusRegister();
 
           case 0x3:
-            return 0;
+            // 0x2003: OAM Address (write-only, returns open bus)
+            return this.nes.ppu.openBusLatch;
 
           case 0x4:
-            // 0x2004:
-            // Sprite Memory read.
+            // 0x2004: Sprite Memory read
             return this.nes.ppu.sramLoad();
+
           case 0x5:
-            return 0;
+            // 0x2005: Scroll (write-only, returns open bus)
+            return this.nes.ppu.openBusLatch;
 
           case 0x6:
-            return 0;
+            // 0x2006: VRAM Address (write-only, returns open bus)
+            return this.nes.ppu.openBusLatch;
 
           case 0x7:
-            // 0x2007:
-            // VRAM read:
+            // 0x2007: VRAM read
             return this.nes.ppu.vramLoad();
         }
         break;
@@ -142,12 +133,15 @@ Mappers[0].prototype = {
           case 1:
             // 0x4016:
             // Joystick 1 + Strobe
-            return this.joy1Read();
+            // Bits 0-4 from controller, bits 5-7 are open bus (data bus)
+            // See https://www.nesdev.org/wiki/Open_bus_behavior
+            return (this.joy1Read() & 0x1f) | (this.nes.cpu.dataBus & 0xe0);
 
           case 2:
             // 0x4017:
             // Joystick 2 + Strobe
             // https://wiki.nesdev.com/w/index.php/Zapper
+            // Bits 0-4 from controller/zapper, bits 5-7 are open bus (data bus)
             var w;
 
             if (
@@ -163,14 +157,22 @@ Mappers[0].prototype = {
             if (this.zapperFired) {
               w |= 0x1 << 4;
             }
-            return (this.joy2Read() | w) & 0xffff;
+            return (
+              ((this.joy2Read() | w) & 0x1f) | (this.nes.cpu.dataBus & 0xe0)
+            );
         }
         break;
     }
-    return 0;
+    // Write-only registers (APU $4000-$4014, etc.) are open bus
+    return this.nes.cpu.dataBus;
   },
 
   regWrite: function (address, value) {
+    // All PPU register writes update the open bus latch
+    if (address >= 0x2000 && address <= 0x3fff) {
+      this.nes.ppu.openBusLatch = value;
+    }
+
     switch (address) {
       case 0x2000:
         // PPU Control register 1

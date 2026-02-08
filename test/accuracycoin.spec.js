@@ -247,7 +247,6 @@ var TEST_PAGES = [
 var KNOWN_FAILURES = {
   0x0406: "Dummy read cycles: no dummy read emulation",
   0x0407: "Dummy write cycles: no dummy write emulation",
-  0x0408: "Open Bus: no open bus emulation",
 };
 
 // Flatten all tests for easy iteration

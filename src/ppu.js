@@ -11,6 +11,7 @@ var PPU = function (nes) {
   this.vramTmpAddress = null;
   this.vramBufferedReadValue = null;
   this.firstWrite = null;
+  this.openBusLatch = null;
   this.sramAddress = null;
   this.currentMirroring = null;
   this.requestEndFrame = null;
@@ -105,6 +106,7 @@ PPU.prototype = {
     this.vramTmpAddress = null;
     this.vramBufferedReadValue = 0;
     this.firstWrite = true; // VRAM/Scroll Hi/Lo latch
+    this.openBusLatch = 0;
 
     // SPR-RAM I/O:
     this.sramAddress = 0; // 8-bit only.
@@ -592,6 +594,10 @@ PPU.prototype = {
 
     // Clear VBlank flag:
     this.setStatusFlag(this.STATUS_VBLANK, false);
+
+    // Only bits 7-5 come from the status register; bits 4-0 are open bus.
+    tmp = (tmp & 0xe0) | (this.openBusLatch & 0x1f);
+    this.openBusLatch = tmp;
 
     // Fetch status data:
     return tmp;

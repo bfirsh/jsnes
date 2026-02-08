@@ -159,13 +159,19 @@ PAPU.prototype = {
     tmp |= this.triangle.getLengthStatus() << 2;
     tmp |= this.noise.getLengthStatus() << 3;
     tmp |= this.dmc.getLengthStatus() << 4;
-    tmp |= (this.frameIrqActive && this.frameIrqEnabled ? 1 : 0) << 6;
+    // Bit 5 is open bus (not driven by APU), comes from CPU data bus
+    // See https://www.nesdev.org/wiki/Open_bus_behavior
+    tmp |= this.nes.cpu.dataBus & 0x20;
+    // Frame interrupt flag: reflects whether the flag is set, regardless of
+    // the IRQ inhibit bit in $4017. The inhibit only prevents the IRQ from
+    // firing, not the flag from being reported.
+    tmp |= (this.frameIrqActive ? 1 : 0) << 6;
     tmp |= this.dmc.getIrqStatus() << 7;
 
     this.frameIrqActive = false;
     this.dmc.irqGenerated = false;
 
-    return tmp & 0xffff;
+    return tmp & 0xff;
   },
 
   writeReg: function (address, value) {
