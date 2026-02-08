@@ -781,17 +781,15 @@ CPU.prototype = {
         // *******
 
         // Pull processor status from stack
+        // Bits 4 (B) and 5 (unused) don't exist in the real 6502 P
+        // register and are ignored by PLP
         temp = this.pull();
         this.F_CARRY = temp & 1;
         this.F_ZERO = ((temp >> 1) & 1) === 1 ? 0 : 1;
         this.F_INTERRUPT = (temp >> 2) & 1;
         this.F_DECIMAL = (temp >> 3) & 1;
-        this.F_BRK = (temp >> 4) & 1;
-        this.F_NOTUSED = (temp >> 5) & 1;
         this.F_OVERFLOW = (temp >> 6) & 1;
         this.F_SIGN = (temp >> 7) & 1;
-
-        this.F_NOTUSED = 1;
         break;
       }
       case 39: {
@@ -849,14 +847,13 @@ CPU.prototype = {
         // *******
 
         // Return from interrupt. Pull status and PC from stack.
+        // Bits 4 (B) and 5 (unused) are ignored, same as PLP.
 
         temp = this.pull();
         this.F_CARRY = temp & 1;
         this.F_ZERO = ((temp >> 1) & 1) === 0 ? 1 : 0;
         this.F_INTERRUPT = (temp >> 2) & 1;
         this.F_DECIMAL = (temp >> 3) & 1;
-        this.F_BRK = (temp >> 4) & 1;
-        this.F_NOTUSED = (temp >> 5) & 1;
         this.F_OVERFLOW = (temp >> 6) & 1;
         this.F_SIGN = (temp >> 7) & 1;
 
@@ -866,7 +863,6 @@ CPU.prototype = {
           return;
         }
         this.REG_PC--;
-        this.F_NOTUSED = 1;
         break;
       }
       case 42: {
