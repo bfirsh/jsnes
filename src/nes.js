@@ -88,22 +88,16 @@ NES.prototype = {
         if (cpu.cyclesToHalt === 0) {
           // Execute a CPU instruction
           cycles = cpu.emulate();
-          if (emulateSound) {
-            papu.clockFrameCounter(cycles);
-          }
+          papu.clockFrameCounter(cycles);
           cycles *= 3;
         } else {
           if (cpu.cyclesToHalt > 8) {
             cycles = 24;
-            if (emulateSound) {
-              papu.clockFrameCounter(8);
-            }
+            papu.clockFrameCounter(8);
             cpu.cyclesToHalt -= 8;
           } else {
             cycles = cpu.cyclesToHalt * 3;
-            if (emulateSound) {
-              papu.clockFrameCounter(cpu.cyclesToHalt);
-            }
+            papu.clockFrameCounter(cpu.cyclesToHalt);
             cpu.cyclesToHalt = 0;
           }
         }
