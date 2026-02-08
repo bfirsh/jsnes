@@ -116,7 +116,8 @@ describe("CPU", function () {
     function cpu_register(register) {
         var val = null
         if (register == 'P') {
-            return cpu.getStatus();
+            // Mask bits 4-5: B and unused don't exist as physical flags
+            return cpu.getStatus() & 0xcf;
         }
         var reg = REGISTER_MAP[register];
         var val = cpu[reg];
@@ -949,7 +950,6 @@ describe("CPU", function () {
     });
     
     it("plp", function(done) {
-        this.skip("TODO:");
         cpu_push_byte(0xff);
         cpu_pc(0x100);
         memory_set(0x100, 0x28);
