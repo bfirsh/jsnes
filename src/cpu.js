@@ -1305,7 +1305,7 @@ CPU.prototype = {
       return lo | (this.dataBus << 8);
     } else {
       this.dataBus = this.nes.mmap.load(addr);
-      var lo = this.dataBus;
+      lo = this.dataBus;
       this.dataBus = this.nes.mmap.load(addr + 1);
       return lo | (this.dataBus << 8);
     }

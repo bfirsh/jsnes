@@ -79,7 +79,6 @@ NES.prototype = {
     }
     this.ppu.startFrame();
     var cycles = 0;
-    var emulateSound = this.opts.emulateSound;
     var cpu = this.cpu;
     var ppu = this.ppu;
     var papu = this.papu;
