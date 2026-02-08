@@ -106,7 +106,7 @@ describe("CPU", function () {
 
     function cpu_set_register(register, value) {
         if (register == 'P') {
-            cpu.setStatus(value ^ 0b10);
+            cpu.setStatus(value);
         } else {
             var reg = REGISTER_MAP[register];
             cpu[reg] = value;
@@ -116,7 +116,7 @@ describe("CPU", function () {
     function cpu_register(register) {
         var val = null
         if (register == 'P') {
-            return cpu.getStatus() ^ 0b10;
+            return cpu.getStatus();
         }
         var reg = REGISTER_MAP[register];
         var val = cpu[reg];

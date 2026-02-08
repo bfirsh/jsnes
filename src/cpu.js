@@ -71,6 +71,10 @@ CPU.prototype = {
     this.setStatus(0x28);
 
     // Set flags:
+    // Note: F_ZERO stores the result byte, not a boolean. When the result
+    // is 0, F_ZERO is 0 and the Z flag is considered set. Any non-zero
+    // value means the Z flag is clear. This avoids a comparison on every
+    // instruction that affects Z. All other flags are 0 or 1.
     this.F_CARRY = 0;
     this.F_DECIMAL = 0;
     this.F_INTERRUPT = 1;
@@ -1362,9 +1366,10 @@ CPU.prototype = {
   },
 
   getStatus: function () {
+    // F_ZERO is 0 when the Z flag is set, non-zero when clear (see reset())
     return (
       this.F_CARRY |
-      (this.F_ZERO << 1) |
+      ((this.F_ZERO === 0 ? 1 : 0) << 1) |
       (this.F_INTERRUPT << 2) |
       (this.F_DECIMAL << 3) |
       (this.F_BRK << 4) |
@@ -1376,7 +1381,8 @@ CPU.prototype = {
 
   setStatus: function (st) {
     this.F_CARRY = st & 1;
-    this.F_ZERO = (st >> 1) & 1;
+    // F_ZERO uses inverted encoding: 0 means Z is set (see reset())
+    this.F_ZERO = ((st >> 1) & 1) === 1 ? 0 : 1;
     this.F_INTERRUPT = (st >> 2) & 1;
     this.F_DECIMAL = (st >> 3) & 1;
     this.F_BRK = (st >> 4) & 1;
