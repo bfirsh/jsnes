@@ -88,7 +88,17 @@ NES.prototype = {
           // Execute a CPU instruction
           cycles = cpu.emulate();
           papu.clockFrameCounter(cycles);
-          cycles *= 3;
+          // Convert CPU cycles to PPU dots (3:1 ratio), subtracting any
+          // dots already advanced mid-instruction by PPU catch-up.
+          // See cpu._ppuCatchUp() and https://www.nesdev.org/wiki/Catch-up
+          cycles = cycles * 3 - cpu.ppuCatchupDots;
+          cpu.ppuCatchupDots = 0;
+          if (cpu.ppuFrameEnded) {
+            // VBlank NMI was triggered during mid-instruction catch-up.
+            // The frame is already rendered — break out of the frame loop.
+            cpu.ppuFrameEnded = false;
+            break FRAMELOOP;
+          }
         } else {
           if (cpu.cyclesToHalt > 8) {
             cycles = 24;

@@ -244,10 +244,7 @@ var TEST_PAGES = [
 ];
 
 // Tests known to fail — skip these until the emulator is fixed.
-var KNOWN_FAILURES = {
-  0x0406: "Dummy read cycles: no dummy read emulation",
-  0x0407: "Dummy write cycles: no dummy write emulation",
-};
+var KNOWN_FAILURES = {};
 
 // Flatten all tests for easy iteration
 var ALL_TESTS = [];

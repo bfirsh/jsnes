@@ -97,9 +97,26 @@ The NES data bus retains the last value from any read/write. Reading from unmapp
 
 Key reference: https://www.nesdev.org/wiki/Open_bus_behavior
 
-### Dummy Reads
+### Dummy Reads and Writes
 
-The 6502 performs "dummy reads" from incorrect addresses during page-crossing indexed addressing. These are real bus cycles that update the data bus and trigger I/O side effects (e.g., reading $4015 clears interrupt flags). See addressing mode cases 8, 9, 11 in `cpu.js`.
+The 6502 performs "dummy reads" during addressing — extra bus cycles that read from intermediate/incorrect addresses while the CPU computes the final effective address. These are real bus operations visible on the bus: they update the data bus and trigger I/O side effects (e.g., reading $4015 clears interrupt flags). See https://www.nesdev.org/wiki/CPU_addressing_modes
+
+Dummy reads occur in:
+- **Absolute indexed** (cases 8, 9): On page crossing, reads from address with uncorrected high byte
+- **Zero page indexed** (cases 6, 7): Reads from unindexed zero-page address while adding X/Y
+- **Pre-indexed indirect** (case 10): Reads from pointer address before adding X
+- **Post-indexed indirect** (case 11): Same page-crossing behavior as absolute indexed
+- **Stores** (STA/STX/STY) and **RMW instructions**: Always perform the indexed dummy read, even without page crossing
+
+RMW instructions (ASL, LSR, ROL, ROR, INC, DEC, and unofficial SLO, SRE, RLA, RRA, DCP, ISC) also perform a "dummy write" — they write the original value back to the address before writing the modified value. This is documented in the ASL implementation (case 2) in `cpu.js`.
+
+### PPU Catch-up
+
+On real hardware, the CPU and PPU advance in lockstep (3 PPU dots per CPU cycle). The emulator runs CPU instructions atomically for performance, then advances the PPU afterward. This means PPU register reads mid-instruction (e.g., reading VBlank status from `$2002`) would see stale PPU state.
+
+To fix this, `cpu.load()` and `cpu.write()` call `_ppuCatchUp()` before any PPU register access ($2000-$3FFF). This method advances the PPU by `instrBusCycles * 3` dots — the number of PPU dots that should have elapsed based on how many bus operations the instruction has completed so far. The frame loop in `nes.js` then subtracts the already-advanced dots from the total.
+
+See https://www.nesdev.org/wiki/Catch-up
 
 ### JSR Cycle Order
 
@@ -116,3 +133,5 @@ The frame interrupt flag (`frameIrqActive`) is set unconditionally in step 4 of 
 - ROMs should be loaded as binary strings or byte arrays
 - Timing management is the responsibility of the integrating application (60 FPS)
 - Controller input uses simple button state management with 8 buttons per controller
+- Liberally document things with comments, particularly if it's not obvious why something is like it is. Link to documentation and references (e.g. nesdev wiki pages) where it makes sense.
+- Update this document if you make mistakes and you want to remind yourself in the future not to do something.

@@ -34,6 +34,11 @@ var CPU = function (nes) {
   // See https://www.nesdev.org/wiki/Open_bus_behavior
   this.dataBus = null;
 
+  // PPU catch-up: mid-instruction synchronization (see _ppuCatchUp)
+  this.instrBusCycles = null;
+  this.ppuCatchupDots = null;
+  this.ppuFrameEnded = null;
+
   this.reset();
 };
 
@@ -105,6 +110,17 @@ CPU.prototype = {
 
     // Data bus (open bus):
     this.dataBus = 0;
+
+    // PPU catch-up state: On real hardware, the CPU and PPU advance in
+    // lockstep (3 PPU dots per CPU cycle). This emulator runs CPU
+    // instructions atomically and then advances the PPU, so mid-instruction
+    // PPU register accesses would see stale state without catch-up.
+    // Before any PPU register read/write ($2000-$3FFF), we advance the PPU
+    // by the number of bus cycles elapsed so far in the current instruction.
+    // See _ppuCatchUp() and https://www.nesdev.org/wiki/Catch-up
+    this.instrBusCycles = 0; // bus cycles completed in current instruction
+    this.ppuCatchupDots = 0; // PPU dots already advanced mid-instruction
+    this.ppuFrameEnded = false; // set if VBlank/NMI fired during catch-up
   },
 
   // Emulates a single CPU instruction, returns the number of cycles
@@ -158,8 +174,17 @@ CPU.prototype = {
     }
 
     if (this.nes.mmap === null) return 32;
+
+    // Reset PPU catch-up counters. Each bus operation (load/write/push/pull)
+    // increments instrBusCycles; the frame loop subtracts ppuCatchupDots
+    // from the total PPU dots to advance after the instruction completes.
+    this.instrBusCycles = 0;
+    this.ppuCatchupDots = 0;
+    this.ppuFrameEnded = false;
+
     var opcode = this.nes.mmap.load(this.REG_PC + 1);
     this.dataBus = opcode;
+    this.instrBusCycles = 1; // opcode fetch = 1 bus cycle
     var opinf = this.opdata[opcode];
     var cycleCount = opinf >> 24;
     var cycleAdd = 0;
@@ -212,28 +237,31 @@ CPU.prototype = {
       }
       case 6: {
         // Zero Page Indexed mode, X as index. Use the address given
-        // after the opcode, then add the
-        // X register to it to get the final address.
-        addr = (this.load(opaddr + 2) + this.REG_X) & 0xff;
+        // after the opcode, then add the X register to get the final address.
+        // The 6502 reads from the unindexed zero-page address while adding X.
+        // This "dummy read" is a real bus cycle that can trigger I/O side effects.
+        // See https://www.nesdev.org/wiki/CPU_addressing_modes
+        var zpBase6 = this.load(opaddr + 2);
+        this.load(zpBase6); // dummy read from unindexed zero-page address
+        addr = (zpBase6 + this.REG_X) & 0xff;
         break;
       }
       case 7: {
-        // Zero Page Indexed mode, Y as index. Use the address given
-        // after the opcode, then add the
-        // Y register to it to get the final address.
-        addr = (this.load(opaddr + 2) + this.REG_Y) & 0xff;
+        // Zero Page Indexed mode, Y as index. Same dummy read behavior as case 6.
+        var zpBase7 = this.load(opaddr + 2);
+        this.load(zpBase7); // dummy read from unindexed zero-page address
+        addr = (zpBase7 + this.REG_Y) & 0xff;
         break;
       }
       case 8: {
-        // Absolute Indexed Mode, X as index. Same as zero page
-        // indexed, but with the high byte.
+        // Absolute Indexed Mode, X as index.
         addr = this.load16bit(opaddr + 2);
         if ((addr & 0xff00) !== ((addr + this.REG_X) & 0xff00)) {
-          // Page boundary crossed - the 6502 first reads from the "wrong"
-          // address (uncorrected high byte) before reading the correct one.
-          // This dummy read is a real bus cycle: it updates the data bus and
-          // can trigger side effects on I/O registers (e.g., reading $4015
-          // clears its interrupt flags).
+          // Page boundary crossed: the 6502 first reads from the "wrong"
+          // address (correct low byte, uncorrected high byte) before reading
+          // the correct one. This dummy read is a real bus cycle that updates
+          // the data bus and can trigger I/O side effects.
+          // See https://www.nesdev.org/wiki/CPU_addressing_modes
           this.load((addr & 0xff00) | ((addr + this.REG_X) & 0xff));
           cycleAdd = 1;
         }
@@ -241,11 +269,10 @@ CPU.prototype = {
         break;
       }
       case 9: {
-        // Absolute Indexed Mode, Y as index. Same as zero page
-        // indexed, but with the high byte.
+        // Absolute Indexed Mode, Y as index.
+        // Same page-crossing dummy read behavior as case 8.
         addr = this.load16bit(opaddr + 2);
         if ((addr & 0xff00) !== ((addr + this.REG_Y) & 0xff00)) {
-          // Page boundary crossed - dummy read from wrong address (see case 8)
           this.load((addr & 0xff00) | ((addr + this.REG_Y) & 0xff));
           cycleAdd = 1;
         }
@@ -253,24 +280,21 @@ CPU.prototype = {
         break;
       }
       case 10: {
-        // Pre-indexed Indirect mode. Find the 16-bit address
-        // starting at the given location plus
-        // the current X register. The value is the contents of that
-        // address. No page crossing or dummy read - wraps within zero page.
-        var zpAddr10 = (this.load(opaddr + 2) + this.REG_X) & 0xff;
+        // Pre-indexed Indirect mode, (d,X). Read pointer from zero page,
+        // add X, then read the 16-bit effective address. Wraps within zero page.
+        // Dummy read from the unindexed pointer address while adding X.
+        var zpPtr10 = this.load(opaddr + 2);
+        this.load(zpPtr10); // dummy read: 6502 reads from ptr before adding X
+        var zpAddr10 = (zpPtr10 + this.REG_X) & 0xff;
         addr = this.load(zpAddr10) | (this.load((zpAddr10 + 1) & 0xff) << 8);
         break;
       }
       case 11: {
-        // Post-indexed Indirect mode. Find the 16-bit address
-        // contained in the given location
-        // (and the one following). Add to that address the contents
-        // of the Y register. Fetch the value
-        // stored at that adress.
+        // Post-indexed Indirect mode, (d),Y. Read 16-bit base address from
+        // zero page, then add Y. Page-crossing dummy read as in case 8.
         var zpAddr = this.load(opaddr + 2);
         addr = this.load(zpAddr) | (this.load((zpAddr + 1) & 0xff) << 8);
         if ((addr & 0xff00) !== ((addr + this.REG_Y) & 0xff00)) {
-          // Page boundary crossed - dummy read from wrong address (see case 8)
           this.load((addr & 0xff00) | ((addr + this.REG_Y) & 0xff));
           cycleAdd = 1;
         }
@@ -337,7 +361,7 @@ CPU.prototype = {
         this.REG_ACC = this.REG_ACC & this.load(addr);
         this.F_SIGN = (this.REG_ACC >> 7) & 1;
         this.F_ZERO = this.REG_ACC;
-        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
+        cycleCount += cycleAdd;
         break;
       }
       case 2: {
@@ -354,7 +378,23 @@ CPU.prototype = {
           this.F_SIGN = (this.REG_ACC >> 7) & 1;
           this.F_ZERO = this.REG_ACC;
         } else {
+          // Read-Modify-Write (RMW) cycle pattern for memory operands:
+          //   1. For indexed modes without page crossing, the 6502 always
+          //      does a dummy read (same as stores, see case 47/STA).
+          //   2. Read the value from the effective address.
+          //   3. Write the ORIGINAL value back (dummy write) while computing.
+          //   4. Write the MODIFIED value.
+          // The dummy write is a real bus cycle — writing to I/O registers
+          // like PPU $2007 twice has visible side effects.
+          // See https://www.nesdev.org/wiki/CPU_addressing_modes (RMW column)
+          if (
+            cycleAdd === 0 &&
+            (addrMode === 8 || addrMode === 9 || addrMode === 11)
+          ) {
+            this.load(addr); // dummy read (indexed, no page crossing)
+          }
           temp = this.load(addr);
+          this.write(addr, temp); // dummy write (original value)
           this.F_CARRY = (temp >> 7) & 1;
           temp = (temp << 1) & 255;
           this.F_SIGN = (temp >> 7) & 1;
@@ -576,8 +616,16 @@ CPU.prototype = {
         // * DEC *
         // *******
 
-        // Decrement memory by one:
-        temp = (this.load(addr) - 1) & 0xff;
+        // Decrement memory by one (RMW pattern, see ASL case 2):
+        if (
+          cycleAdd === 0 &&
+          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+        ) {
+          this.load(addr); // dummy read (indexed, no page crossing)
+        }
+        temp = this.load(addr);
+        this.write(addr, temp); // dummy write (original value)
+        temp = (temp - 1) & 0xff;
         this.F_SIGN = (temp >> 7) & 1;
         this.F_ZERO = temp;
         this.write(addr, temp);
@@ -622,11 +670,19 @@ CPU.prototype = {
         // * INC *
         // *******
 
-        // Increment memory by one:
-        temp = (this.load(addr) + 1) & 0xff;
+        // Increment memory by one (RMW pattern, see ASL case 2):
+        if (
+          cycleAdd === 0 &&
+          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+        ) {
+          this.load(addr); // dummy read (indexed, no page crossing)
+        }
+        temp = this.load(addr);
+        this.write(addr, temp); // dummy write (original value)
+        temp = (temp + 1) & 0xff;
         this.F_SIGN = (temp >> 7) & 1;
         this.F_ZERO = temp;
-        this.write(addr, temp & 0xff);
+        this.write(addr, temp);
         break;
       }
       case 25: {
@@ -719,7 +775,7 @@ CPU.prototype = {
         // * LSR *
         // *******
 
-        // Shift right one bit:
+        // Shift right one bit (RMW pattern, see ASL case 2):
         if (addrMode === 4) {
           // ADDR_ACC
 
@@ -728,7 +784,14 @@ CPU.prototype = {
           temp >>= 1;
           this.REG_ACC = temp;
         } else {
+          if (
+            cycleAdd === 0 &&
+            (addrMode === 8 || addrMode === 9 || addrMode === 11)
+          ) {
+            this.load(addr); // dummy read (indexed, no page crossing)
+          }
           temp = this.load(addr) & 0xff;
+          this.write(addr, temp); // dummy write (original value)
           this.F_CARRY = temp & 1;
           temp >>= 1;
           this.write(addr, temp);
@@ -756,7 +819,7 @@ CPU.prototype = {
         this.F_SIGN = (temp >> 7) & 1;
         this.F_ZERO = temp;
         this.REG_ACC = temp;
-        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
+        cycleCount += cycleAdd;
         break;
       }
       case 35: {
@@ -820,7 +883,7 @@ CPU.prototype = {
         // * ROL *
         // *******
 
-        // Rotate one bit left
+        // Rotate one bit left (RMW pattern, see ASL case 2)
         if (addrMode === 4) {
           // ADDR_ACC = 4
 
@@ -830,7 +893,14 @@ CPU.prototype = {
           temp = ((temp << 1) & 0xff) + add;
           this.REG_ACC = temp;
         } else {
+          if (
+            cycleAdd === 0 &&
+            (addrMode === 8 || addrMode === 9 || addrMode === 11)
+          ) {
+            this.load(addr); // dummy read (indexed, no page crossing)
+          }
           temp = this.load(addr);
+          this.write(addr, temp); // dummy write (original value)
           add = this.F_CARRY;
           this.F_CARRY = (temp >> 7) & 1;
           temp = ((temp << 1) & 0xff) + add;
@@ -845,7 +915,7 @@ CPU.prototype = {
         // * ROR *
         // *******
 
-        // Rotate one bit right
+        // Rotate one bit right (RMW pattern, see ASL case 2)
         if (addrMode === 4) {
           // ADDR_ACC = 4
 
@@ -854,7 +924,14 @@ CPU.prototype = {
           temp = (this.REG_ACC >> 1) + add;
           this.REG_ACC = temp;
         } else {
+          if (
+            cycleAdd === 0 &&
+            (addrMode === 8 || addrMode === 9 || addrMode === 11)
+          ) {
+            this.load(addr); // dummy read (indexed, no page crossing)
+          }
           temp = this.load(addr);
+          this.write(addr, temp); // dummy write (original value)
           add = this.F_CARRY << 7;
           this.F_CARRY = temp & 1;
           temp = (temp >> 1) + add;
@@ -921,7 +998,7 @@ CPU.prototype = {
         }
         this.F_CARRY = temp < 0 ? 0 : 1;
         this.REG_ACC = temp & 0xff;
-        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
+        cycleCount += cycleAdd;
         break;
       }
       case 44: {
@@ -956,9 +1033,11 @@ CPU.prototype = {
         // * STA *
         // *******
 
-        // Store accumulator in memory
-        // For indexed addressing modes, STA always does a dummy read.
-        // Page-crossing case is handled in address mode; handle non-crossing here.
+        // Store accumulator in memory.
+        // Unlike loads, stores ALWAYS take the extra cycle for indexed
+        // addressing, even without a page crossing. The page-crossing case
+        // already added the dummy read in the addressing mode (cases 8/9/11);
+        // this handles the non-crossing case.
         if (
           cycleAdd === 0 &&
           (addrMode === 8 || addrMode === 9 || addrMode === 11)
@@ -1131,8 +1210,16 @@ CPU.prototype = {
         // * DCP *
         // *******
 
-        // Decrement memory by one:
-        temp = (this.load(addr) - 1) & 0xff;
+        // Decrement memory then compare (unofficial, RMW pattern see ASL case 2):
+        if (
+          cycleAdd === 0 &&
+          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+        ) {
+          this.load(addr); // dummy read (indexed, no page crossing)
+        }
+        temp = this.load(addr);
+        this.write(addr, temp); // dummy write (original value)
+        temp = (temp - 1) & 0xff;
         this.write(addr, temp);
 
         // Then compare with the accumulator:
@@ -1140,7 +1227,6 @@ CPU.prototype = {
         this.F_CARRY = temp >= 0 ? 1 : 0;
         this.F_SIGN = (temp >> 7) & 1;
         this.F_ZERO = temp & 0xff;
-        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
         break;
       }
       case 63: {
@@ -1148,17 +1234,26 @@ CPU.prototype = {
         // * ISC *
         // *******
 
-        // Increment memory by one:
-        temp = (this.load(addr) + 1) & 0xff;
+        // Increment memory then subtract (unofficial, RMW pattern see ASL case 2):
+        if (
+          cycleAdd === 0 &&
+          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+        ) {
+          this.load(addr); // dummy read (indexed, no page crossing)
+        }
+        temp = this.load(addr);
+        this.write(addr, temp); // dummy write (original value)
+        temp = (temp + 1) & 0xff;
         this.write(addr, temp);
 
         // Then subtract from the accumulator:
-        temp = this.REG_ACC - temp - (1 - this.F_CARRY);
+        var isb_val = temp;
+        temp = this.REG_ACC - isb_val - (1 - this.F_CARRY);
         this.F_SIGN = (temp >> 7) & 1;
         this.F_ZERO = temp & 0xff;
         if (
           ((this.REG_ACC ^ temp) & 0x80) !== 0 &&
-          ((this.REG_ACC ^ this.load(addr)) & 0x80) !== 0
+          ((this.REG_ACC ^ isb_val) & 0x80) !== 0
         ) {
           this.F_OVERFLOW = 1;
         } else {
@@ -1166,7 +1261,6 @@ CPU.prototype = {
         }
         this.F_CARRY = temp < 0 ? 0 : 1;
         this.REG_ACC = temp & 0xff;
-        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
         break;
       }
       case 64: {
@@ -1174,8 +1268,15 @@ CPU.prototype = {
         // * RLA *
         // *******
 
-        // Rotate one bit left
+        // Rotate left then AND (unofficial, RMW pattern see ASL case 2)
+        if (
+          cycleAdd === 0 &&
+          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+        ) {
+          this.load(addr); // dummy read (indexed, no page crossing)
+        }
         temp = this.load(addr);
+        this.write(addr, temp); // dummy write (original value)
         add = this.F_CARRY;
         this.F_CARRY = (temp >> 7) & 1;
         temp = ((temp << 1) & 0xff) + add;
@@ -1185,7 +1286,6 @@ CPU.prototype = {
         this.REG_ACC = this.REG_ACC & temp;
         this.F_SIGN = (this.REG_ACC >> 7) & 1;
         this.F_ZERO = this.REG_ACC;
-        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
         break;
       }
       case 65: {
@@ -1193,18 +1293,26 @@ CPU.prototype = {
         // * RRA *
         // *******
 
-        // Rotate one bit right
+        // Rotate right then add (unofficial, RMW pattern see ASL case 2)
+        if (
+          cycleAdd === 0 &&
+          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+        ) {
+          this.load(addr); // dummy read (indexed, no page crossing)
+        }
         temp = this.load(addr);
+        this.write(addr, temp); // dummy write (original value)
         add = this.F_CARRY << 7;
         this.F_CARRY = temp & 1;
         temp = (temp >> 1) + add;
         this.write(addr, temp);
 
         // Then add to the accumulator
-        temp = this.REG_ACC + this.load(addr) + this.F_CARRY;
+        var rra_val = temp;
+        temp = this.REG_ACC + rra_val + this.F_CARRY;
 
         if (
-          ((this.REG_ACC ^ this.load(addr)) & 0x80) === 0 &&
+          ((this.REG_ACC ^ rra_val) & 0x80) === 0 &&
           ((this.REG_ACC ^ temp) & 0x80) !== 0
         ) {
           this.F_OVERFLOW = 1;
@@ -1215,7 +1323,6 @@ CPU.prototype = {
         this.F_SIGN = (temp >> 7) & 1;
         this.F_ZERO = temp & 0xff;
         this.REG_ACC = temp & 255;
-        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
         break;
       }
       case 66: {
@@ -1223,8 +1330,15 @@ CPU.prototype = {
         // * SLO *
         // *******
 
-        // Shift one bit left
+        // Shift left then OR (unofficial, RMW pattern see ASL case 2)
+        if (
+          cycleAdd === 0 &&
+          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+        ) {
+          this.load(addr); // dummy read (indexed, no page crossing)
+        }
         temp = this.load(addr);
+        this.write(addr, temp); // dummy write (original value)
         this.F_CARRY = (temp >> 7) & 1;
         temp = (temp << 1) & 255;
         this.write(addr, temp);
@@ -1233,7 +1347,6 @@ CPU.prototype = {
         this.REG_ACC = this.REG_ACC | temp;
         this.F_SIGN = (this.REG_ACC >> 7) & 1;
         this.F_ZERO = this.REG_ACC;
-        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
         break;
       }
       case 67: {
@@ -1241,8 +1354,15 @@ CPU.prototype = {
         // * SRE *
         // *******
 
-        // Shift one bit right
+        // Shift right then XOR (unofficial, RMW pattern see ASL case 2)
+        if (
+          cycleAdd === 0 &&
+          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+        ) {
+          this.load(addr); // dummy read (indexed, no page crossing)
+        }
         temp = this.load(addr) & 0xff;
+        this.write(addr, temp); // dummy write (original value)
         this.F_CARRY = temp & 1;
         temp >>= 1;
         this.write(addr, temp);
@@ -1251,7 +1371,6 @@ CPU.prototype = {
         this.REG_ACC = this.REG_ACC ^ temp;
         this.F_SIGN = (this.REG_ACC >> 7) & 1;
         this.F_ZERO = this.REG_ACC;
-        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
         break;
       }
       case 68: {
@@ -1270,7 +1389,7 @@ CPU.prototype = {
         // Do nothing but load.
         // TODO: Properly implement the double-reads.
         this.load(addr);
-        if (addrMode !== 11) cycleCount += cycleAdd; // PostIdxInd = 11
+        cycleCount += cycleAdd;
         break;
       }
 
@@ -1288,12 +1407,19 @@ CPU.prototype = {
     return cycleCount;
   },
 
+  // Each load() call represents one CPU bus read cycle.
   load: function (addr) {
+    // Catch up PPU before reading PPU registers so the read sees
+    // up-to-date VBlank/sprite-0 flags. See _ppuCatchUp().
+    if (addr >= 0x2000 && addr < 0x4000) {
+      this._ppuCatchUp();
+    }
     if (addr < 0x2000) {
       this.dataBus = this.mem[addr & 0x7ff];
     } else {
       this.dataBus = this.nes.mmap.load(addr);
     }
+    this.instrBusCycles++;
     return this.dataBus;
   },
 
@@ -1302,22 +1428,31 @@ CPU.prototype = {
       this.dataBus = this.mem[addr & 0x7ff];
       var lo = this.dataBus;
       this.dataBus = this.mem[(addr + 1) & 0x7ff];
+      this.instrBusCycles += 2;
       return lo | (this.dataBus << 8);
     } else {
       this.dataBus = this.nes.mmap.load(addr);
       lo = this.dataBus;
       this.dataBus = this.nes.mmap.load(addr + 1);
+      this.instrBusCycles += 2;
       return lo | (this.dataBus << 8);
     }
   },
 
+  // Each write() call represents one CPU bus write cycle.
   write: function (addr, val) {
     this.dataBus = val;
+    // Catch up PPU before writing PPU registers so the write takes
+    // effect at the correct PPU dot position. See _ppuCatchUp().
+    if (addr >= 0x2000 && addr < 0x4000) {
+      this._ppuCatchUp();
+    }
     if (addr < 0x2000) {
       this.mem[addr & 0x7ff] = val;
     } else {
       this.nes.mmap.write(addr, val);
     }
+    this.instrBusCycles++;
   },
 
   requestIrq: function (type) {
@@ -1337,13 +1472,66 @@ CPU.prototype = {
     this.REG_SP--;
     // this.REG_SP = 0x0100 | (this.REG_SP & 0xff);
     this.REG_SP = this.REG_SP & 0xff;
+    this.instrBusCycles++;
   },
 
   pull: function () {
     this.REG_SP++;
     this.REG_SP = this.REG_SP & 0xff;
     this.dataBus = this.nes.mmap.load(0x100 | this.REG_SP);
+    this.instrBusCycles++;
     return this.dataBus;
+  },
+
+  // Advance the PPU to match the current CPU cycle within the instruction.
+  //
+  // On real hardware, the PPU runs at 3x the CPU clock — for each CPU bus
+  // cycle, the PPU advances 3 dots. This emulator runs CPU instructions
+  // atomically and then advances the PPU in nes.js's frame loop, which is
+  // faster but means PPU register reads mid-instruction see stale state.
+  //
+  // This method is called from load()/write() before any PPU register
+  // access ($2000-$3FFF). It advances the PPU by (instrBusCycles * 3)
+  // dots — the number of PPU dots that SHOULD have elapsed based on how
+  // many bus operations the instruction has completed so far. The frame
+  // loop then subtracts ppuCatchupDots from the total to avoid double-
+  // counting.
+  //
+  // The logic mirrors the frame loop's dot-by-dot path (sprite 0 hit,
+  // scanline boundaries, NMI countdown). If VBlank fires mid-instruction,
+  // we set ppuFrameEnded so the frame loop knows to break.
+  //
+  // See https://www.nesdev.org/wiki/Catch-up
+  _ppuCatchUp: function () {
+    var ppu = this.nes.ppu;
+    var targetDots = this.instrBusCycles * 3;
+    while (this.ppuCatchupDots < targetDots) {
+      if (
+        ppu.curX === ppu.spr0HitX &&
+        ppu.f_spVisibility === 1 &&
+        ppu.scanline - 21 === ppu.spr0HitY
+      ) {
+        ppu.setStatusFlag(ppu.STATUS_SPRITE0HIT, true);
+      }
+
+      if (ppu.requestEndFrame) {
+        ppu.nmiCounter--;
+        if (ppu.nmiCounter === 0) {
+          ppu.requestEndFrame = false;
+          ppu.startVBlank();
+          this.ppuFrameEnded = true;
+          this.ppuCatchupDots++;
+          return;
+        }
+      }
+
+      ppu.curX++;
+      if (ppu.curX === 341) {
+        ppu.curX = 0;
+        ppu.endScanline();
+      }
+      this.ppuCatchupDots++;
+    }
   },
 
   pageCrossed: function (addr1, addr2) {
