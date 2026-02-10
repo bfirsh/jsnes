@@ -274,6 +274,9 @@ var KNOWN_FAILURES = {
   0x0479: "Explicit DMA abort not emulated",
   0x0478: "Implicit DMA abort not emulated",
 
+  // Controller: partial fix, subtest 4 still fails
+  0x045f: "Controller strobing not fully accurate",
+
   // APU: timing/behavior not accurate enough
   0x0465: "APU length counter not accurate",
   0x0466: "APU length table not accurate",
@@ -282,8 +285,6 @@ var KNOWN_FAILURES = {
   0x0469: "APU frame counter 5-step not accurate",
   0x046a: "DMC not accurate",
   0x045c: "APU register activation not accurate",
-  0x045f: "Controller strobing not accurate",
-  0x047a: "Controller clocking not accurate",
 
   // PPU: various behaviors not accurate enough
   0x0485: "CHR ROM writability not enforced",
