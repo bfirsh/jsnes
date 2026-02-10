@@ -1121,8 +1121,11 @@ ChannelNoise.prototype = {
       this.progTimerMax = this.papu.getNoiseWaveLength(value & 0xf);
       this.randomMode = value >> 7;
     } else if (address === 0x400f) {
-      // Length counter
-      this.lengthCounter = this.papu.getLengthMax(value & 248);
+      // Length counter (only loaded when channel is enabled in $4015)
+      // See https://www.nesdev.org/wiki/APU_Length_Counter
+      if (this.isEnabled) {
+        this.lengthCounter = this.papu.getLengthMax(value & 248);
+      }
       this.envReset = true;
     }
     // Update:
@@ -1503,7 +1506,11 @@ ChannelTriangle.prototype = {
       // Programmable timer, length counter
       this.progTimerMax &= 0xff;
       this.progTimerMax |= (value & 0x07) << 8;
-      this.lengthCounter = this.papu.getLengthMax(value & 0xf8);
+      // Length counter is only loaded when the channel is enabled in $4015.
+      // See https://www.nesdev.org/wiki/APU_Length_Counter
+      if (this.isEnabled) {
+        this.lengthCounter = this.papu.getLengthMax(value & 0xf8);
+      }
       this.lcHalt = true;
     }
 
