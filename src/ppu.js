@@ -755,15 +755,18 @@ PPU.prototype = {
   },
 
   // CPU Register $4014:
-  // Write 256 bytes of main memory
-  // into Sprite RAM.
+  // Write 256 bytes of main memory into Sprite RAM (OAM).
+  // DMA always copies exactly 256 bytes from CPU page $XX00-$XXFF.
+  // The destination starts at the current OAMADDR and wraps within OAM.
+  // See https://www.nesdev.org/wiki/PPU_registers#OAMDMA
   sramDMA: function (value) {
     var baseAddress = value * 0x100;
     var data;
-    for (var i = this.sramAddress; i < 256; i++) {
+    for (var i = 0; i < 256; i++) {
       data = this.nes.cpu.mem[baseAddress + i];
-      this.spriteMem[i] = data;
-      this.spriteRamWriteUpdate(i, data);
+      var oamAddr = (this.sramAddress + i) & 0xff;
+      this.spriteMem[oamAddr] = data;
+      this.spriteRamWriteUpdate(oamAddr, data);
     }
 
     this.nes.cpu.haltCycles(513);
