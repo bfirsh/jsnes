@@ -3,6 +3,16 @@ var utils = require("./utils");
 var CPU_FREQ_NTSC = 1789772.5; //1789772.72727272d;
 // var CPU_FREQ_PAL = 1773447.4;
 
+// Frame counter step timing tables (in CPU cycles).
+// The APU frame counter fires at these specific cycle positions within each
+// sequence. On real hardware, the APU clock is half the CPU clock, so
+// these correspond to APU cycles 3728.5, 7456.5, 11185.5, 14914.5 etc.
+// See https://www.nesdev.org/wiki/APU_Frame_Counter
+var FRAME_STEPS_4 = [7457, 14913, 22371, 29829];
+var FRAME_STEPS_5 = [7457, 14913, 22371, 29829, 37281];
+var FRAME_PERIOD_4 = 29830; // Total CPU cycles for 4-step sequence
+var FRAME_PERIOD_5 = 37282; // Total CPU cycles for 5-step sequence
+
 var PAPU = function (nes) {
   this.nes = nes;
 
@@ -12,9 +22,6 @@ var PAPU = function (nes) {
   this.noise = new ChannelNoise(this);
   this.dmc = new ChannelDM(this);
 
-  this.frameIrqCounter = null;
-  this.frameIrqCounterMax = 4;
-  this.initCounter = 2048;
   this.channelEnableValue = null;
 
   this.sampleRate = 44100;
@@ -27,16 +34,15 @@ var PAPU = function (nes) {
 
   this.frameIrqEnabled = false;
   this.frameIrqActive = null;
-  this.frameClockNow = null;
   this.startedPlaying = false;
   this.recordOutput = false;
-  this.initingHardware = false;
 
-  this.masterFrameCounter = null;
-  this.derivedFrameCounter = null;
+  // Frame counter state: tracks CPU cycle position within the current
+  // 4-step or 5-step sequence and which step fires next.
+  this.frameCycleCounter = null;
+  this.frameStep = null;
   this.countSequence = null;
   this.sampleTimer = null;
-  this.frameTime = null;
   this.sampleTimerMax = null;
   this.sampleCount = null;
   this.triValue = 0;
@@ -107,22 +113,15 @@ PAPU.prototype = {
         (this.sampleRate * 60.0),
     );
 
-    this.frameTime = Math.floor(
-      (14915.0 * this.nes.opts.preferredFrameRate) / 60.0,
-    );
-
     this.sampleTimer = 0;
 
     this.updateChannelEnable(0);
-    this.masterFrameCounter = 0;
-    this.derivedFrameCounter = 0;
+    this.frameCycleCounter = 0;
+    this.frameStep = 0;
     this.countSequence = 0;
     this.sampleCount = 0;
-    this.initCounter = 2048;
     this.frameIrqEnabled = false;
-    this.initingHardware = false;
-
-    this.resetCounter();
+    this.frameIrqActive = false;
 
     this.square1.reset();
     this.square2.reset();
@@ -135,9 +134,6 @@ PAPU.prototype = {
     this.smpSquare2 = 0;
     this.smpTriangle = 0;
     this.smpDmc = 0;
-
-    this.frameIrqEnabled = false;
-    this.frameIrqCounterMax = 4;
 
     this.channelEnableValue = 0xff;
     this.startedPlaying = false;
@@ -168,8 +164,11 @@ PAPU.prototype = {
     tmp |= (this.frameIrqActive ? 1 : 0) << 6;
     tmp |= this.dmc.getIrqStatus() << 7;
 
+    // Reading $4015 clears the frame interrupt flag but NOT the DMC
+    // interrupt flag. The DMC flag is only cleared by writing $4015 or
+    // writing $4010 with bit 7 clear.
+    // See https://www.nesdev.org/wiki/APU#Status_($4015)
     this.frameIrqActive = false;
-    this.dmc.irqGenerated = false;
 
     return tmp & 0xff;
   },
@@ -204,45 +203,34 @@ PAPU.prototype = {
       // Channel enable
       this.updateChannelEnable(value);
 
-      if (value !== 0 && this.initCounter > 0) {
-        // Start hardware initialization
-        this.initingHardware = true;
-      }
-
       // DMC/IRQ Status
       this.dmc.writeReg(address, value);
     } else if (address === 0x4017) {
       // Frame counter control
       // Bit 7: sequence mode (0=4-step, 1=5-step)
       // Bit 6: IRQ inhibit (0=IRQs enabled, 1=IRQs disabled)
+      // See https://www.nesdev.org/wiki/APU_Frame_Counter
       this.countSequence = (value >> 7) & 1;
-      this.masterFrameCounter = 0;
-      this.frameIrqActive = false;
+      // Writing $4017 resets the frame counter's internal divider
+      this.frameCycleCounter = 0;
+      this.frameStep = 0;
 
-      if (((value >> 6) & 0x1) === 0) {
-        this.frameIrqEnabled = true;
-      } else {
+      if (value & 0x40) {
+        // IRQ inhibit set: clear the frame interrupt flag and prevent
+        // future frame IRQs from firing
         this.frameIrqEnabled = false;
-      }
-
-      if (this.countSequence === 0) {
-        // NTSC:
-        this.frameIrqCounterMax = 4;
-        this.derivedFrameCounter = 4;
+        this.frameIrqActive = false;
       } else {
-        // PAL:
-        this.frameIrqCounterMax = 5;
-        this.derivedFrameCounter = 0;
-        this.frameCounterTick();
+        // IRQ inhibit clear: enable frame IRQs (flag is not affected)
+        this.frameIrqEnabled = true;
       }
-    }
-  },
 
-  resetCounter: function () {
-    if (this.countSequence === 0) {
-      this.derivedFrameCounter = 4;
-    } else {
-      this.derivedFrameCounter = 0;
+      if (this.countSequence === 1) {
+        // 5-step mode: immediately clock all quarter-frame and half-frame
+        // units on the write cycle
+        this.clockQuarterFrame();
+        this.clockHalfFrame();
+      }
     }
   },
 
@@ -260,21 +248,8 @@ PAPU.prototype = {
     this.dmc.setEnabled((value & 16) !== 0);
   },
 
-  // Clocks the frame counter. It should be clocked at
-  // twice the cpu speed, so the cycles will be
-  // divided by 2 for those counters that are
-  // clocked at cpu speed.
+  // Clocks all APU channel timers and the frame counter by nCycles CPU cycles.
   clockFrameCounter: function (nCycles) {
-    if (this.initCounter > 0) {
-      if (this.initingHardware) {
-        this.initCounter -= nCycles;
-        if (this.initCounter <= 0) {
-          this.initingHardware = false;
-        }
-        return;
-      }
-    }
-
     // Don't process ticks beyond next sampling:
     nCycles += this.extraCycles;
     var maxCycles = this.sampleTimerMax - this.sampleTimer;
@@ -388,12 +363,18 @@ PAPU.prototype = {
       this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NORMAL);
     }
 
-    // Clock frame counter at double CPU speed:
-    this.masterFrameCounter += nCycles << 1;
-    if (this.masterFrameCounter >= this.frameTime) {
-      // 240Hz tick:
-      this.masterFrameCounter -= this.frameTime;
-      this.frameCounterTick();
+    // Clock frame counter: fire steps at the correct CPU cycle positions.
+    // See https://www.nesdev.org/wiki/APU_Frame_Counter
+    this.frameCycleCounter += nCycles;
+    var steps = this.countSequence === 0 ? FRAME_STEPS_4 : FRAME_STEPS_5;
+    var period = this.countSequence === 0 ? FRAME_PERIOD_4 : FRAME_PERIOD_5;
+    while (this.frameCycleCounter >= steps[this.frameStep]) {
+      this.fireFrameStep(this.frameStep);
+      this.frameStep++;
+      if (this.frameStep >= steps.length) {
+        this.frameStep = 0;
+        this.frameCycleCounter -= period;
+      }
     }
 
     // Accumulate sample value:
@@ -447,38 +428,81 @@ PAPU.prototype = {
     }
   },
 
-  frameCounterTick: function () {
-    this.derivedFrameCounter++;
-    if (this.derivedFrameCounter >= this.frameIrqCounterMax) {
-      this.derivedFrameCounter = 0;
+  // Fire a frame counter step. Each step clocks different APU units depending
+  // on the mode and step number.
+  // See https://www.nesdev.org/wiki/APU_Frame_Counter
+  fireFrameStep: function (step) {
+    if (this.countSequence === 0) {
+      // Mode 0 (4-step):
+      //   Step 0: quarter frame (envelope + linear counter)
+      //   Step 1: half frame (quarter + length counter + sweep)
+      //   Step 2: quarter frame
+      //   Step 3: half frame + set frame IRQ flag
+      switch (step) {
+        case 0:
+          this.clockQuarterFrame();
+          break;
+        case 1:
+          this.clockQuarterFrame();
+          this.clockHalfFrame();
+          break;
+        case 2:
+          this.clockQuarterFrame();
+          break;
+        case 3:
+          this.clockQuarterFrame();
+          this.clockHalfFrame();
+          // Set frame interrupt flag unconditionally in step 4 of 4-step mode.
+          // The flag is always visible in $4015 bit 6, but the actual IRQ is
+          // only fired when frameIrqEnabled is true (see clockFrameCounter).
+          this.frameIrqActive = true;
+          break;
+      }
+    } else {
+      // Mode 1 (5-step):
+      //   Step 0: quarter frame
+      //   Step 1: half frame
+      //   Step 2: quarter frame
+      //   Step 3: nothing (no clocking, no IRQ)
+      //   Step 4: half frame
+      switch (step) {
+        case 0:
+          this.clockQuarterFrame();
+          break;
+        case 1:
+          this.clockQuarterFrame();
+          this.clockHalfFrame();
+          break;
+        case 2:
+          this.clockQuarterFrame();
+          break;
+        case 3:
+          // Nothing happens at step 4 in 5-step mode
+          break;
+        case 4:
+          this.clockQuarterFrame();
+          this.clockHalfFrame();
+          break;
+      }
     }
+  },
 
-    if (this.derivedFrameCounter === 1 || this.derivedFrameCounter === 3) {
-      // Clock length & sweep:
-      this.triangle.clockLengthCounter();
-      this.square1.clockLengthCounter();
-      this.square2.clockLengthCounter();
-      this.noise.clockLengthCounter();
-      this.square1.clockSweep();
-      this.square2.clockSweep();
-    }
+  // Quarter frame: clock envelopes and triangle linear counter (~240Hz)
+  clockQuarterFrame: function () {
+    this.square1.clockEnvDecay();
+    this.square2.clockEnvDecay();
+    this.noise.clockEnvDecay();
+    this.triangle.clockLinearCounter();
+  },
 
-    if (this.derivedFrameCounter >= 0 && this.derivedFrameCounter < 4) {
-      // Clock linear & decay:
-      this.square1.clockEnvDecay();
-      this.square2.clockEnvDecay();
-      this.noise.clockEnvDecay();
-      this.triangle.clockLinearCounter();
-    }
-
-    if (this.derivedFrameCounter === 3 && this.countSequence === 0) {
-      // Set frame interrupt flag unconditionally in step 4 of 4-step mode.
-      // The flag is always visible in $4015 bit 6, but the actual IRQ is
-      // only fired when frameIrqEnabled is true (see clockFrameCounter).
-      this.frameIrqActive = true;
-    }
-
-    // End of 240Hz tick
+  // Half frame: clock length counters and sweep units (~120Hz)
+  clockHalfFrame: function () {
+    this.triangle.clockLengthCounter();
+    this.square1.clockLengthCounter();
+    this.square2.clockLengthCounter();
+    this.noise.clockLengthCounter();
+    this.square1.clockSweep();
+    this.square2.clockSweep();
   },
 
   // Samples the channels, mixes the output together, then writes to buffer.
@@ -732,22 +756,16 @@ PAPU.prototype = {
   },
 
   JSON_PROPERTIES: [
-    "frameIrqCounter",
-    "frameIrqCounterMax",
-    "initCounter",
     "channelEnableValue",
     "sampleRate",
     "frameIrqEnabled",
     "frameIrqActive",
-    "frameClockNow",
     "startedPlaying",
     "recordOutput",
-    "initingHardware",
-    "masterFrameCounter",
-    "derivedFrameCounter",
+    "frameCycleCounter",
+    "frameStep",
     "countSequence",
     "sampleTimer",
-    "frameTime",
     "sampleTimerMax",
     "sampleCount",
     "triValue",
