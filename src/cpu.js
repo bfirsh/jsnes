@@ -121,6 +121,7 @@ CPU.prototype = {
     this.instrBusCycles = 0; // bus cycles completed in current instruction
     this.ppuCatchupDots = 0; // PPU dots already advanced mid-instruction
     this.ppuFrameEnded = false; // set if VBlank/NMI fired during catch-up
+    this.apuCatchupCycles = 0; // APU frame counter cycles already advanced
   },
 
   // Emulates a single CPU instruction, returns the number of cycles
@@ -185,6 +186,7 @@ CPU.prototype = {
     this.instrBusCycles = 0;
     this.ppuCatchupDots = 0;
     this.ppuFrameEnded = false;
+    this.apuCatchupCycles = 0;
 
     // Snapshot how many CPU cycles until the next DMC DMA fetch. Used by
     // SHx instructions to detect bus hijacking mid-instruction.
@@ -1578,6 +1580,11 @@ CPU.prototype = {
     if (addr >= 0x2000 && addr < 0x4000) {
       this._ppuCatchUp();
     }
+    // Catch up APU frame counter before reading $4015 so the read sees
+    // up-to-date length counter status and IRQ flags.
+    if (addr === 0x4015) {
+      this._apuCatchUp();
+    }
     if (addr < 0x2000) {
       this.dataBus = this.mem[addr & 0x7ff];
     } else {
@@ -1755,6 +1762,19 @@ CPU.prototype = {
         ppu.endScanline();
       }
       this.ppuCatchupDots++;
+    }
+  },
+
+  // Advance the APU frame counter to match the current instruction's bus
+  // cycle position, so that $4015 reads see up-to-date length counter status
+  // and IRQ flags. Uses the lightweight advanceFrameCounter() which only
+  // fires frame counter steps (no DMC, channel timers, or audio sampling).
+  // See https://www.nesdev.org/wiki/Catch-up
+  _apuCatchUp: function () {
+    var targetCycles = this.instrBusCycles;
+    if (targetCycles > this.apuCatchupCycles) {
+      this.nes.papu.advanceFrameCounter(targetCycles - this.apuCatchupCycles);
+      this.apuCatchupCycles = targetCycles;
     }
   },
 

@@ -89,7 +89,11 @@ NES.prototype = {
         if (cpu.cyclesToHalt === 0) {
           // Execute a CPU instruction
           cycles = cpu.emulate();
-          papu.clockFrameCounter(cycles);
+          // Pass the full cycle count for channel timers, but tell the
+          // frame counter how many cycles were already advanced by APU
+          // catch-up (advanceFrameCounter) mid-instruction.
+          papu.clockFrameCounter(cycles, cpu.apuCatchupCycles);
+          cpu.apuCatchupCycles = 0;
           // Convert CPU cycles to PPU dots (3:1 ratio), subtracting any
           // dots already advanced mid-instruction by PPU catch-up.
           // See cpu._ppuCatchUp() and https://www.nesdev.org/wiki/Catch-up

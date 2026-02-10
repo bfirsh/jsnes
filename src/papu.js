@@ -211,8 +211,17 @@ PAPU.prototype = {
       // Bit 6: IRQ inhibit (0=IRQs enabled, 1=IRQs disabled)
       // See https://www.nesdev.org/wiki/APU_Frame_Counter
       this.countSequence = (value >> 7) & 1;
-      // Writing $4017 resets the frame counter's internal divider
-      this.frameCycleCounter = 0;
+      // Writing $4017 resets the frame counter's internal divider, but on
+      // real hardware the reset is delayed after the write cycle. The delay
+      // depends on whether the CPU is on an odd or even cycle (3 or 4 cycles
+      // respectively). Since the emulator clocks the full STA instruction's
+      // cycles (4 for STA absolute) after writeReg, we compensate by starting
+      // the counter negative so it reaches 0 at the true reset point.
+      // With APU catch-up, the $4015 read sees the frame counter state at
+      // instrBusCycles into the instruction, so the offset must be exact.
+      // Offset -6: after STA $4017 (4 cycles) → -2, after 2-cycle stall → 0.
+      // See https://www.nesdev.org/wiki/APU_Frame_Counter
+      this.frameCycleCounter = -6;
       this.frameStep = 0;
 
       if (value & 0x40) {
@@ -249,8 +258,18 @@ PAPU.prototype = {
   },
 
   // Clocks all APU channel timers and the frame counter by nCycles CPU cycles.
-  clockFrameCounter: function (nCycles) {
-    // Don't process ticks beyond next sampling:
+  // frameCounterAlreadyAdvanced is the number of frame counter cycles already
+  // advanced mid-instruction by APU catch-up (advanceFrameCounter). This is
+  // subtracted from the frame counter portion only, not from channel timers.
+  clockFrameCounter: function (nCycles, frameCounterAlreadyAdvanced) {
+    // Save original cycle count for frame counter (not subject to sample
+    // rate capping). The extraCycles mechanism limits channel timer updates
+    // to avoid processing beyond the next audio sample point, but the frame
+    // counter must see the true cycle count for accurate step timing.
+    // Subtract any cycles already advanced by APU catch-up.
+    var frameCounterCycles = nCycles - (frameCounterAlreadyAdvanced || 0);
+
+    // Don't process channel ticks beyond next sampling:
     nCycles += this.extraCycles;
     var maxCycles = this.sampleTimerMax - this.sampleTimer;
     if (nCycles << 10 > maxCycles) {
@@ -364,8 +383,9 @@ PAPU.prototype = {
     }
 
     // Clock frame counter: fire steps at the correct CPU cycle positions.
+    // Uses the uncapped cycle count to maintain accurate timing.
     // See https://www.nesdev.org/wiki/APU_Frame_Counter
-    this.frameCycleCounter += nCycles;
+    this.frameCycleCounter += frameCounterCycles;
     var steps = this.countSequence === 0 ? FRAME_STEPS_4 : FRAME_STEPS_5;
     var period = this.countSequence === 0 ? FRAME_PERIOD_4 : FRAME_PERIOD_5;
     while (this.frameCycleCounter >= steps[this.frameStep]) {
@@ -386,6 +406,24 @@ PAPU.prototype = {
       // Sample channels:
       this.sample();
       this.sampleTimer -= this.sampleTimerMax;
+    }
+  },
+
+  // Advance only the frame counter steps without clocking channel timers,
+  // DMC, or audio sampling. Used by CPU APU catch-up to update frame counter
+  // state (length counters, envelopes) before $4015 reads, without disturbing
+  // DMC DMA timing or audio generation. See cpu._apuCatchUp().
+  advanceFrameCounter: function (nCycles) {
+    this.frameCycleCounter += nCycles;
+    var steps = this.countSequence === 0 ? FRAME_STEPS_4 : FRAME_STEPS_5;
+    var period = this.countSequence === 0 ? FRAME_PERIOD_4 : FRAME_PERIOD_5;
+    while (this.frameCycleCounter >= steps[this.frameStep]) {
+      this.fireFrameStep(this.frameStep);
+      this.frameStep++;
+      if (this.frameStep >= steps.length) {
+        this.frameStep = 0;
+        this.frameCycleCounter -= period;
+      }
     }
   },
 
