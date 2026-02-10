@@ -3658,22 +3658,35 @@ describe("CPU", function () {
     });
     
     it("bmi", function(done) {
+        // Not taken: 2 cycles
+        cpu_unset_flag("N");
+        cpu_pc(0x150);
+        memory_set(0x150, 0x30);
+        memory_set(0x151, 0x02);
+        var cycles = execute();
+        assert.equal(cycles, 2);
+        assert.equal(cpu_register("PC"), 0x152);
+
+        // Taken, no page crossing: 3 cycles
+        // (use address mid-page so opaddr stays on the same page as target)
         cpu_set_flag("N");
-        cpu_pc(0x100);
-        memory_set(0x100, 0x30);
-        memory_set(0x101, 0x2);
+        cpu_pc(0x150);
+        memory_set(0x150, 0x30);
+        memory_set(0x151, 0x02);
+        var cycles = execute();
+        assert.equal(cycles, 3);
+        assert.equal(cpu_register("PC"), 0x154);
 
-        execute();
-
-        assert.equal(cpu_register("PC"), 0x104);
+        // Taken, page crossing: 4 cycles
+        // (branch forward from 0x1F0 across the 0x200 page boundary)
         cpu_set_flag("N");
-        cpu_pc(0x100);
-        memory_set(0x100, 0x30);
-        memory_set(0x101, 0xfe);
+        cpu_pc(0x1f0);
+        memory_set(0x1f0, 0x30);
+        memory_set(0x1f1, 0x20);
+        var cycles = execute();
+        assert.equal(cycles, 4);
+        assert.equal(cpu_register("PC"), 0x212);
 
-        execute();
-
-        assert.equal(cpu_register("PC"), 0x100);
         done();
     });
     

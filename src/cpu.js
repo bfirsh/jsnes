@@ -469,7 +469,7 @@ CPU.prototype = {
 
         // Branch on negative result
         if (this.F_SIGN === 1) {
-          cycleCount++;
+          cycleCount += (opaddr & 0xff00) !== (addr & 0xff00) ? 2 : 1;
           this.REG_PC = addr;
         }
         break;
