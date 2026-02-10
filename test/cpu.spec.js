@@ -44,8 +44,11 @@ MMAP.prototype.write = function (addr, val) {
     this.mem[addr] = val;
 };
 
+var GameGenie = require("../src/gamegenie");
+
 var NES = function (mmap) {
     this.mmap = mmap;
+    this.gameGenie = new GameGenie();
 };
 
 NES.prototype.stop = function () {

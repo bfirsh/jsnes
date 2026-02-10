@@ -190,7 +190,7 @@ CPU.prototype = {
     // SHx instructions to detect bus hijacking mid-instruction.
     this._dmcFetchCycles = this._cyclesToNextDmcFetch();
 
-    var opcode = this.nes.mmap.load(this.REG_PC + 1);
+    var opcode = this.loadFromCartridge(this.REG_PC + 1);
     this.dataBus = opcode;
     this.instrBusCycles = 1; // opcode fetch = 1 bus cycle
     var opinf = this.opdata[opcode];
@@ -322,8 +322,8 @@ CPU.prototype = {
             (this.mem[(addr & 0xff00) | (((addr & 0xff) + 1) & 0xff)] << 8); // Read from address given in op
         } else {
           addr =
-            this.nes.mmap.load(addr) +
-            (this.nes.mmap.load(
+            this.loadFromCartridge(addr) +
+            (this.loadFromCartridge(
               (addr & 0xff00) | (((addr & 0xff) + 1) & 0xff),
             ) <<
               8);
@@ -1558,6 +1558,19 @@ CPU.prototype = {
     return cycleCount;
   },
 
+  // Reads from cartridge ROM, applying any active Game Genie patches.
+  // Used for opcode fetches, operand reads, indirect jumps, and interrupt
+  // vectors — all places where Game Genie can intercept ROM reads.
+  loadFromCartridge: function (addr) {
+    var value = this.nes.mmap.load(addr);
+
+    if (this.nes.gameGenie.enabled && this.nes.gameGenie.patches.length > 0) {
+      value = this.nes.gameGenie.applyCodes(addr, value);
+    }
+
+    return value;
+  },
+
   // Each load() call represents one CPU bus read cycle.
   load: function (addr) {
     // Catch up PPU before reading PPU registers so the read sees
@@ -1568,7 +1581,7 @@ CPU.prototype = {
     if (addr < 0x2000) {
       this.dataBus = this.mem[addr & 0x7ff];
     } else {
-      this.dataBus = this.nes.mmap.load(addr);
+      this.dataBus = this.loadFromCartridge(addr);
     }
     this.instrBusCycles++;
     return this.dataBus;
@@ -1582,9 +1595,9 @@ CPU.prototype = {
       this.instrBusCycles += 2;
       return lo | (this.dataBus << 8);
     } else {
-      this.dataBus = this.nes.mmap.load(addr);
+      this.dataBus = this.loadFromCartridge(addr);
       lo = this.dataBus;
-      this.dataBus = this.nes.mmap.load(addr + 1);
+      this.dataBus = this.loadFromCartridge(addr + 1);
       this.instrBusCycles += 2;
       return lo | (this.dataBus << 8);
     }
@@ -1763,17 +1776,17 @@ CPU.prototype = {
     //this.F_INTERRUPT_NEW = 1;
     this.push(status);
 
-    this.dataBus = this.nes.mmap.load(0xfffa);
+    this.dataBus = this.loadFromCartridge(0xfffa);
     var lo = this.dataBus;
-    this.dataBus = this.nes.mmap.load(0xfffb);
+    this.dataBus = this.loadFromCartridge(0xfffb);
     this.REG_PC_NEW = lo | (this.dataBus << 8);
     this.REG_PC_NEW--;
   },
 
   doResetInterrupt: function () {
-    this.dataBus = this.nes.mmap.load(0xfffc);
+    this.dataBus = this.loadFromCartridge(0xfffc);
     var lo = this.dataBus;
-    this.dataBus = this.nes.mmap.load(0xfffd);
+    this.dataBus = this.loadFromCartridge(0xfffd);
     this.REG_PC_NEW = lo | (this.dataBus << 8);
     this.REG_PC_NEW--;
   },
@@ -1786,9 +1799,9 @@ CPU.prototype = {
     this.F_INTERRUPT_NEW = 1;
     this.F_BRK_NEW = 0;
 
-    this.dataBus = this.nes.mmap.load(0xfffe);
+    this.dataBus = this.loadFromCartridge(0xfffe);
     var lo = this.dataBus;
-    this.dataBus = this.nes.mmap.load(0xffff);
+    this.dataBus = this.loadFromCartridge(0xffff);
     this.REG_PC_NEW = lo | (this.dataBus << 8);
     this.REG_PC_NEW--;
   },

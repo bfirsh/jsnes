@@ -2,6 +2,7 @@ var CPU = require("./cpu");
 var Controller = require("./controller");
 var PPU = require("./ppu");
 var PAPU = require("./papu");
+var GameGenie = require("./gamegenie");
 var ROM = require("./rom");
 
 var NES = function (opts) {
@@ -35,6 +36,7 @@ var NES = function (opts) {
   this.cpu = new CPU(this);
   this.ppu = new PPU(this);
   this.papu = new PAPU(this);
+  this.gameGenie = new GameGenie();
   this.mmap = null; // set in loadROM()
   this.controllers = {
     1: new Controller(),
