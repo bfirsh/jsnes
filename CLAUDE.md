@@ -8,6 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run build` - Build distribution files (`dist/jsnes.js` and `dist/jsnes.min.js`)
 - `npm run format` - Auto-format all source code with Prettier
 - `npm run test:watch` - Run tests in watch mode for development
+- `npm run typecheck` - TypeScript type checking (verifies `.d.ts` files)
 
 ## Code Architecture
 
@@ -26,6 +27,12 @@ JSNES is a JavaScript NES emulator with component-based architecture mirroring a
 **Memory Mappers**: `mappers.js` - Implements cartridge memory mappers (0-180) using inheritance hierarchy. All mappers inherit from Mapper 0 and override specific banking/memory mapping behavior.
 
 **ROM Loader**: `rom.js` - Parses iNES format ROM files, extracts PRG-ROM/CHR-ROM, and determines appropriate mapper.
+
+**Tile Renderer**: `tile.js` - Handles 8x8 pixel tile rendering with sprite flipping (horizontal/vertical), alpha-blending priority, and scanline-based rendering.
+
+**Controller**: `controller.js` - Button state management for 2 controllers with 8 buttons each (A, B, SELECT, START, UP, DOWN, LEFT, RIGHT) and serial strobe protocol.
+
+**Utilities**: `utils.js` - Helper functions for state serialization (`toJSON()`/`fromJSON()`) used across CPU, PPU, PAPU, and mappers for save state support.
 
 ### Key Architectural Patterns
 
@@ -47,11 +54,12 @@ nes.buttonDown(1, jsnes.Controller.BUTTON_A); // Handle input
 
 ## Testing
 
-Tests use Mocha + Chai + Sinon in `test/nes.spec.js`:
-- Basic initialization and ROM loading
-- Frame generation with regression testing using `croom.nes` test ROM
-- Frame buffer validation to ensure rendering consistency
-- Error handling for invalid ROMs
+Tests use Mocha + Chai + Sinon:
+- `test/nes.spec.js` - Basic initialization, ROM loading, frame generation with regression testing using `croom.nes` test ROM, frame buffer validation, error handling
+- `test/cpu.spec.js` - Comprehensive CPU instruction testing (based on upstream wedNESday and nintengo test suites)
+- `test/mappers.spec.js` - Mapper functionality tests (ROM protection, SRAM writes, RAM mirroring)
+- `test/nestest.spec.js` - Full nestest.nes ROM harness with detailed error code mappings for all CPU instructions and addressing modes
+- `test/accuracycoin.spec.js` - AccuracyCoin test ROM harness (134 hardware accuracy tests)
 
 Test ROMs:
 - `roms/croom/` - Simple test ROM for automated testing
@@ -59,7 +67,7 @@ Test ROMs:
 - `roms/nestest/` - CPU instruction test ROM (official + unofficial opcodes)
 - `local-roms/` - Collection of ROMs for manual testing
 
-AccuracyCoin test result encoding is documented in `test/accuracycoin.spec.js`. Known failures are listed in the `KNOWN_FAILURES` object there.
+Known AccuracyCoin failures are listed in the `KNOWN_FAILURES` object in `test/accuracycoin.spec.js`.
 
 Remember that AccuracyCoin and nestest are DEFINITELY correct. They pass on a real NES. Don't blame the ROM for being wrong.
 
@@ -70,6 +78,8 @@ Webpack configuration creates UMD modules compatible with browsers and Node.js:
 - Output: `dist/jsnes.js` (regular) and `dist/jsnes.min.js` (minified)
 - Includes ESLint checking and source map generation
 - Library name: `jsnes` (global variable in browsers)
+- TypeScript type definitions: `src/nes.d.ts` and `src/controller.d.ts` provide public API types
+- CI: GitHub Actions (`.github/workflows/ci.yaml`) runs build and tests on push/PR with Node.js 22.x
 
 ## Code Quality Requirements
 
@@ -125,6 +135,26 @@ The real 6502 reads JSR's target high byte *after* pushing the return address, m
 ### APU Frame IRQ
 
 The frame interrupt flag (`frameIrqActive`) is set unconditionally in step 4 of the 4-step frame counter sequence. The $4017 IRQ inhibit bit only prevents the IRQ from firing; the flag is still visible in $4015 bit 6. This distinction matters for tests that check $4015 while IRQs are inhibited.
+
+### DMC DMA Bus Hijacking
+
+The DMC channel's DMA transfer can hijack CPU bus cycles, which interacts with certain unofficial opcodes (SHx family). During DMA, the value on the data bus affects these instructions' output since they AND the high byte of the target address with the accumulator/register. The implementation handles this interaction to match real hardware behavior.
+
+### Unofficial Opcodes
+
+The CPU implements the full set of unofficial 6502 opcodes needed to pass nestest: ALR, ANC, ARR, AXS, LAX, SAX, DCP, ISC, RLA, RRA, SLO, SRE, SKB, IGN, SHA, SHX, SHY, SHS, LAE, ANE, LXA, and DUMMY (cycle halt). The SHx/SHA family have complex bus interactions documented in the code.
+
+## State Serialization
+
+Full save state support via `toJSON()`/`fromJSON()` on the NES class, which serializes/deserializes CPU, PPU, PAPU, and mapper state. Battery-backed SRAM is surfaced via the `onBatteryRamWrite()` callback.
+
+## Zapper (Light Gun) Support
+
+The NES class exposes `zapperMove(x, y)`, `zapperFireDown()`, and `zapperFireUp()` for light gun input. The PPU's `isPixelWhite()` method handles light detection at the zapper's position.
+
+## Error Recovery
+
+The NES has a `crashed` flag that prevents further frame execution after exceptions. Users must call `reset()` or `loadROM()` to recover.
 
 ## Development Notes
 
