@@ -449,7 +449,7 @@ PPU.prototype = {
           break;
         case 2:
           // Blue
-          bgColor = 0xff0000;
+          bgColor = 0x0000ff;
           break;
         case 3:
           // Invalid. Use black.
@@ -457,7 +457,7 @@ PPU.prototype = {
           break;
         case 4:
           // Red
-          bgColor = 0x0000ff;
+          bgColor = 0xff0000;
           break;
         default:
           // Invalid. Use black.
