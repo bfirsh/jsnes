@@ -1587,6 +1587,14 @@ CPU.prototype = {
     }
     if (addr < 0x2000) {
       this.dataBus = this.mem[addr & 0x7ff];
+    } else if (addr === 0x4015) {
+      // $4015 reads are internal to the 2A03 — the APU status value does
+      // not drive the external data bus. Return the status directly without
+      // updating dataBus, so open bus reads after $4015 still see the
+      // previous bus value. See https://www.nesdev.org/wiki/Open_bus_behavior
+      var apuStatus = this.loadFromCartridge(addr);
+      this.instrBusCycles++;
+      return apuStatus;
     } else {
       this.dataBus = this.loadFromCartridge(addr);
     }

@@ -278,10 +278,7 @@ var KNOWN_FAILURES = {
   0x045f: "Controller strobing not fully accurate",
 
   // APU: timing/behavior not accurate enough
-  0x0465: "APU length counter not accurate",
-  0x0466: "APU length table not accurate",
   0x0467: "APU frame counter IRQ not accurate",
-  0x0468: "APU frame counter 4-step not accurate",
   0x046a: "DMC not accurate",
   0x045c: "APU register activation not accurate",
 
