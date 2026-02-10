@@ -490,10 +490,15 @@ PAPU.prototype = {
         case 3:
           this.clockQuarterFrame();
           this.clockHalfFrame();
-          // Set frame interrupt flag unconditionally in step 4 of 4-step mode.
-          // The flag is always visible in $4015 bit 6, but the actual IRQ is
-          // only fired when frameIrqEnabled is true (see clockFrameCounter).
-          this.frameIrqActive = true;
+          // Set the frame interrupt flag in step 4 of 4-step mode, but only
+          // when IRQ inhibit is clear ($4017 bit 6 = 0). The nesdev wiki says:
+          // "If the interrupt inhibit flag is clear, the frame interrupt flag
+          // is set." Writing $4017 with bit 6 set prevents the flag from ever
+          // being set, not just from firing the IRQ.
+          // See https://www.nesdev.org/wiki/APU_Frame_Counter
+          if (this.frameIrqEnabled) {
+            this.frameIrqActive = true;
+          }
           break;
       }
     } else {

@@ -134,7 +134,7 @@ The real 6502 reads JSR's target high byte *after* pushing the return address, m
 
 ### APU Frame IRQ
 
-The frame interrupt flag (`frameIrqActive`) is set unconditionally in step 4 of the 4-step frame counter sequence. The $4017 IRQ inhibit bit only prevents the IRQ from firing; the flag is still visible in $4015 bit 6. This distinction matters for tests that check $4015 while IRQs are inhibited.
+The frame interrupt flag (`frameIrqActive`) is set in step 4 of the 4-step frame counter sequence, but ONLY when the IRQ inhibit flag is clear (`frameIrqEnabled` is true). Writing $4017 with bit 6 set prevents the flag from being set entirely — it doesn't just suppress the IRQ, it prevents the flag from appearing in $4015 bit 6. See https://www.nesdev.org/wiki/APU_Frame_Counter
 
 ### DMC DMA Bus Hijacking
 
