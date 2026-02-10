@@ -245,37 +245,20 @@ Mappers[0].prototype = {
   },
 
   joy1Read: function () {
-    var ret;
+    // While strobe is active ($4016 bit 0 = 1), the shift register is
+    // continuously reloaded, so reads always return button A's state.
+    // See https://www.nesdev.org/wiki/Standard_controller
+    if (this.joypadLastWrite & 1) {
+      return this.nes.controllers[1].state[0];
+    }
 
-    switch (this.joy1StrobeState) {
-      case 0:
-      case 1:
-      case 2:
-      case 3:
-      case 4:
-      case 5:
-      case 6:
-      case 7:
-        ret = this.nes.controllers[1].state[this.joy1StrobeState];
-        break;
-      case 8:
-      case 9:
-      case 10:
-      case 11:
-      case 12:
-      case 13:
-      case 14:
-      case 15:
-      case 16:
-      case 17:
-      case 18:
-        ret = 0;
-        break;
-      case 19:
-        ret = 1;
-        break;
-      default:
-        ret = 0;
+    var ret;
+    if (this.joy1StrobeState < 8) {
+      ret = this.nes.controllers[1].state[this.joy1StrobeState];
+    } else {
+      // After 8 reads, the shift register is empty and the serial data
+      // line floats high, returning 1 on a standard NES controller.
+      ret = 1;
     }
 
     this.joy1StrobeState++;
@@ -287,37 +270,17 @@ Mappers[0].prototype = {
   },
 
   joy2Read: function () {
-    var ret;
+    // While strobe is active, always return button A's state.
+    if (this.joypadLastWrite & 1) {
+      return this.nes.controllers[2].state[0];
+    }
 
-    switch (this.joy2StrobeState) {
-      case 0:
-      case 1:
-      case 2:
-      case 3:
-      case 4:
-      case 5:
-      case 6:
-      case 7:
-        ret = this.nes.controllers[2].state[this.joy2StrobeState];
-        break;
-      case 8:
-      case 9:
-      case 10:
-      case 11:
-      case 12:
-      case 13:
-      case 14:
-      case 15:
-      case 16:
-      case 17:
-      case 18:
-        ret = 0;
-        break;
-      case 19:
-        ret = 1;
-        break;
-      default:
-        ret = 0;
+    var ret;
+    if (this.joy2StrobeState < 8) {
+      ret = this.nes.controllers[2].state[this.joy2StrobeState];
+    } else {
+      // After 8 reads, the shift register is empty → returns 1.
+      ret = 1;
     }
 
     this.joy2StrobeState++;
