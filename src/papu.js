@@ -1032,9 +1032,10 @@ ChannelDM.prototype = {
   },
 
   setEnabled: function (value) {
-    if (!this.isEnabled && value) {
-      this.playLengthCounter = this.playLength;
-    }
+    // Don't modify playLengthCounter here — the $4015 writeReg handler
+    // handles restart logic (including address reload) based on whether
+    // playLengthCounter is 0. Setting it here would prevent the proper
+    // restart path from executing.
     this.isEnabled = value;
   },
 
