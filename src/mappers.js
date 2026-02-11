@@ -171,6 +171,7 @@ Mappers[0].prototype = {
     // All PPU register writes update the open bus latch
     if (address >= 0x2000 && address <= 0x3fff) {
       this.nes.ppu.openBusLatch = value;
+      this.nes.ppu.openBusDecayFrames = 36; // ~600ms at 60fps
     }
 
     switch (address) {
