@@ -14,7 +14,9 @@ var PPU = function (nes) {
   // PPU has its own internal I/O bus. All PPU register writes update this
   // latch. Reading write-only registers ($2000,$2001,$2003,$2005,$2006)
   // returns this value. $2002 uses bits 4-0 from this latch.
+  // On real hardware the latch decays to 0 per-bit after ~600ms.
   this.openBusLatch = null;
+  this.openBusDecayFrames = 0;
   this.sramAddress = null;
   this.currentMirroring = null;
   this.requestEndFrame = null;
@@ -110,6 +112,7 @@ PPU.prototype = {
     this.vramBufferedReadValue = 0;
     this.firstWrite = true; // VRAM/Scroll Hi/Lo latch
     this.openBusLatch = 0;
+    this.openBusDecayFrames = 0;
 
     // SPR-RAM I/O:
     this.sramAddress = 0; // 8-bit only.
@@ -309,6 +312,15 @@ PPU.prototype = {
     // Do NMI only if VBlank NMI is enabled (bit 7 of $2000):
     if (this.f_nmiOnVblank !== 0) {
       this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NMI);
+    }
+
+    // PPU open bus latch decay: on real hardware each bit decays to 0
+    // after ~600ms (~36 frames). We use a simple per-latch frame counter.
+    if (this.openBusDecayFrames > 0) {
+      this.openBusDecayFrames--;
+      if (this.openBusDecayFrames === 0) {
+        this.openBusLatch = 0;
+      }
     }
 
     // Make sure everything is rendered:
@@ -601,6 +613,7 @@ PPU.prototype = {
     // Only bits 7-5 come from the status register; bits 4-0 are open bus.
     tmp = (tmp & 0xe0) | (this.openBusLatch & 0x1f);
     this.openBusLatch = tmp;
+    this.openBusDecayFrames = 36; // ~600ms at 60fps
 
     // Fetch status data:
     return tmp;
@@ -1496,6 +1509,8 @@ PPU.prototype = {
     // VRAM I/O
     "vramBufferedReadValue",
     "firstWrite",
+    "openBusLatch",
+    "openBusDecayFrames",
     // Mirroring
     "currentMirroring",
     "vramMirrorTable",

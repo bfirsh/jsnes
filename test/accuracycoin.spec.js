@@ -281,9 +281,6 @@ var KNOWN_FAILURES = {
   0x0467: "APU frame counter IRQ not accurate",
   0x046a: "DMC not accurate",
   0x045c: "APU register activation not accurate",
-
-  // PPU: various behaviors not accurate enough
-  0x044e: "PPU register open bus not accurate",
 };
 
 // Flatten all tests for easy iteration
