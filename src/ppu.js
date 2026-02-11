@@ -718,8 +718,21 @@ PPU.prototype = {
       return tmp; // Return the previous buffered value.
     }
 
-    // No buffering in this mem range. Read normally.
-    tmp = this.mirroredLoad(this.vramAddress);
+    // Palette RAM ($3F00-$3FFF): value is returned directly (no buffer
+    // delay), but the read buffer is loaded with the nametable data
+    // "behind" the palette at (address & $2FFF).
+    // Palette RAM is only 32 bytes; addresses mirror every $20 bytes.
+    // Backdrop mirrors: $3F10/$3F14/$3F18/$3F1C → $3F00/$3F04/$3F08/$3F0C.
+    // Values are 6-bit; upper 2 bits come from the PPU open bus latch.
+    // See https://www.nesdev.org/wiki/PPU_palettes
+    var palIdx = this.vramAddress & 0x1f;
+    if ((palIdx & 0x13) === 0x10) {
+      palIdx &= 0x0f; // backdrop mirror
+    }
+    tmp = (this.vramMem[0x3f00 + palIdx] & 0x3f) | (this.openBusLatch & 0xc0);
+
+    // Update buffer with nametable data behind the palette
+    this.vramBufferedReadValue = this.mirroredLoad(this.vramAddress & 0x2fff);
 
     // Increment by either 1 or 32, depending on d2 of Control Register 1:
     this.vramAddress += this.f_addrInc === 1 ? 32 : 1;
@@ -741,8 +754,11 @@ PPU.prototype = {
       // Mirroring is used.
       this.mirroredWrite(this.vramAddress, value);
     } else {
-      // Write normally.
-      this.writeMem(this.vramAddress, value);
+      // Pattern table ($0000-$1FFF): only writable if CHR RAM (no CHR ROM).
+      // Cartridges with CHR ROM (vromCount > 0) ignore writes to this range.
+      if (this.nes.rom.vromCount === 0) {
+        this.writeMem(this.vramAddress, value);
+      }
 
       // Invoke mapper latch:
       this.nes.mmap.latchAccess(this.vramAddress);

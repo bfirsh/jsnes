@@ -283,10 +283,7 @@ var KNOWN_FAILURES = {
   0x045c: "APU register activation not accurate",
 
   // PPU: various behaviors not accurate enough
-  0x0485: "CHR ROM writability not enforced",
   0x044e: "PPU register open bus not accurate",
-  0x0476: "PPU read buffer not accurate",
-  0x047e: "Palette RAM quirks not emulated",
 };
 
 // Flatten all tests for easy iteration
