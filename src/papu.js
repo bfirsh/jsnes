@@ -947,6 +947,10 @@ ChannelDM.prototype = {
   nextSample: function () {
     // Fetch byte:
     this.data = this.papu.nes.mmap.load(this.playAddress);
+    // On real hardware, the DMA fetch puts this byte on the CPU data bus.
+    // Store it so cpu.load() can detect DMA bus hijacking mid-instruction.
+    // See https://www.nesdev.org/wiki/APU_DMC#Memory_reader
+    this.lastFetchedByte = this.data;
     this.papu.nes.cpu.haltCycles(4);
 
     this.playLengthCounter--;
@@ -1044,6 +1048,7 @@ ChannelDM.prototype = {
     this.reg4012 = 0;
     this.reg4013 = 0;
     this.data = 0;
+    this.lastFetchedByte = 0;
   },
 
   JSON_PROPERTIES: [
@@ -1067,6 +1072,7 @@ ChannelDM.prototype = {
     "sample",
     "dacLsb",
     "data",
+    "lastFetchedByte",
   ],
 
   toJSON: function () {

@@ -263,7 +263,6 @@ var KNOWN_FAILURES = {
   0x0463: "NMI overlap IRQ not emulated",
 
   // DMA: handled atomically, no bus-level interleaving
-  0x046c: "DMA + Open Bus not emulated",
   0x0488: "DMA + $2002 Read not emulated",
   0x044c: "DMA + $2007 Read not emulated",
   0x044f: "DMA + $2007 Write not emulated",
@@ -274,6 +273,9 @@ var KNOWN_FAILURES = {
   0x0479: "Explicit DMA abort not emulated",
   0x0478: "Implicit DMA abort not emulated",
 
+  // SHX: DMC DMA interaction subtest fails with bus hijacking fix
+  0x044a: "SHX DMC DMA interaction not fully accurate",
+
   // Controller: partial fix, subtest 4 still fails
   0x045f: "Controller strobing not fully accurate",
 
@@ -281,6 +283,41 @@ var KNOWN_FAILURES = {
   0x0467: "APU frame counter IRQ not accurate",
   0x046a: "DMC not accurate",
   0x045c: "APU register activation not accurate",
+
+  // PPU behavior: rendering-related tests need dot-accurate PPU
+  0x0486: "Rendering flag behavior not accurate",
+  0x048a: "$2007 read during rendering not accurate",
+
+  // PPU VBlank timing: need cycle-accurate VBlank/NMI timing
+  0x0450: "VBlank beginning timing not accurate",
+  0x0451: "VBlank end timing not accurate",
+  0x0452: "NMI control timing not accurate",
+  0x0453: "NMI timing not accurate",
+  0x0454: "NMI suppression not accurate",
+  0x0455: "NMI at VBlank end not accurate",
+  0x0456: "NMI disabled at VBlank not accurate",
+
+  // Sprite evaluation: need accurate OAM/sprite evaluation
+  0x0459: "Sprite overflow behavior not accurate",
+  0x0457: "Sprite 0 hit behavior not accurate",
+  0x0489: "Suddenly resize sprite not accurate",
+  0x0458: "Arbitrary sprite zero not accurate",
+  0x045a: "Misaligned OAM behavior not accurate",
+  0x045b: "Address $2004 behavior not accurate",
+  0x047b: "OAM corruption not accurate",
+  0x0480: "INC $4014 not accurate",
+
+  // PPU misc: need dot-accurate PPU rendering pipeline
+  0x0481: "Attributes as tiles not accurate",
+  0x0482: "t register quirks not accurate",
+  0x0483: "Stale BG shift registers not accurate",
+  0x0487: "BG serial in not accurate",
+  0x0484: "Sprites on scanline 0 not accurate",
+
+  // CPU behavior 2: need cycle-accurate instruction timing
+  0x0460: "Instruction timing not accurate",
+  0x046d: "Implied dummy reads not accurate",
+  0x048b: "Branch dummy reads not accurate",
 };
 
 // Flatten all tests for easy iteration

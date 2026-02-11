@@ -163,8 +163,23 @@ Mappers[0].prototype = {
         }
         break;
     }
-    // Write-only registers (APU $4000-$4014, etc.) are open bus
-    return this.nes.cpu.dataBus;
+    // Write-only registers (APU $4000-$4014, etc.) are open bus.
+    // On real hardware, if a DMC DMA fetch coincides with this read cycle,
+    // the DMA steals the CPU bus cycle and the fetched sample byte appears
+    // on the data bus instead of the open bus value. This is how the ROM's
+    // DMA sync loops (LDA $4000; BNE) detect DMC activity.
+    // See https://www.nesdev.org/wiki/APU_DMC#Memory_reader
+    var cpu = this.nes.cpu;
+    if (
+      cpu._dmcFetchCycles > 0 &&
+      cpu._dmcFetchCycles === cpu.instrBusCycles + 1
+    ) {
+      var dmc = this.nes.papu.dmc;
+      if (dmc && dmc.isEnabled) {
+        return dmc.lastFetchedByte;
+      }
+    }
+    return cpu.dataBus;
   },
 
   regWrite: function (address, value) {

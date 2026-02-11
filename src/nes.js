@@ -102,6 +102,13 @@ NES.prototype = {
           if (cpu.ppuFrameEnded) {
             // VBlank NMI was triggered during mid-instruction catch-up.
             // The frame is already rendered — break out of the frame loop.
+            // Preserve remaining PPU dots so the dot position carries over
+            // to the next frame. Real NES frames are 89342 PPU dots, but
+            // sync loops take ~89343. Without preserving these leftover
+            // dots, the 1-dot-per-frame slip that lets sync routines
+            // converge on VBlank is lost.
+            // See https://www.nesdev.org/wiki/PPU_frame_timing
+            ppu.curX += cycles;
             cpu.ppuFrameEnded = false;
             break FRAMELOOP;
           }
@@ -142,6 +149,9 @@ NES.prototype = {
             if (ppu.nmiCounter === 0) {
               ppu.requestEndFrame = false;
               ppu.startVBlank();
+              // Preserve remaining PPU dots (same rationale as ppuFrameEnded
+              // path above — prevents losing the 1-dot-per-frame slip).
+              ppu.curX += cycles;
               break FRAMELOOP;
             }
           }
