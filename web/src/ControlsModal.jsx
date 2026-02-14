@@ -244,10 +244,28 @@ class ControlsModal extends Component {
                   gamepadConfig={this.state.gamepadConfig}
                 />
                 <ControlMapperRow
+                  buttonName="Turbo A"
+                  currentPromptButton={this.state.currentPromptButton}
+                  button={Controller.BUTTON_TURBO_A}
+                  prevButton={Controller.BUTTON_B}
+                  keys={this.state.keys}
+                  handleClick={this.listenForKey}
+                  gamepadConfig={this.state.gamepadConfig}
+                />
+                <ControlMapperRow
+                  buttonName="Turbo B"
+                  currentPromptButton={this.state.currentPromptButton}
+                  button={Controller.BUTTON_TURBO_B}
+                  prevButton={Controller.BUTTON_TURBO_A}
+                  keys={this.state.keys}
+                  handleClick={this.listenForKey}
+                  gamepadConfig={this.state.gamepadConfig}
+                />
+                <ControlMapperRow
                   buttonName="Start"
                   currentPromptButton={this.state.currentPromptButton}
                   button={Controller.BUTTON_START}
-                  prevButton={Controller.BUTTON_B}
+                  prevButton={Controller.BUTTON_TURBO_B}
                   keys={this.state.keys}
                   handleClick={this.listenForKey}
                   gamepadConfig={this.state.gamepadConfig}

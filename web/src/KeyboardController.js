@@ -11,6 +11,8 @@ const KEYS = {
   40: [1, Controller.BUTTON_DOWN, "Down"], // Down
   37: [1, Controller.BUTTON_LEFT, "Left"], // Left
   39: [1, Controller.BUTTON_RIGHT, "Right"], // Right
+  83: [1, Controller.BUTTON_TURBO_A, "S"], // S
+  65: [1, Controller.BUTTON_TURBO_B, "A"], // A
   103: [2, Controller.BUTTON_A, "Num-7"], // Num-7
   105: [2, Controller.BUTTON_B, "Num-9"], // Num-9
   99: [2, Controller.BUTTON_SELECT, "Num-3"], // Num-3
