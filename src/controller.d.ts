@@ -1,11 +1,12 @@
 export type ControllerKey = 1 | 2;
 
-export type ButtonKey = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export type ButtonKey = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
 export class Controller {
   state: number[];
-  buttonDown: (key: ControllerKey) => void;
-  buttonUp: (key: ControllerKey) => void;
+  buttonDown: (key: ButtonKey) => void;
+  buttonUp: (key: ButtonKey) => void;
+  clock: () => void;
 
   static readonly BUTTON_A = 0;
   static readonly BUTTON_B = 1;
@@ -15,4 +16,6 @@ export class Controller {
   static readonly BUTTON_DOWN = 5;
   static readonly BUTTON_LEFT = 6;
   static readonly BUTTON_RIGHT = 7;
+  static readonly BUTTON_TURBO_A = 8;
+  static readonly BUTTON_TURBO_B = 9;
 }

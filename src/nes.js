@@ -67,6 +67,8 @@ class NES {
         "Game has crashed. Call reset() or loadROM() to restart.",
       );
     }
+    this.controllers[1].clock();
+    this.controllers[2].clock();
     this.ppu.startFrame();
     let cycles = 0;
     const cpu = this.cpu;
