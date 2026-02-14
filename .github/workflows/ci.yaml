@@ -4,9 +4,7 @@ on: [push, pull_request]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
       - name: Use Node.js
@@ -16,3 +14,18 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+      - run: npm ci
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+      - run: npm test
+        working-directory: web
