@@ -1106,6 +1106,12 @@ class PPU {
     }
   }
 
+  // Check if sprite 0 overlaps with a background tile pixel on this scanline.
+  // On real hardware, sprite 0 hit only fires when a non-transparent sprite
+  // pixel overlaps with a non-transparent background tile pixel. We check
+  // pixrendered[bufferIndex] > 0xff because bit 8 (256) is set by
+  // renderBgScanline when an actual background tile pixel is rendered.
+  // See https://www.nesdev.org/wiki/PPU_OAM#Sprite_zero_hits
   checkSprite0(scan) {
     this.spr0HitX = -1;
     this.spr0HitY = -1;
@@ -1141,7 +1147,7 @@ class PPU {
               if (
                 bufferIndex >= 0 &&
                 bufferIndex < 61440 &&
-                this.pixrendered[bufferIndex] !== 0
+                this.pixrendered[bufferIndex] > 0xff
               ) {
                 if (t.pix[toffset + i] !== 0) {
                   this.spr0HitX = bufferIndex % 256;
@@ -1159,7 +1165,7 @@ class PPU {
               if (
                 bufferIndex >= 0 &&
                 bufferIndex < 61440 &&
-                this.pixrendered[bufferIndex] !== 0
+                this.pixrendered[bufferIndex] > 0xff
               ) {
                 if (t.pix[toffset + i] !== 0) {
                   this.spr0HitX = bufferIndex % 256;
@@ -1218,7 +1224,7 @@ class PPU {
               if (
                 bufferIndex >= 0 &&
                 bufferIndex < 61440 &&
-                this.pixrendered[bufferIndex] !== 0
+                this.pixrendered[bufferIndex] > 0xff
               ) {
                 if (t.pix[toffset + i] !== 0) {
                   this.spr0HitX = bufferIndex % 256;
@@ -1236,7 +1242,7 @@ class PPU {
               if (
                 bufferIndex >= 0 &&
                 bufferIndex < 61440 &&
-                this.pixrendered[bufferIndex] !== 0
+                this.pixrendered[bufferIndex] > 0xff
               ) {
                 if (t.pix[toffset + i] !== 0) {
                   this.spr0HitX = bufferIndex % 256;
