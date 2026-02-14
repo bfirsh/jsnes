@@ -35,7 +35,7 @@ export default class KeyboardController {
         keys = JSON.parse(keys);
       }
     } catch (e) {
-      console.log("Failed to get keys from localStorage.", e);
+      console.warn("Failed to get keys from localStorage.", e);
     }
 
     this.keys = keys || KEYS;
@@ -46,7 +46,7 @@ export default class KeyboardController {
       localStorage.setItem("keys", JSON.stringify(newKeys));
       this.keys = newKeys;
     } catch (e) {
-      console.log("Failed to set keys in localStorage");
+      console.warn("Failed to set keys in localStorage.", e);
     }
   };
 

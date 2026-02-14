@@ -168,7 +168,7 @@ export default class GamepadController {
         gamepadConfig = JSON.parse(gamepadConfig);
       }
     } catch (e) {
-      console.log("Failed to get gamepadConfig from localStorage.", e);
+      console.warn("Failed to get gamepadConfig from localStorage.", e);
     }
 
     this.gamepadConfig = gamepadConfig;
@@ -179,7 +179,7 @@ export default class GamepadController {
       localStorage.setItem("gamepadConfig", JSON.stringify(gamepadConfig));
       this.gamepadConfig = gamepadConfig;
     } catch (e) {
-      console.log("Failed to set gamepadConfig in localStorage");
+      console.warn("Failed to set gamepadConfig in localStorage.", e);
     }
   };
 

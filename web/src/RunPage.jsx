@@ -148,7 +148,6 @@ class RunPage extends Component {
   }
 
   load = () => {
-    console.log("load");
     if (this.props.params.slug) {
       const slug = this.props.params.slug;
       const isLocalROM = /^local-/.test(slug);

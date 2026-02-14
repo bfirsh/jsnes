@@ -25,6 +25,18 @@ To automatically format all your code, run:
 
     $ npm run format
 
+## Debug logging
+
+Debug logging is off by default. To enable it, run this in the browser console:
+
+    localStorage.jsnes_debug = 1
+
+To disable:
+
+    delete localStorage.jsnes_debug
+
+This logs FPS, audio buffer underruns/overruns, frame skips, and NES status updates.
+
 ## Embedding JSNES in your own app
 
 Unfortunately this isn't trivial at the moment. The best way is copy and paste code from this repository into a React app, then use the [`<Emulator>`](https://github.com/bfirsh/jsnes-web/blob/master/src/Emulator.js). [Here is a usage example.](https://github.com/bfirsh/jsnes-web/blob/d3c35eec11986412626cbd08668dbac700e08751/src/RunPage.js#L119-L125).

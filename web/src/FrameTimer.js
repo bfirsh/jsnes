@@ -1,3 +1,5 @@
+import { debug } from "./debug";
+
 const FPS = 60.098;
 
 export default class FrameTimer {
@@ -74,6 +76,6 @@ export default class FrameTimer {
         (i * timeToNextFrame) / numFrames,
       );
     }
-    if (numFrames > 1) console.log("SKIP", numFrames - 1, this.lastFrameTime);
+    if (numFrames > 1) debug("SKIP", numFrames - 1, this.lastFrameTime);
   };
 }

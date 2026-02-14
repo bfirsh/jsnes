@@ -2,6 +2,7 @@ import React, { Component } from "react";
 import PropTypes from "prop-types";
 import { NES } from "jsnes";
 
+import { debug } from "./debug";
 import FrameTimer from "./FrameTimer";
 import GamepadController from "./GamepadController";
 import KeyboardController from "./KeyboardController";
@@ -59,16 +60,14 @@ class Emulator extends Component {
         //   done by audio instead of requestAnimationFrame.
         // - System can't run emulator at full speed. In this case it'll stop
         //    firing requestAnimationFrame.
-        console.log(
-          "Buffer underrun, running another frame to try and catch up",
-        );
+        debug("Buffer underrun, running another frame to try and catch up");
 
         this.frameTimer.generateFrame();
         // desiredSize will be 2048, and the NES produces 1468 samples on each
         // frame so we might need a second frame to be run. Give up after that
         // though -- the system is not catching up
         if (this.speakers.buffer.size() < desiredSize) {
-          console.log("Still buffer underrun, running a second frame");
+          debug("Still buffer underrun, running a second frame");
           this.frameTimer.generateFrame();
         }
       },
@@ -76,7 +75,7 @@ class Emulator extends Component {
 
     this.nes = new NES({
       onFrame: this.screen.setBuffer,
-      onStatusUpdate: console.log,
+      onStatusUpdate: debug,
       onAudioSample: this.speakers.writeSample,
       sampleRate: this.speakers.getSampleRate(),
     });
@@ -166,7 +165,7 @@ class Emulator extends Component {
     this.frameTimer.start();
     this.speakers.start();
     this.fpsInterval = setInterval(() => {
-      console.log(`FPS: ${this.nes.getFPS()}`);
+      debug(`FPS: ${this.nes.getFPS()}`);
     }, 1000);
   };
 
