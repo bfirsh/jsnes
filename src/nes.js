@@ -96,6 +96,18 @@ class NES {
             // dots, the 1-dot-per-frame slip that lets sync routines
             // converge on VBlank is lost.
             // See https://www.nesdev.org/wiki/PPU_frame_timing
+            if (cpu.nmiRaised) {
+              // NMI delay depends on which PPU dot within the CPU cycle
+              // VBL fired at: >= 5 remaining dots means the edge propagates
+              // in time for the final-cycle poll (0-delay), <= 4 means it
+              // doesn't (1-delay). See cpu.js NMI comment.
+              if (cycles >= 5) {
+                cpu.nmiImmediate = true;
+              } else {
+                cpu.nmiPending = true;
+              }
+              cpu.nmiRaised = false;
+            }
             ppu.curX += cycles;
             cpu.ppuFrameEnded = false;
             break FRAMELOOP;
@@ -113,8 +125,12 @@ class NES {
         }
 
         const finalCurX = ppu.curX + cycles;
+        // Fast path: skip dot-by-dot loop when no per-dot events can occur.
+        // Must go dot-by-dot near VBlank set (scanline 0, dot 1), VBlank
+        // clear (scanline 20, dot 1), sprite 0 hit, or scanline boundaries.
         if (
-          !ppu.requestEndFrame &&
+          !(ppu.scanline === 0 && ppu.vblankPending && ppu.curX <= 1 && finalCurX > 1) &&
+          !(ppu.scanline === 20 && ppu.curX <= 1 && finalCurX > 1) &&
           finalCurX < 341 &&
           (ppu.spr0HitX < ppu.curX || ppu.spr0HitX >= finalCurX)
         ) {
@@ -123,6 +139,50 @@ class NES {
         }
 
         for (; cycles > 0; cycles--) {
+          // VBlank set at dot 1 of scanline 0 (NES scanline 241), gated on
+          // vblankPending to ensure a full frame has been processed first.
+          // See https://www.nesdev.org/wiki/PPU_frame_timing
+          if (ppu.scanline === 0 && ppu.curX === 1 && ppu.vblankPending) {
+            ppu.vblankPending = false;
+            if (!ppu.nmiSuppressed) {
+              ppu.setStatusFlag(ppu.STATUS_VBLANK, true);
+              ppu._updateNmiOutput();
+            }
+            ppu.nmiSuppressed = false;
+            // NMI delay depends on which PPU dot within the CPU cycle
+            // VBL fired at: >= 5 remaining dots means the edge propagates
+            // in time for the final-cycle poll (0-delay), <= 4 means it
+            // doesn't (1-delay). See cpu.js NMI comment.
+            if (cpu.nmiRaised) {
+              if (cycles >= 5) {
+                cpu.nmiImmediate = true;
+              } else {
+                cpu.nmiPending = true;
+              }
+              cpu.nmiRaised = false;
+            }
+            ppu.startVBlank();
+            // Preserve remaining PPU dots (same rationale as ppuFrameEnded
+            // path above — prevents losing the 1-dot-per-frame slip).
+            ppu.curX += cycles;
+            break FRAMELOOP;
+          }
+
+          // VBlank clear at dot 1 of scanline 20 (NES scanline 261, pre-render).
+          if (ppu.scanline === 20 && ppu.curX === 1) {
+            ppu.setStatusFlag(ppu.STATUS_VBLANK, false);
+            ppu.setStatusFlag(ppu.STATUS_SPRITE0HIT, false);
+            ppu.hitSpr0 = false;
+            ppu.spr0HitX = -1;
+            ppu.spr0HitY = -1;
+            ppu._updateNmiOutput();
+            // Promote falling edge cancellation immediately
+            if (cpu.nmiRaised) {
+              cpu.nmiPending = true;
+              cpu.nmiRaised = false;
+            }
+          }
+
           if (
             ppu.curX === ppu.spr0HitX &&
             ppu.f_spVisibility === 1 &&
@@ -130,18 +190,6 @@ class NES {
           ) {
             // Set sprite 0 hit flag:
             ppu.setStatusFlag(ppu.STATUS_SPRITE0HIT, true);
-          }
-
-          if (ppu.requestEndFrame) {
-            ppu.nmiCounter--;
-            if (ppu.nmiCounter === 0) {
-              ppu.requestEndFrame = false;
-              ppu.startVBlank();
-              // Preserve remaining PPU dots (same rationale as ppuFrameEnded
-              // path above — prevents losing the 1-dot-per-frame slip).
-              ppu.curX += cycles;
-              break FRAMELOOP;
-            }
           }
 
           ppu.curX++;

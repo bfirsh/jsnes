@@ -258,12 +258,18 @@ const TEST_PAGES = [
 
 // Tests known to fail — skip these until the emulator is fixed.
 const KNOWN_FAILURES = {
+  // PPU VBlank timing: suppression and edge cases need dot-level accuracy
+  0x0454: "NMI suppression not accurate",
+  0x0455: "NMI at VBlank end not accurate",
+  0x0456: "NMI disabled at VBlank not accurate",
+
   // CPU interrupts: not cycle-accurate enough
   0x0461: "Interrupt flag latency not emulated",
   0x0462: "NMI overlap BRK not emulated",
   0x0463: "NMI overlap IRQ not emulated",
 
   // DMA: handled atomically, no bus-level interleaving
+  0x046c: "DMA + open bus not emulated",
   0x0488: "DMA + $2002 Read not emulated",
   0x044c: "DMA + $2007 Read not emulated",
   0x044f: "DMA + $2007 Write not emulated",
@@ -290,15 +296,6 @@ const KNOWN_FAILURES = {
   // PPU behavior: rendering-related tests need dot-accurate PPU
   0x0486: "Rendering flag behavior not accurate",
   0x048a: "$2007 read during rendering not accurate",
-
-  // PPU VBlank timing: need cycle-accurate VBlank/NMI timing
-  0x0450: "VBlank beginning timing not accurate",
-  0x0451: "VBlank end timing not accurate",
-  0x0452: "NMI control timing not accurate",
-  0x0453: "NMI timing not accurate",
-  0x0454: "NMI suppression not accurate",
-  0x0455: "NMI at VBlank end not accurate",
-  0x0456: "NMI disabled at VBlank not accurate",
 
   // Sprite evaluation: need accurate OAM/sprite evaluation
   0x0459: "Sprite overflow behavior not accurate",

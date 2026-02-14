@@ -63,6 +63,31 @@ class CPU {
     this.irqRequested = false;
     this.irqType = null;
 
+    // NMI edge-detection pipeline matching real 6502 timing.
+    // When the PPU's NMI output transitions low→high, nmiRaised is set.
+    // The NMI delay depends on which PPU dot within the CPU cycle the edge
+    // occurs at: the edge detector samples at φ2 (end of cycle), and the
+    // internal signal goes high during φ1 of the NEXT cycle. The signal must
+    // be high by the instruction's final cycle for NMI to fire after it.
+    //
+    // In practice, this means:
+    // - VBL edge with >= 5 remaining PPU dots in the instruction: the edge
+    //   is detected early enough → NMI fires after this instruction (0-delay).
+    //   The frame loop sets nmiImmediate, and the next emulate() fires NMI
+    //   without executing an instruction first.
+    // - VBL edge with <= 4 remaining dots: the edge is in the last cycle →
+    //   NMI fires after the NEXT instruction (1-delay). The frame loop sets
+    //   nmiPending, giving standard pipeline behavior.
+    // - $2000 write enabling NMI while VBL is active: the write always
+    //   happens on the last bus cycle, so nmiRaised→nmiPending promotion
+    //   at the start of the next emulate() gives correct 1-delay.
+    //
+    // See https://www.nesdev.org/wiki/NMI and
+    // https://www.nesdev.org/wiki/CPU_interrupts
+    this.nmiRaised = false; // Set by _updateNmiOutput() on rising edge
+    this.nmiPending = false; // NMI fires at end of this emulate() call
+    this.nmiImmediate = false; // NMI fires at START of next emulate() (0-delay)
+
     // Tracks the last value on the CPU data bus. When reading from unmapped
     // addresses ("open bus"), the NES returns this value. Updated on every
     // read, write, push, pull, and interrupt vector fetch.
@@ -84,6 +109,39 @@ class CPU {
 
   // Emulates a single CPU instruction, returns the number of cycles
   emulate() {
+    // 0-delay NMI: when VBL edge was detected early enough in the previous
+    // instruction (>= 5 PPU dots remaining), the NMI signal propagates in
+    // time for the final-cycle poll. On real hardware, the NMI sequence
+    // begins instead of the next opcode fetch. Fire NMI without executing
+    // an instruction. See https://www.nesdev.org/wiki/CPU_interrupts
+    if (this.nmiImmediate) {
+      this.nmiImmediate = false;
+      this.nmiPending = false;
+      this.nmiRaised = false;
+      this.instrBusCycles = 0;
+      this.ppuCatchupDots = 0;
+      this.ppuFrameEnded = false;
+      this.apuCatchupCycles = 0;
+
+      let temp =
+        this.F_CARRY |
+        ((this.F_ZERO === 0 ? 1 : 0) << 1) |
+        (this.F_INTERRUPT << 2) |
+        (this.F_DECIMAL << 3) |
+        (this.F_BRK << 4) |
+        (this.F_NOTUSED << 5) |
+        (this.F_OVERFLOW << 6) |
+        (this.F_SIGN << 7);
+
+      this.REG_PC_NEW = this.REG_PC;
+      this.F_INTERRUPT_NEW = this.F_INTERRUPT;
+      this.doNonMaskableInterrupt(temp & 0xef);
+      this.REG_PC = this.REG_PC_NEW;
+      this.F_INTERRUPT = this.F_INTERRUPT_NEW;
+      this.F_BRK = this.F_BRK_NEW;
+      return 7;
+    }
+
     let temp;
     let add;
     // High byte of the base address before index addition, used by
@@ -91,7 +149,26 @@ class CPU {
     // Set in addressing mode cases 8 (ABSX), 9 (ABSY), 11 (POSTIDXIND).
     let baseHigh = 0;
 
-    // Check interrupts:
+    // Track interrupt overhead cycles. NMI and IRQ each take 7 bus cycles
+    // (2 dummy reads + 3 pushes + 2 vector reads) that must be included
+    // in the returned cycle count so the frame loop advances the PPU
+    // correctly. See https://www.nesdev.org/wiki/CPU_interrupts
+    let interruptCycles = 0;
+
+    // Promote nmiRaised to nmiPending. This gives a 1-instruction delay
+    // between the NMI assertion (rising edge in _updateNmiOutput) and the
+    // NMI being serviced: the instruction that runs in this emulate() call
+    // executes first, then NMI fires at the end. On real hardware, the 6502
+    // detects NMI edges on the penultimate cycle of each instruction, so
+    // the earliest an NMI can fire is after the instruction following the
+    // one during which the edge occurred.
+    // See https://www.nesdev.org/wiki/CPU_interrupts
+    if (this.nmiRaised) {
+      this.nmiPending = true;
+      this.nmiRaised = false;
+    }
+
+    // Check IRQ/reset at the start of each instruction.
     if (this.irqRequested) {
       temp =
         this.F_CARRY |
@@ -109,23 +186,17 @@ class CPU {
         case 0: {
           // Normal IRQ:
           if (this.F_INTERRUPT !== 0) {
-            // console.log("Interrupt was masked.");
             break;
           }
           // Clear the B flag (bit 4) for hardware interrupts
           this.doIrq(temp & 0xef);
-          // console.log("Did normal IRQ. I="+this.F_INTERRUPT);
-          break;
-        }
-        case 1: {
-          // NMI:
-          // Clear the B flag (bit 4) for hardware interrupts
-          this.doNonMaskableInterrupt(temp & 0xef);
+          interruptCycles = 7;
           break;
         }
         case 2: {
           // Reset:
           this.doResetInterrupt();
+          interruptCycles = 7;
           break;
         }
       }
@@ -1520,7 +1591,35 @@ class CPU {
       }
     } // end of switch
 
-    return cycleCount;
+    // Fire NMI after the instruction completes. On real hardware, NMI is
+    // serviced between instructions: the instruction during which the edge
+    // was detected finishes, then the 7-cycle NMI sequence begins.
+    // nmiPending was promoted from nmiRaised at the start of this call,
+    // so the triggering edge occurred during the PREVIOUS instruction.
+    // See https://www.nesdev.org/wiki/CPU_interrupts
+    if (this.nmiPending) {
+      temp =
+        this.F_CARRY |
+        ((this.F_ZERO === 0 ? 1 : 0) << 1) |
+        (this.F_INTERRUPT << 2) |
+        (this.F_DECIMAL << 3) |
+        (this.F_BRK << 4) |
+        (this.F_NOTUSED << 5) |
+        (this.F_OVERFLOW << 6) |
+        (this.F_SIGN << 7);
+
+      this.REG_PC_NEW = this.REG_PC;
+      this.F_INTERRUPT_NEW = this.F_INTERRUPT;
+      // Clear the B flag (bit 4) for hardware interrupts
+      this.doNonMaskableInterrupt(temp & 0xef);
+      this.REG_PC = this.REG_PC_NEW;
+      this.F_INTERRUPT = this.F_INTERRUPT_NEW;
+      this.F_BRK = this.F_BRK_NEW;
+      this.nmiPending = false;
+      interruptCycles = 7;
+    }
+
+    return cycleCount + interruptCycles;
   }
 
   // Reads from cartridge ROM, applying any active Game Genie patches.
@@ -1773,8 +1872,9 @@ class CPU {
     return 1;
   }
 
-  // The logic mirrors the frame loop's dot-by-dot path (sprite 0 hit,
-  // scanline boundaries, NMI countdown). If VBlank fires mid-instruction,
+  // Advances the PPU dot-by-dot to match the current instruction's bus cycle
+  // position. Mirrors the frame loop's dot-level checks for VBlank set/clear,
+  // sprite 0 hit, and scanline boundaries. If VBlank fires mid-instruction,
   // we set ppuFrameEnded so the frame loop knows to break.
   //
   // See https://www.nesdev.org/wiki/Catch-up
@@ -1782,6 +1882,32 @@ class CPU {
     let ppu = this.nes.ppu;
     let targetDots = this.instrBusCycles * 3;
     while (this.ppuCatchupDots < targetDots) {
+      // VBlank set at dot 1 of scanline 0 (NES scanline 241), gated on
+      // vblankPending to ensure a full frame has been processed first.
+      // See https://www.nesdev.org/wiki/PPU_frame_timing
+      if (ppu.scanline === 0 && ppu.curX === 1 && ppu.vblankPending) {
+        ppu.vblankPending = false;
+        if (!ppu.nmiSuppressed) {
+          ppu.setStatusFlag(ppu.STATUS_VBLANK, true);
+          ppu._updateNmiOutput();
+        }
+        ppu.nmiSuppressed = false;
+        ppu.startVBlank();
+        this.ppuFrameEnded = true;
+        this.ppuCatchupDots++;
+        return;
+      }
+
+      // VBlank clear at dot 1 of scanline 20 (NES scanline 261, pre-render).
+      if (ppu.scanline === 20 && ppu.curX === 1) {
+        ppu.setStatusFlag(ppu.STATUS_VBLANK, false);
+        ppu.setStatusFlag(ppu.STATUS_SPRITE0HIT, false);
+        ppu.hitSpr0 = false;
+        ppu.spr0HitX = -1;
+        ppu.spr0HitY = -1;
+        ppu._updateNmiOutput();
+      }
+
       if (
         ppu.curX === ppu.spr0HitX &&
         ppu.f_spVisibility === 1 &&
@@ -1790,23 +1916,39 @@ class CPU {
         ppu.setStatusFlag(ppu.STATUS_SPRITE0HIT, true);
       }
 
-      if (ppu.requestEndFrame) {
-        ppu.nmiCounter--;
-        if (ppu.nmiCounter === 0) {
-          ppu.requestEndFrame = false;
-          ppu.startVBlank();
-          this.ppuFrameEnded = true;
-          this.ppuCatchupDots++;
-          return;
-        }
-      }
-
       ppu.curX++;
       if (ppu.curX === 341) {
         ppu.curX = 0;
         ppu.endScanline();
       }
       this.ppuCatchupDots++;
+    }
+
+    // Post-loop VBlank check: if curX advanced to 1 (via curX++) in the
+    // last iteration but the loop exited before the VBlank check could
+    // fire (because ppuCatchupDots reached targetDots), fire VBlank now.
+    // On real hardware, VBL is set at the START of dot 1, before any CPU
+    // reads at that dot. Without this, $2002 reads at dot 1 would see
+    // stale VBL=false. See https://www.nesdev.org/wiki/PPU_frame_timing
+    if (ppu.scanline === 0 && ppu.curX === 1 && ppu.vblankPending) {
+      ppu.vblankPending = false;
+      if (!ppu.nmiSuppressed) {
+        ppu.setStatusFlag(ppu.STATUS_VBLANK, true);
+        ppu._updateNmiOutput();
+      }
+      ppu.nmiSuppressed = false;
+      ppu.startVBlank();
+      this.ppuFrameEnded = true;
+    }
+
+    // Post-loop VBlank clear: same issue at dot 1 of scanline 20.
+    if (ppu.scanline === 20 && ppu.curX === 1) {
+      ppu.setStatusFlag(ppu.STATUS_VBLANK, false);
+      ppu.setStatusFlag(ppu.STATUS_SPRITE0HIT, false);
+      ppu.hitSpr0 = false;
+      ppu.spr0HitX = -1;
+      ppu.spr0HitY = -1;
+      ppu._updateNmiOutput();
     }
   }
 
@@ -1902,6 +2044,9 @@ class CPU {
     "cyclesToHalt",
     "irqRequested",
     "irqType",
+    "nmiRaised",
+    "nmiPending",
+    "nmiImmediate",
     // Registers
     "REG_ACC",
     "REG_X",

@@ -39,11 +39,17 @@ class PPU {
     this.sramAddress = 0; // 8-bit only.
 
     this.currentMirroring = -1;
-    this.requestEndFrame = false;
-    this.nmiOk = false;
+    // NMI edge detection state. On real hardware, /NMI is level-sensitive but
+    // the PPU only asserts it on a rising edge: when (vblankFlag AND nmiEnabled)
+    // transitions from false to true. See https://www.nesdev.org/wiki/NMI
+    this.nmiOutput = false; // Current NMI output level
+    this.nmiSuppressed = false; // Suppresses VBlank set when $2002 read at dot 0
+    // Set by endScanline(261) to indicate that a full frame has been rendered
+    // and VBlank should fire at dot 1 of scanline 0. Prevents premature VBlank
+    // on the first frame when the PPU starts at scanline 0.
+    this.vblankPending = false;
     this.dummyCycleToggle = false;
     this.validTileData = false;
-    this.nmiCounter = 0;
     this.scanlineAlreadyRendered = null;
 
     // Control Flags Register 1:
@@ -230,10 +236,9 @@ class PPU {
   }
 
   startVBlank() {
-    // Do NMI only if VBlank NMI is enabled (bit 7 of $2000):
-    if (this.f_nmiOnVblank !== 0) {
-      this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NMI);
-    }
+    // NMI is now handled by _updateNmiOutput() edge detection — the VBlank
+    // flag is set at dot 1 of scanline 0 in the frame/catch-up loops, which
+    // call _updateNmiOutput() to fire NMI on the rising edge.
 
     // PPU open bus latch decay: on real hardware each bit decays to 0
     // after ~600ms (~36 frames). We use a simple per-latch frame counter.
@@ -273,14 +278,9 @@ class PPU {
         break;
 
       case 20:
-        // Clear VBlank flag:
-        this.setStatusFlag(this.STATUS_VBLANK, false);
-
-        // Clear Sprite #0 hit flag:
-        this.setStatusFlag(this.STATUS_SPRITE0HIT, false);
-        this.hitSpr0 = false;
-        this.spr0HitX = -1;
-        this.spr0HitY = -1;
+        // Pre-render scanline (NES scanline 261). VBlank and sprite 0 hit
+        // flags are cleared at dot 1, handled by the frame loop and catch-up
+        // loop for cycle-accurate timing.
 
         if (this.f_bgVisibility === 1 || this.f_spVisibility === 1) {
           // Update counters:
@@ -308,11 +308,10 @@ class PPU {
         break;
 
       case 261:
-        // Dead scanline, no rendering.
-        // Set VINT:
-        this.setStatusFlag(this.STATUS_VBLANK, true);
-        this.requestEndFrame = true;
-        this.nmiCounter = 9;
+        // Post-render scanline (NES scanline 240), no rendering.
+        // VBlank flag is set at dot 1 of the NEXT scanline (scanline 0 / NES 241)
+        // by the frame loop and catch-up loop, gated on vblankPending.
+        this.vblankPending = true;
 
         // Wrap around:
         this.scanline = -1; // will be incremented to 0
@@ -496,6 +495,34 @@ class PPU {
     this.regV = (value >> 1) & 1;
     this.regH = value & 1;
     this.regS = (value >> 4) & 1;
+
+    // Writing $2000 can toggle NMI enable while VBlank is active. If NMI is
+    // enabled during VBlank, a rising edge fires NMI. If disabled, a pending
+    // NMI is cancelled. See https://www.nesdev.org/wiki/NMI
+    this._updateNmiOutput();
+  }
+
+  // Recomputes the NMI output level from (vblankFlag AND nmiEnabled).
+  // On a false→true transition (rising edge), sets nmiPending on the CPU.
+  // On a true→false transition (falling edge), cancels any pending NMI.
+  // This is the core NMI edge-detection mechanism matching real hardware.
+  // See https://www.nesdev.org/wiki/NMI
+  _updateNmiOutput() {
+    let vblank = (this.nes.cpu.mem[0x2002] & 0x80) !== 0;
+    let newOutput = this.f_nmiOnVblank !== 0 && vblank;
+    if (newOutput && !this.nmiOutput) {
+      // Rising edge: set nmiRaised. The CPU promotes this to nmiPending
+      // at the start of the next emulate() call, giving the 1-instruction
+      // delay that matches real 6502 NMI detection timing. The instruction
+      // following the trigger always executes before NMI is serviced.
+      // See https://www.nesdev.org/wiki/NMI
+      this.nes.cpu.nmiRaised = true;
+    } else if (!newOutput && this.nmiOutput) {
+      // Falling edge: cancel any raised or pending NMI
+      this.nes.cpu.nmiRaised = false;
+      this.nes.cpu.nmiPending = false;
+    }
+    this.nmiOutput = newOutput;
   }
 
   updateControlReg2(value) {
@@ -528,8 +555,28 @@ class PPU {
     // Reset scroll & VRAM Address toggle:
     this.firstWrite = true;
 
+    // NMI suppression: reading $2002 one PPU dot BEFORE VBlank is set
+    // (curX=0 of scanline 0 / NES scanline 241) causes the VBL flag to
+    // never be set for this frame, suppressing both the flag and NMI.
+    // The read itself correctly returns VBL=0 (it hasn't been set yet).
+    //
+    // At curX=1 (the exact VBL set dot), the post-loop check in
+    // _ppuCatchUp() already fired VBlank, so VBL=1 here. The read sees
+    // VBL=1, clears the flag, and _updateNmiOutput() below cancels NMI
+    // (the flag was held for less than 1 CPU cycle). This matches Mesen's
+    // behavior where VBL reads as SET at the simultaneous dot.
+    //
+    // See https://www.nesdev.org/wiki/PPU_frame_timing
+    if (this.scanline === 0 && this.curX === 0) {
+      this.nmiSuppressed = true;
+    }
+
     // Clear VBlank flag:
     this.setStatusFlag(this.STATUS_VBLANK, false);
+
+    // Clearing VBlank may cause a falling edge on NMI output, cancelling
+    // any pending NMI.
+    this._updateNmiOutput();
 
     // Only bits 7-5 come from the status register; bits 4-0 are open bus.
     tmp = (tmp & 0xe0) | (this.openBusLatch & 0x1f);
@@ -1381,13 +1428,6 @@ class PPU {
     }
   }
 
-  doNMI() {
-    // Set VBlank flag:
-    this.setStatusFlag(this.STATUS_VBLANK, true);
-    //nes.getCpu().doNonMaskableInterrupt();
-    this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NMI);
-  }
-
   isPixelWhite(x, y) {
     this.triggerRendering();
     return this.nes.ppu.buffer[(y << 8) + x] === 0xffffff;
@@ -1491,10 +1531,10 @@ class PPU {
     "bgbuffer",
     "pixrendered",
     // Misc
-    "requestEndFrame",
-    "nmiOk",
+    "nmiOutput",
+    "nmiSuppressed",
+    "vblankPending",
     "dummyCycleToggle",
-    "nmiCounter",
     "validTileData",
     "scanlineAlreadyRendered",
   ];
