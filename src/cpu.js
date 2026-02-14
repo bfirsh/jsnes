@@ -169,12 +169,12 @@ class CPU {
       case 0: {
         // Zero Page mode. Use the address given after the opcode,
         // but without high byte.
-        addr = this.load(opaddr + 2);
+        addr = this.loadDirect(opaddr + 2);
         break;
       }
       case 1: {
         // Relative mode.
-        addr = this.load(opaddr + 2);
+        addr = this.loadDirect(opaddr + 2);
         if (addr < 0x80) {
           addr += this.REG_PC;
         } else {
@@ -189,7 +189,7 @@ class CPU {
         // Note: opaddr is REG_PC which is one less than the actual instruction
         // address (opcode is at opaddr+1), so the dummy read targets opaddr+2.
         // See https://www.nesdev.org/wiki/CPU_addressing_modes
-        this.load(opaddr + 2);
+        this.loadDirect(opaddr + 2);
         break;
       }
       case 3: {
@@ -203,7 +203,7 @@ class CPU {
         // Like implied mode, the 6502 performs a dummy read of the byte at PC
         // during its second cycle (opaddr+2, see case 2 comment).
         // See https://www.nesdev.org/wiki/CPU_addressing_modes
-        this.load(opaddr + 2);
+        this.loadDirect(opaddr + 2);
         addr = this.REG_ACC;
         break;
       }
@@ -218,15 +218,15 @@ class CPU {
         // The 6502 reads from the unindexed zero-page address while adding X.
         // This "dummy read" is a real bus cycle that can trigger I/O side effects.
         // See https://www.nesdev.org/wiki/CPU_addressing_modes
-        let zpBase6 = this.load(opaddr + 2);
-        this.load(zpBase6); // dummy read from unindexed zero-page address
+        let zpBase6 = this.loadDirect(opaddr + 2);
+        this.loadDirect(zpBase6); // dummy read from unindexed zero-page address
         addr = (zpBase6 + this.REG_X) & 0xff;
         break;
       }
       case 7: {
         // Zero Page Indexed mode, Y as index. Same dummy read behavior as case 6.
-        let zpBase7 = this.load(opaddr + 2);
-        this.load(zpBase7); // dummy read from unindexed zero-page address
+        let zpBase7 = this.loadDirect(opaddr + 2);
+        this.loadDirect(zpBase7); // dummy read from unindexed zero-page address
         addr = (zpBase7 + this.REG_Y) & 0xff;
         break;
       }
@@ -262,17 +262,21 @@ class CPU {
         // Pre-indexed Indirect mode, (d,X). Read pointer from zero page,
         // add X, then read the 16-bit effective address. Wraps within zero page.
         // Dummy read from the unindexed pointer address while adding X.
-        let zpPtr10 = this.load(opaddr + 2);
-        this.load(zpPtr10); // dummy read: 6502 reads from ptr before adding X
+        let zpPtr10 = this.loadDirect(opaddr + 2);
+        this.loadDirect(zpPtr10); // dummy read: 6502 reads from ptr before adding X
         let zpAddr10 = (zpPtr10 + this.REG_X) & 0xff;
-        addr = this.load(zpAddr10) | (this.load((zpAddr10 + 1) & 0xff) << 8);
+        addr =
+          this.loadDirect(zpAddr10) |
+          (this.loadDirect((zpAddr10 + 1) & 0xff) << 8);
         break;
       }
       case 11: {
         // Post-indexed Indirect mode, (d),Y. Read 16-bit base address from
         // zero page, then add Y. Page-crossing dummy read as in case 8.
-        let zpAddr = this.load(opaddr + 2);
-        addr = this.load(zpAddr) | (this.load((zpAddr + 1) & 0xff) << 8);
+        let zpAddr = this.loadDirect(opaddr + 2);
+        addr =
+          this.loadDirect(zpAddr) |
+          (this.loadDirect((zpAddr + 1) & 0xff) << 8);
         baseHigh = (addr >> 8) & 0xff;
         if ((addr & 0xff00) !== ((addr + this.REG_Y) & 0xff00)) {
           this.load((addr & 0xff00) | ((addr + this.REG_Y) & 0xff));
@@ -702,7 +706,7 @@ class CPU {
         // last cycle (after the pushes), updating the data bus. This matters
         // for open bus behavior when JSR targets unmapped addresses.
         // See https://www.nesdev.org/wiki/Open_bus_behavior
-        this.dataBus = this.load(opaddr + 3);
+        this.loadDirect(opaddr + 3);
         this.REG_PC = addr - 1;
         break;
       }
@@ -1555,27 +1559,51 @@ class CPU {
   }
 
   // Each load() call represents one CPU bus read cycle.
+  // Structured with the most common paths first: RAM reads ($0000-$1FFF)
+  // and cartridge/PRG reads ($4000+) skip the PPU/APU catch-up checks
+  // entirely. Only PPU register reads ($2000-$3FFF) trigger catch-up.
   load(addr) {
-    // Catch up PPU before reading PPU registers so the read sees
-    // up-to-date VBlank/sprite-0 flags. See _ppuCatchUp().
-    if (addr >= 0x2000 && addr < 0x4000) {
+    if (addr < 0x2000) {
+      // RAM (zero page, stack, general): most common path
+      this.dataBus = this.mem[addr & 0x7ff];
+    } else if (addr >= 0x4000) {
+      // Cartridge ROM/RAM, APU, expansion ($4000+)
+      if (addr === 0x4015) {
+        // Catch up APU frame counter before reading $4015 so the read sees
+        // up-to-date length counter status and IRQ flags.
+        this._apuCatchUp();
+        // $4015 reads are internal to the 2A03 — the APU status value does
+        // not drive the external data bus. Return the status directly without
+        // updating dataBus, so open bus reads after $4015 still see the
+        // previous bus value. See https://www.nesdev.org/wiki/Open_bus_behavior
+        let apuStatus = this.loadFromCartridge(addr);
+        this.instrBusCycles++;
+        return apuStatus;
+      }
+      this.dataBus = this.loadFromCartridge(addr);
+    } else {
+      // PPU registers ($2000-$3FFF): catch up PPU so the read sees
+      // up-to-date VBlank/sprite-0 flags. See _ppuCatchUp().
       this._ppuCatchUp();
+      this.dataBus = this.loadFromCartridge(addr);
     }
-    // Catch up APU frame counter before reading $4015 so the read sees
-    // up-to-date length counter status and IRQ flags.
-    if (addr === 0x4015) {
-      this._apuCatchUp();
-    }
+    this.instrBusCycles++;
+    return this.dataBus;
+  }
+
+  // Fast load for addresses guaranteed to be outside the PPU register range
+  // ($2000-$3FFF) and APU status register ($4015). Skips the catch-up checks
+  // that load() performs, but still updates dataBus (open bus behavior) and
+  // instrBusCycles (PPU catch-up accounting for later PPU register accesses).
+  //
+  // Safe for:
+  //   - Zero-page reads ($00-$FF): always internal RAM
+  //   - Program-space operand reads (opaddr+2/+3): always PRG ROM ($8000+)
+  //
+  // NOT safe for arbitrary effective addresses that could be PPU/APU I/O.
+  loadDirect(addr) {
     if (addr < 0x2000) {
       this.dataBus = this.mem[addr & 0x7ff];
-    } else if (addr === 0x4015) {
-      // $4015 reads are internal to the 2A03 — the APU status value does
-      // not drive the external data bus. Return the status directly without
-      // updating dataBus, so open bus reads after $4015 still see the
-      // previous bus value. See https://www.nesdev.org/wiki/Open_bus_behavior
-      let apuStatus = this.loadFromCartridge(addr);
-      this.instrBusCycles++;
-      return apuStatus;
     } else {
       this.dataBus = this.loadFromCartridge(addr);
     }
@@ -1629,9 +1657,10 @@ class CPU {
 
   push(value) {
     this.dataBus = value;
-    this.nes.mmap.write(this.REG_SP | 0x100, value);
+    // Stack is always $0100-$01FF (internal RAM), so write directly to mem[]
+    // instead of going through the mapper.
+    this.mem[this.REG_SP | 0x100] = value;
     this.REG_SP--;
-    // this.REG_SP = 0x0100 | (this.REG_SP & 0xff);
     this.REG_SP = this.REG_SP & 0xff;
     this.instrBusCycles++;
   }
@@ -1639,7 +1668,8 @@ class CPU {
   pull() {
     this.REG_SP++;
     this.REG_SP = this.REG_SP & 0xff;
-    this.dataBus = this.nes.mmap.load(0x100 | this.REG_SP);
+    // Stack is always $0100-$01FF (internal RAM), so read directly from mem[].
+    this.dataBus = this.mem[0x100 | this.REG_SP];
     this.instrBusCycles++;
     return this.dataBus;
   }
