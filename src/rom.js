@@ -64,12 +64,31 @@ class ROM {
   load(data) {
     let i, j, v;
 
-    if (!data.startsWith("NES\x1a")) {
-      throw new Error("Not a valid NES ROM.");
+    // Accept Uint8Array, ArrayBuffer, Buffer, or binary string.
+    if (data instanceof ArrayBuffer) {
+      data = new Uint8Array(data);
     }
+    const isTypedArray = ArrayBuffer.isView(data);
+
+    if (isTypedArray) {
+      if (
+        data.length < 4 ||
+        data[0] !== 0x4e ||
+        data[1] !== 0x45 ||
+        data[2] !== 0x53 ||
+        data[3] !== 0x1a
+      ) {
+        throw new Error("Not a valid NES ROM.");
+      }
+    } else {
+      if (!data.startsWith("NES\x1a")) {
+        throw new Error("Not a valid NES ROM.");
+      }
+    }
+
     this.header = new Uint8Array(16);
     for (i = 0; i < 16; i++) {
-      this.header[i] = data.charCodeAt(i) & 0xff;
+      this.header[i] = isTypedArray ? data[i] : data.charCodeAt(i) & 0xff;
     }
     this.romCount = this.header[4];
     this.vromCount = this.header[5] * 2; // Get the number of 4kB banks, not 8kB
@@ -101,7 +120,9 @@ class ROM {
         if (offset + j >= data.length) {
           break;
         }
-        this.rom[i][j] = data.charCodeAt(offset + j) & 0xff;
+        this.rom[i][j] = isTypedArray
+          ? data[offset + j]
+          : data.charCodeAt(offset + j) & 0xff;
       }
       offset += 16384;
     }
@@ -113,7 +134,9 @@ class ROM {
         if (offset + j >= data.length) {
           break;
         }
-        this.vrom[i][j] = data.charCodeAt(offset + j) & 0xff;
+        this.vrom[i][j] = isTypedArray
+          ? data[offset + j]
+          : data.charCodeAt(offset + j) & 0xff;
       }
       offset += 4096;
     }

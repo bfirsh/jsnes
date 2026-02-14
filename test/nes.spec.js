@@ -36,11 +36,47 @@ describe("NES", function() {
     }
   });
 
+  it("loads a ROM from a Uint8Array and runs a frame", function() {
+    let onFrame = mock.fn();
+    let nes = new NES({ onFrame: onFrame });
+    let data = fs.readFileSync("roms/croom/croom.nes");
+    nes.loadROM(new Uint8Array(data));
+    nes.frame();
+    assert.strictEqual(onFrame.mock.callCount(), 1);
+    assert.ok(onFrame.mock.calls[0].arguments[0] instanceof Uint32Array);
+    assert.strictEqual(onFrame.mock.calls[0].arguments[0].length, 256 * 240);
+  });
+
+  it("produces the same frame buffer from Uint8Array and string", function() {
+    let stringFrames = [];
+    let nes1 = new NES({ onFrame: (buf) => stringFrames.push(buf.slice()) });
+    let data = fs.readFileSync("roms/croom/croom.nes");
+    nes1.loadROM(data.toString("binary"));
+    for (let i = 0; i < 6; i++) nes1.frame();
+
+    let uint8Frames = [];
+    let nes2 = new NES({ onFrame: (buf) => uint8Frames.push(buf.slice()) });
+    nes2.loadROM(new Uint8Array(data));
+    for (let i = 0; i < 6; i++) nes2.frame();
+
+    assert.strictEqual(stringFrames.length, uint8Frames.length);
+    for (let i = 0; i < stringFrames.length; i++) {
+      assert.deepStrictEqual(stringFrames[i], uint8Frames[i]);
+    }
+  });
+
   describe("#loadROM()", function() {
-    it("throws an error given an invalid ROM", function() {
+    it("throws an error given an invalid ROM string", function() {
       let nes = new NES();
       assert.throws(function() {
         nes.loadROM("foo");
+      }, { message: "Not a valid NES ROM." });
+    });
+
+    it("throws an error given an invalid ROM Uint8Array", function() {
+      let nes = new NES();
+      assert.throws(function() {
+        nes.loadROM(new Uint8Array([0x66, 0x6f, 0x6f]));
       }, { message: "Not a valid NES ROM." });
     });
   });
