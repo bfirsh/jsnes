@@ -8,6 +8,8 @@ import Mapper0 from "./mapper0.js";
  * Super Mario Bros. + Duck Hunt
  */
 class Mapper66 extends Mapper0 {
+  static mapperName = "GxROM";
+
   constructor(nes) {
     super(nes);
   }

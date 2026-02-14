@@ -7,6 +7,8 @@ import Mapper0 from "./mapper0.js";
  * @description http://wiki.nesdev.com/w/index.php/INES_Mapper_003
  */
 class Mapper3 extends Mapper0 {
+  static mapperName = "CNROM";
+
   constructor(nes) {
     super(nes);
   }

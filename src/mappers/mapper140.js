@@ -7,6 +7,8 @@ import Mapper0 from "./mapper0.js";
  * @example Bio Senshi Dan - Increaser Tono Tatakai
  */
 class Mapper140 extends Mapper0 {
+  static mapperName = "Jaleco JF-11/JF-14";
+
   constructor(nes) {
     super(nes);
   }

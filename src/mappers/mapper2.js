@@ -1,6 +1,8 @@
 import Mapper0 from "./mapper0.js";
 
 class Mapper2 extends Mapper0 {
+  static mapperName = "UxROM";
+
   constructor(nes) {
     super(nes);
   }

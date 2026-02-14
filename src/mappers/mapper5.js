@@ -7,6 +7,8 @@ import Mapper0 from "./mapper0.js";
  * @description http://wiki.nesdev.com/w/index.php/INES_Mapper_005
  */
 class Mapper5 extends Mapper0 {
+  static mapperName = "MMC5";
+
   constructor(nes) {
     super(nes);
   }

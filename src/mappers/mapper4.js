@@ -1,6 +1,7 @@
 import Mapper0 from "./mapper0.js";
 
 class Mapper4 extends Mapper0 {
+  static mapperName = "MMC3";
   static CMD_SEL_2_1K_VROM_0000 = 0;
   static CMD_SEL_2_1K_VROM_0800 = 1;
   static CMD_SEL_1K_VROM_1000 = 2;

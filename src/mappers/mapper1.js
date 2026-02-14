@@ -1,6 +1,8 @@
 import Mapper0 from "./mapper0.js";
 
 class Mapper1 extends Mapper0 {
+  static mapperName = "MMC1";
+
   constructor(nes) {
     super(nes);
 

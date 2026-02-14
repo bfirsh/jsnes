@@ -1,6 +1,8 @@
 import { copyArrayElements } from "../utils.js";
 
 class Mapper0 {
+  static mapperName = "NROM";
+
   constructor(nes) {
     this.nes = nes;
 

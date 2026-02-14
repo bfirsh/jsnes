@@ -7,6 +7,8 @@ import Mapper0 from "./mapper0.js";
  * @example Crystal Mines, Metal Fighter
  */
 class Mapper11 extends Mapper0 {
+  static mapperName = "Color Dreams";
+
   constructor(nes) {
     super(nes);
   }

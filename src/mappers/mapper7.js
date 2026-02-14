@@ -6,6 +6,8 @@ import Mapper0 from "./mapper0.js";
  * @description http://wiki.nesdev.com/w/index.php/INES_Mapper_007
  */
 class Mapper7 extends Mapper0 {
+  static mapperName = "AxROM";
+
   constructor(nes) {
     super(nes);
   }

@@ -8,6 +8,8 @@ import Mapper0 from "./mapper0.js";
  * https://blog.heheda.top
  */
 class Mapper240 extends Mapper0 {
+  static mapperName = "Mapper 240";
+
   constructor(nes) {
     super(nes);
   }

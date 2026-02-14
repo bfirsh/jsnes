@@ -7,6 +7,8 @@ import Mapper0 from "./mapper0.js";
  * @example Crazy Climber
  */
 class Mapper180 extends Mapper0 {
+  static mapperName = "UNROM (Crazy Climber)";
+
   constructor(nes) {
     super(nes);
   }

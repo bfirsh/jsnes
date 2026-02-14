@@ -7,6 +7,8 @@ import Mapper0 from "./mapper0.js";
  * @example Darkseed, Mashou, Mission Impossible 2
  */
 class Mapper34 extends Mapper0 {
+  static mapperName = "BNROM";
+
   constructor(nes) {
     super(nes);
   }

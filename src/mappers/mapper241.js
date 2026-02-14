@@ -7,6 +7,8 @@ import Mapper0 from "./mapper0.js";
  * https://blog.heheda.top
  */
 class Mapper241 extends Mapper0 {
+  static mapperName = "BxROM (Mapper 241)";
+
   constructor(nes) {
     super(nes);
   }

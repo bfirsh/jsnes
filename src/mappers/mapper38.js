@@ -7,6 +7,8 @@ import Mapper0 from "./mapper0.js";
  * @example Crime Busters
  */
 class Mapper38 extends Mapper0 {
+  static mapperName = "PCI556";
+
   constructor(nes) {
     super(nes);
   }

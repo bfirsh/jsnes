@@ -7,6 +7,8 @@ import Mapper0 from "./mapper0.js";
  * @example Senjou no Ookami
  */
 class Mapper94 extends Mapper0 {
+  static mapperName = "UN1ROM";
+
   constructor(nes) {
     super(nes);
   }
