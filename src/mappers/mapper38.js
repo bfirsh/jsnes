@@ -1,11 +1,10 @@
 import Mapper0 from "./mapper0.js";
 
-/**
- * Mapper 038
- *
- * @description http://wiki.nesdev.com/w/index.php/INES_Mapper_038
- * @example Crime Busters
- */
+// PCI556 (UNL-PCI556) - Bit Corp
+// Used by Crime Busters.
+// Nearly identical to GxROM (mapper 66) but the register is at $7000-$7FFF.
+// Bits 0-1 select 32 KB PRG bank, bits 2-3 select 8 KB CHR bank.
+// See https://www.nesdev.org/wiki/INES_Mapper_038
 class Mapper38 extends Mapper0 {
   static mapperName = "PCI556";
 

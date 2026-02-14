@@ -1,11 +1,12 @@
 import Mapper0 from "./mapper0.js";
 
-/**
- * Mapper005 (MMC5,ExROM)
- *
- * @example Castlevania 3, Just Breed, Uncharted Waters, Romance of the 3 Kingdoms 2, Laser Invasion, Metal Slader Glory, Uchuu Keibitai SDF, Shin 4 Nin Uchi Mahjong - Yakuman Tengoku
- * @description http://wiki.nesdev.com/w/index.php/INES_Mapper_005
- */
+// MMC5 / ExROM (EKROM, ELROM, ETROM, EWROM)
+// Used by games like Castlevania III, Just Breed, Uncharted Waters, Metal Slader Glory.
+// The most complex Nintendo mapper. Flexible PRG/CHR banking (up to 1 MB each),
+// expansion audio (2 pulse + PCM), 8x8 hardware multiplier, 1 KB ExRAM for extended
+// nametable attributes, vertical split screen, and scanline-counting IRQ.
+// NOTE: This implementation is incomplete (stub).
+// See https://www.nesdev.org/wiki/MMC5
 class Mapper5 extends Mapper0 {
   static mapperName = "MMC5";
 

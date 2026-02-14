@@ -1,5 +1,11 @@
 import Mapper0 from "./mapper0.js";
 
+// MMC1 / SxROM (SKROM, SLROM, SNROM, etc.)
+// Used by games like The Legend of Zelda, Metroid, Mega Man 2, Final Fantasy.
+// Writes use a 5-bit serial shift register (5 consecutive writes to load a value).
+// Provides switchable 16 KB PRG-ROM banks, 4 KB or 8 KB CHR banks,
+// and software-controlled nametable mirroring.
+// See https://www.nesdev.org/wiki/MMC1
 class Mapper1 extends Mapper0 {
   static mapperName = "MMC1";
 

@@ -1,11 +1,10 @@
 import Mapper0 from "./mapper0.js";
 
-/**
- * Mapper 011 (Color Dreams)
- *
- * @description http://wiki.nesdev.com/w/index.php/Color_Dreams
- * @example Crystal Mines, Metal Fighter
- */
+// Color Dreams (unlicensed discrete mapper)
+// Used by games like Bible Adventures, Crystal Mines, Chiller, Metal Fighter.
+// Single register at $8000-$FFFF: bits 0-1 select 32 KB PRG bank,
+// bits 4-7 select 8 KB CHR bank.
+// See https://www.nesdev.org/wiki/Color_Dreams
 class Mapper11 extends Mapper0 {
   static mapperName = "Color Dreams";
 

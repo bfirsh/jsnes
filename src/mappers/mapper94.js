@@ -1,11 +1,10 @@
 import Mapper0 from "./mapper0.js";
 
-/**
- * Mapper 094 (UN1ROM)
- *
- * @description http://wiki.nesdev.com/w/index.php/INES_Mapper_094
- * @example Senjou no Ookami
- */
+// UN1ROM (HVC-UN1ROM)
+// Used by Senjou no Ookami (Commando).
+// UxROM variant where the bank number is in bits 2-4 instead of bits 0-2.
+// 16 KB switchable PRG-ROM at $8000, last 16 KB bank fixed at $C000.
+// See https://www.nesdev.org/wiki/INES_Mapper_094
 class Mapper94 extends Mapper0 {
   static mapperName = "UN1ROM";
 

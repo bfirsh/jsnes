@@ -1,11 +1,11 @@
 import Mapper0 from "./mapper0.js";
 
-/**
- * Mapper 140
- *
- * @description http://wiki.nesdev.com/w/index.php/INES_Mapper_140
- * @example Bio Senshi Dan - Increaser Tono Tatakai
- */
+// Jaleco JF-11 / JF-14
+// Used by Bio Senshi Dan - Increaser Tono Tatakai.
+// Similar to GxROM (mapper 66) but register is at $6000-$7FFF instead of $8000+,
+// which means it cannot coexist with SRAM. Bits 4-5 select 32 KB PRG bank,
+// bits 0-3 select 8 KB CHR bank.
+// See https://www.nesdev.org/wiki/INES_Mapper_140
 class Mapper140 extends Mapper0 {
   static mapperName = "Jaleco JF-11/JF-14";
 

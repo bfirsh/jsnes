@@ -1,11 +1,10 @@
 import Mapper0 from "./mapper0.js";
 
-/**
- * Mapper 241 (BNROM, NINA-01)
- *
- * @description http://wiki.nesdev.com/w/index.php/INES_Mapper_241
- * https://blog.heheda.top
- */
+// BxROM variant (Hengge Technology)
+// Used by various Hengge Technology titles and educational cartridges.
+// BxROM-like 32 KB PRG bank switching via writes to $8000-$FFFF,
+// with optional battery-backed WRAM at $6000-$7FFF.
+// See https://www.nesdev.org/wiki/INES_Mapper_241
 class Mapper241 extends Mapper0 {
   static mapperName = "BxROM (Mapper 241)";
 

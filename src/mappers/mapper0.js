@@ -1,5 +1,9 @@
 import { copyArrayElements } from "../utils.js";
 
+// NROM - the simplest NES cartridge board (NES-NROM-128/NROM-256)
+// Used by games like Super Mario Bros., Donkey Kong, Excitebike.
+// No bank switching at all: 16 or 32 KB PRG-ROM, 8 KB CHR-ROM, fixed mirroring.
+// See https://www.nesdev.org/wiki/NROM
 class Mapper0 {
   static mapperName = "NROM";
 

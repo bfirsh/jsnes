@@ -1,12 +1,10 @@
 import Mapper0 from "./mapper0.js";
 
-/**
- * Mapper 066 (GxROM)
- *
- * @description http://wiki.nesdev.com/w/index.php/INES_Mapper_066
- * @example Doraemon, Dragon Power, Gumshoe, Thunder & Lightning,
- * Super Mario Bros. + Duck Hunt
- */
+// GxROM (NES-GNROM, NES-MHROM)
+// Used by games like Doraemon, Dragon Power, Gumshoe, Super Mario Bros. + Duck Hunt.
+// Discrete mapper with 32 KB PRG and 8 KB CHR bank switching via a single register
+// at $8000-$FFFF. Bits 4-5 select PRG bank, bits 0-1 select CHR bank.
+// See https://www.nesdev.org/wiki/GxROM
 class Mapper66 extends Mapper0 {
   static mapperName = "GxROM";
 

@@ -1,10 +1,10 @@
 import Mapper0 from "./mapper0.js";
 
-/**
- * Mapper007 (AxROM)
- * @example Battletoads, Time Lord, Marble Madness
- * @description http://wiki.nesdev.com/w/index.php/INES_Mapper_007
- */
+// AxROM (NES-AMROM, NES-ANROM, NES-AOROM)
+// Used by games like Battletoads, Marble Madness, Wizards & Warriors.
+// 32 KB switchable PRG-ROM bank (bits 0-2) with single-screen nametable mirroring
+// select (bit 4). Uses CHR-RAM, no CHR bank switching.
+// See https://www.nesdev.org/wiki/AxROM
 class Mapper7 extends Mapper0 {
   static mapperName = "AxROM";
 

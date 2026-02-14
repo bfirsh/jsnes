@@ -1,5 +1,11 @@
 import Mapper0 from "./mapper0.js";
 
+// MMC3 / TxROM (TSROM, TLSROM, TQROM, etc.)
+// Used by games like Super Mario Bros. 2, Super Mario Bros. 3, Kirby's Adventure.
+// Fine-grained bank switching: two 8 KB switchable PRG-ROM banks, two 2 KB + four
+// 1 KB CHR banks. Provides a scanline-counting IRQ for split-screen effects and
+// software-switchable H/V nametable mirroring.
+// See https://www.nesdev.org/wiki/MMC3
 class Mapper4 extends Mapper0 {
   static mapperName = "MMC3";
   static CMD_SEL_2_1K_VROM_0000 = 0;

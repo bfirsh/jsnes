@@ -1,11 +1,11 @@
 import Mapper0 from "./mapper0.js";
 
-/**
- * Mapper 034 (BNROM, NINA-01)
- *
- * @description http://wiki.nesdev.com/w/index.php/INES_Mapper_034
- * @example Darkseed, Mashou, Mission Impossible 2
- */
+// BNROM (NES-BNROM)
+// Used by games like Deadly Towers (Mashou), Darkseed.
+// Simple 32 KB PRG-ROM bank switching via writes to $8000-$FFFF.
+// No CHR bank switching (uses CHR-RAM or fixed CHR-ROM).
+// Note: iNES mapper 34 also covers NINA-001; this implementation handles BNROM only.
+// See https://www.nesdev.org/wiki/INES_Mapper_034
 class Mapper34 extends Mapper0 {
   static mapperName = "BNROM";
 

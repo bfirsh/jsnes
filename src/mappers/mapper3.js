@@ -1,11 +1,9 @@
 import Mapper0 from "./mapper0.js";
 
-/**
- * Mapper 003 (CNROM)
- *
- * @example Solomon's Key, Arkanoid, Arkista's Ring, Bump 'n' Jump, Cybernoid
- * @description http://wiki.nesdev.com/w/index.php/INES_Mapper_003
- */
+// CNROM
+// Used by games like Solomon's Key, Arkanoid, Arkista's Ring, Bump 'n' Jump.
+// Fixed PRG-ROM (up to 32 KB), with switchable 8 KB CHR-ROM banks.
+// See https://www.nesdev.org/wiki/INES_Mapper_003
 class Mapper3 extends Mapper0 {
   static mapperName = "CNROM";
 

@@ -1,5 +1,10 @@
 import Mapper0 from "./mapper0.js";
 
+// UxROM (NES-UNROM, NES-UOROM)
+// Used by games like Mega Man, Castlevania, Contra, Duck Tales, Metal Gear.
+// 16 KB switchable PRG-ROM bank at $8000, last 16 KB bank fixed at $C000.
+// Uses CHR-RAM (no CHR-ROM bank switching).
+// See https://www.nesdev.org/wiki/UxROM
 class Mapper2 extends Mapper0 {
   static mapperName = "UxROM";
 

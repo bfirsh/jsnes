@@ -1,11 +1,11 @@
 import Mapper0 from "./mapper0.js";
 
-/**
- * Mapper 180
- *
- * @description http://wiki.nesdev.com/w/index.php/INES_Mapper_180
- * @example Crazy Climber
- */
+// UNROM (AND-logic variant, HVC-UNROM)
+// Used by Crazy Climber.
+// Inverted UxROM: first 16 KB bank fixed at $8000, switchable bank at $C000.
+// Standard UxROM fixes the last bank; this variant uses AND logic instead of OR logic
+// on the bank select lines, producing the opposite fixed-bank behavior.
+// See https://www.nesdev.org/wiki/INES_Mapper_180
 class Mapper180 extends Mapper0 {
   static mapperName = "UNROM (Crazy Climber)";
 
