@@ -478,6 +478,14 @@ class Mapper0 {
     );
   }
 
+  // Returns true if the PPU can write to the given pattern table address.
+  // Most mappers only allow writes when there's no CHR ROM (pure CHR RAM).
+  // Mappers with mixed CHR ROM/RAM (e.g. TQROM) override this.
+  // eslint-disable-next-line no-unused-vars
+  canWriteChr(address) {
+    return this.nes.rom.vromCount === 0;
+  }
+
   clockIrqCounter() {
     // Does nothing. This is used by the MMC3 mapper.
   }

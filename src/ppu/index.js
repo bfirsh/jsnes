@@ -735,9 +735,11 @@ class PPU {
       // Mirroring is used.
       this.mirroredWrite(this.vramAddress, value);
     } else {
-      // Pattern table ($0000-$1FFF): only writable if CHR RAM (no CHR ROM).
-      // Cartridges with CHR ROM (vromCount > 0) ignore writes to this range.
-      if (this.nes.rom.vromCount === 0) {
+      // Pattern table ($0000-$1FFF): writable if CHR RAM is mapped here.
+      // The mapper decides — most mappers allow writes only when there's no
+      // CHR ROM at all, but some (e.g. TQROM/mapper 119) have both CHR ROM
+      // and CHR RAM and allow writes to CHR RAM-mapped regions.
+      if (this.nes.mmap.canWriteChr(this.vramAddress)) {
         this.writeMem(this.vramAddress, value);
       }
 
