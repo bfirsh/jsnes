@@ -28,9 +28,34 @@ export default class Speakers {
     this.scriptNode = this.audioCtx.createScriptProcessor(1024, 0, 2);
     this.scriptNode.onaudioprocess = this.onaudioprocess;
     this.scriptNode.connect(this.audioCtx.destination);
+
+    // Chrome and other browsers require a user gesture before AudioContext can
+    // start. If suspended, resume on the first user interaction.
+    // See https://github.com/bfirsh/jsnes/issues/368
+    if (this.audioCtx.state === "suspended") {
+      this._resumeOnInteraction = () => {
+        if (this.audioCtx) {
+          this.audioCtx.resume();
+        }
+        this._removeResumeListeners();
+      };
+      document.addEventListener("keydown", this._resumeOnInteraction);
+      document.addEventListener("mousedown", this._resumeOnInteraction);
+      document.addEventListener("touchstart", this._resumeOnInteraction);
+    }
+  }
+
+  _removeResumeListeners() {
+    if (this._resumeOnInteraction) {
+      document.removeEventListener("keydown", this._resumeOnInteraction);
+      document.removeEventListener("mousedown", this._resumeOnInteraction);
+      document.removeEventListener("touchstart", this._resumeOnInteraction);
+      this._resumeOnInteraction = null;
+    }
   }
 
   stop() {
+    this._removeResumeListeners();
     if (this.scriptNode) {
       this.scriptNode.disconnect(this.audioCtx.destination);
       this.scriptNode.onaudioprocess = null;

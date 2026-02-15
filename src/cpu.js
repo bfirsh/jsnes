@@ -346,8 +346,7 @@ class CPU {
         // zero page, then add Y. Page-crossing dummy read as in case 8.
         let zpAddr = this.loadDirect(opaddr + 2);
         addr =
-          this.loadDirect(zpAddr) |
-          (this.loadDirect((zpAddr + 1) & 0xff) << 8);
+          this.loadDirect(zpAddr) | (this.loadDirect((zpAddr + 1) & 0xff) << 8);
         baseHigh = (addr >> 8) & 0xff;
         if ((addr & 0xff00) !== ((addr + this.REG_Y) & 0xff00)) {
           this.load((addr & 0xff00) | ((addr + this.REG_Y) & 0xff));

@@ -129,7 +129,12 @@ class NES {
         // Must go dot-by-dot near VBlank set (scanline 0, dot 1), VBlank
         // clear (scanline 20, dot 1), sprite 0 hit, or scanline boundaries.
         if (
-          !(ppu.scanline === 0 && ppu.vblankPending && ppu.curX <= 1 && finalCurX > 1) &&
+          !(
+            ppu.scanline === 0 &&
+            ppu.vblankPending &&
+            ppu.curX <= 1 &&
+            finalCurX > 1
+          ) &&
           !(ppu.scanline === 20 && ppu.curX <= 1 && finalCurX > 1) &&
           finalCurX < 341 &&
           (ppu.spr0HitX < ppu.curX || ppu.spr0HitX >= finalCurX)
