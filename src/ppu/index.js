@@ -48,6 +48,8 @@ class PPU {
     // and VBlank should fire at dot 1 of scanline 0. Prevents premature VBlank
     // on the first frame when the PPU starts at scanline 0.
     this.vblankPending = false;
+    // Set by step() when VBlank fires, signals frame loop to break.
+    this.frameEnded = false;
     this.dummyCycleToggle = false;
     this.validTileData = false;
     this.scanlineAlreadyRendered = null;
@@ -262,6 +264,121 @@ class PPU {
 
     // Reset scanline counter:
     this.lastRenderedScanline = -1;
+  }
+
+  // Advance the PPU by the given number of dots. Called after every CPU bus
+  // cycle with dots=3 (PPU runs at 3x CPU clock). Handles all per-dot events:
+  // VBlank set/clear, sprite 0 hit, and scanline boundaries.
+  //
+  // Sets this.frameEnded = true when VBlank fires (scanline 0, dot 1),
+  // signaling the frame loop to break after the current instruction.
+  step(dots) {
+    let finalCurX = this.curX + dots;
+
+    // Fast path: skip dot-by-dot when no per-dot events can fire.
+    // This handles ~99% of calls since VBlank, sprite 0, and scanline
+    // boundaries are rare relative to total dots per frame.
+    if (
+      finalCurX < 341 &&
+      !(
+        this.scanline === 0 &&
+        this.vblankPending &&
+        this.curX <= 1 &&
+        finalCurX >= 1
+      ) &&
+      !(this.scanline === 20 && this.curX <= 1 && finalCurX >= 1) &&
+      (this.spr0HitX < this.curX || this.spr0HitX >= finalCurX)
+    ) {
+      this.curX = finalCurX;
+      return;
+    }
+
+    // Slow path: advance dot-by-dot checking for events.
+    let cpu = this.nes.cpu;
+    for (let i = 0; i < dots; i++) {
+      // VBlank set at dot 1 of scanline 0 (NES scanline 241).
+      if (this.scanline === 0 && this.curX === 1 && this.vblankPending) {
+        this.vblankPending = false;
+        if (!this.nmiSuppressed) {
+          this.setStatusFlag(this.STATUS_VBLANK, true);
+          this._updateNmiOutput();
+          // Record sub-dot position for NMI delay calculation.
+          // dots - i counts remaining dots including the VBlank dot.
+          if (cpu.nmiRaised) {
+            cpu.nmiDotsRemainingInStep = dots - i;
+          }
+        }
+        this.nmiSuppressed = false;
+        this.startVBlank();
+        this.frameEnded = true;
+        this.curX++;
+        continue;
+      }
+
+      // VBlank clear at dot 1 of scanline 20 (NES scanline 261, pre-render).
+      if (this.scanline === 20 && this.curX === 1) {
+        this.setStatusFlag(this.STATUS_VBLANK, false);
+        this.setStatusFlag(this.STATUS_SPRITE0HIT, false);
+        this.hitSpr0 = false;
+        this.spr0HitX = -1;
+        this.spr0HitY = -1;
+        this._updateNmiOutput();
+        // Promote falling edge cancellation immediately.
+        if (cpu.nmiRaised) {
+          cpu.nmiPending = true;
+          cpu.nmiRaised = false;
+        }
+      }
+
+      // Sprite 0 hit check.
+      if (
+        this.curX === this.spr0HitX &&
+        this.f_spVisibility === 1 &&
+        this.scanline - 21 === this.spr0HitY
+      ) {
+        this.setStatusFlag(this.STATUS_SPRITE0HIT, true);
+      }
+
+      this.curX++;
+      if (this.curX === 341) {
+        this.curX = 0;
+        this.endScanline();
+      }
+    }
+
+    // Post-loop boundary checks: if curX landed on a VBlank or VBlank-clear
+    // dot after the loop exhausted all dots, fire the event now. This handles
+    // the case where the last iteration incremented curX to 1 but the loop
+    // exited before the VBlank check could run at the START of the next
+    // iteration. On real hardware, VBL is set at the START of dot 1, so
+    // reads at that dot must see the updated state.
+    // See https://www.nesdev.org/wiki/PPU_frame_timing
+    if (this.scanline === 0 && this.curX === 1 && this.vblankPending) {
+      this.vblankPending = false;
+      if (!this.nmiSuppressed) {
+        this.setStatusFlag(this.STATUS_VBLANK, true);
+        this._updateNmiOutput();
+        if (cpu.nmiRaised) {
+          // VBlank fires at the boundary — 0 remaining dots in this step.
+          cpu.nmiDotsRemainingInStep = 0;
+        }
+      }
+      this.nmiSuppressed = false;
+      this.startVBlank();
+      this.frameEnded = true;
+    }
+    if (this.scanline === 20 && this.curX === 1) {
+      this.setStatusFlag(this.STATUS_VBLANK, false);
+      this.setStatusFlag(this.STATUS_SPRITE0HIT, false);
+      this.hitSpr0 = false;
+      this.spr0HitX = -1;
+      this.spr0HitY = -1;
+      this._updateNmiOutput();
+      if (cpu.nmiRaised) {
+        cpu.nmiPending = true;
+        cpu.nmiRaised = false;
+      }
+    }
   }
 
   endScanline() {
@@ -511,12 +628,12 @@ class PPU {
     let vblank = (this.nes.cpu.mem[0x2002] & 0x80) !== 0;
     let newOutput = this.f_nmiOnVblank !== 0 && vblank;
     if (newOutput && !this.nmiOutput) {
-      // Rising edge: set nmiRaised. The CPU promotes this to nmiPending
-      // at the start of the next emulate() call, giving the 1-instruction
-      // delay that matches real 6502 NMI detection timing. The instruction
-      // following the trigger always executes before NMI is serviced.
+      // Rising edge: set nmiRaised. At the end of the current instruction,
+      // the CPU checks how many bus cycles remained after this edge to
+      // determine 0-delay (immediate) vs 1-delay NMI.
       // See https://www.nesdev.org/wiki/NMI
       this.nes.cpu.nmiRaised = true;
+      this.nes.cpu.nmiRaisedAtCycle = this.nes.cpu.instrBusCycles;
     } else if (!newOutput && this.nmiOutput) {
       // Falling edge: cancel any raised or pending NMI
       this.nes.cpu.nmiRaised = false;

@@ -269,7 +269,6 @@ const KNOWN_FAILURES = {
   0x0463: "NMI overlap IRQ not emulated",
 
   // DMA: handled atomically, no bus-level interleaving
-  0x046c: "DMA + open bus not emulated",
   0x0488: "DMA + $2002 Read not emulated",
   0x044c: "DMA + $2007 Read not emulated",
   0x044f: "DMA + $2007 Write not emulated",
@@ -279,11 +278,6 @@ const KNOWN_FAILURES = {
   0x0477: "DMC DMA + OAM DMA not emulated",
   0x0479: "Explicit DMA abort not emulated",
   0x0478: "Implicit DMA abort not emulated",
-
-  // SHY: subtest 7 fails due to accumulated instruction timing inaccuracies
-  // (the emulator's cycle counts aren't perfect — see 0x0460). The branch
-  // page-crossing fix shifted timing by ~41 cycles, exposing this sensitivity.
-  0x0449: "SHY timing-sensitive subtest not accurate",
 
   // Controller: partial fix, subtest 4 still fails
   0x045f: "Controller strobing not fully accurate",

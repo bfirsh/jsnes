@@ -94,17 +94,21 @@ class CPU {
     // See https://www.nesdev.org/wiki/Open_bus_behavior
     this.dataBus = 0;
 
-    // PPU catch-up state: On real hardware, the CPU and PPU advance in
-    // lockstep (3 PPU dots per CPU cycle). This emulator runs CPU
-    // instructions atomically and then advances the PPU, so mid-instruction
-    // PPU register accesses would see stale state without catch-up.
-    // Before any PPU register read/write ($2000-$3FFF), we advance the PPU
-    // by the number of bus cycles elapsed so far in the current instruction.
-    // See _ppuCatchUp() and https://www.nesdev.org/wiki/Catch-up
-    this.instrBusCycles = 0; // bus cycles completed in current instruction
-    this.ppuCatchupDots = 0; // PPU dots already advanced mid-instruction
-    this.ppuFrameEnded = false; // set if VBlank/NMI fired during catch-up
-    this.apuCatchupCycles = 0; // APU frame counter cycles already advanced
+    // Bus cycles completed in the current instruction. Incremented by every
+    // load/write/push/pull call. Used by SHx instructions to detect DMC DMA
+    // bus hijacking mid-instruction.
+    this.instrBusCycles = 0;
+    // APU frame counter cycles already advanced mid-instruction (for $4015
+    // catch-up). Reset at start of each instruction.
+    this.apuCatchupCycles = 0;
+    // Records which bus cycle nmiRaised was set during, for 0-delay vs
+    // 1-delay NMI determination at end of instruction.
+    this.nmiRaisedAtCycle = 0;
+    // Sub-dot precision: remaining dots (including the VBlank dot) within
+    // the ppu.step() call that raised NMI. Used together with
+    // nmiRaisedAtCycle to compute remaining PPU dots for the >= 5
+    // threshold check (matching the old frame loop behavior).
+    this.nmiDotsRemainingInStep = 0;
   }
 
   // Emulates a single CPU instruction, returns the number of cycles
@@ -119,9 +123,6 @@ class CPU {
       this.nmiPending = false;
       this.nmiRaised = false;
       this.instrBusCycles = 0;
-      this.ppuCatchupDots = 0;
-      this.ppuFrameEnded = false;
-      this.apuCatchupCycles = 0;
 
       let temp =
         this.F_CARRY |
@@ -209,13 +210,10 @@ class CPU {
 
     if (this.nes.mmap === null) return 32;
 
-    // Reset PPU catch-up counters. Each bus operation (load/write/push/pull)
-    // increments instrBusCycles; the frame loop subtracts ppuCatchupDots
-    // from the total PPU dots to advance after the instruction completes.
+    // Reset bus cycle and APU catch-up counters for this instruction.
     this.instrBusCycles = 0;
-    this.ppuCatchupDots = 0;
-    this.ppuFrameEnded = false;
     this.apuCatchupCycles = 0;
+    this.nmiDotsRemainingInStep = 0;
 
     // Snapshot how many CPU cycles until the next DMC DMA fetch. Used by
     // SHx instructions to detect bus hijacking mid-instruction.
@@ -223,7 +221,8 @@ class CPU {
 
     let opcode = this.loadFromCartridge(this.REG_PC + 1);
     this.dataBus = opcode;
-    this.instrBusCycles = 1; // opcode fetch = 1 bus cycle
+    this.instrBusCycles = 1;
+    this.nes.ppu.step(3);
     let opinf = this.opdata[opcode];
     let cycleCount = opinf >> 24;
     let cycleAdd = 0;
@@ -381,10 +380,11 @@ class CPU {
         // *******
 
         // Add with carry.
-        temp = this.REG_ACC + this.load(addr) + this.F_CARRY;
+        add = this.load(addr);
+        temp = this.REG_ACC + add + this.F_CARRY;
 
         if (
-          ((this.REG_ACC ^ this.load(addr)) & 0x80) === 0 &&
+          ((this.REG_ACC ^ add) & 0x80) === 0 &&
           ((this.REG_ACC ^ temp) & 0x80) !== 0
         ) {
           this.F_OVERFLOW = 1;
@@ -1023,12 +1023,13 @@ class CPU {
         // * SBC *
         // *******
 
-        temp = this.REG_ACC - this.load(addr) - (1 - this.F_CARRY);
+        add = this.load(addr);
+        temp = this.REG_ACC - add - (1 - this.F_CARRY);
         this.F_SIGN = (temp >> 7) & 1;
         this.F_ZERO = temp & 0xff;
         if (
           ((this.REG_ACC ^ temp) & 0x80) !== 0 &&
-          ((this.REG_ACC ^ this.load(addr)) & 0x80) !== 0
+          ((this.REG_ACC ^ add) & 0x80) !== 0
         ) {
           this.F_OVERFLOW = 1;
         } else {
@@ -1582,11 +1583,60 @@ class CPU {
       }
     } // end of switch
 
-    // Fire NMI after the instruction completes. On real hardware, NMI is
-    // serviced between instructions: the instruction during which the edge
-    // was detected finishes, then the 7-cycle NMI sequence begins.
-    // nmiPending was promoted from nmiRaised at the start of this call,
-    // so the triggering edge occurred during the PREVIOUS instruction.
+    // Step PPU for any internal cycles not covered by bus operations.
+    // Some instructions (RTS, RTI, PLA, PLP, JMP indirect) have CPU-internal
+    // cycles that don't perform bus reads/writes. Since the PPU is advanced
+    // inline (in load/write/push/pull), these internal cycles need explicit
+    // PPU stepping to maintain correct total dot count per instruction.
+    if (this.instrBusCycles < cycleCount) {
+      let missingDots = (cycleCount - this.instrBusCycles) * 3;
+      // Update instrBusCycles BEFORE stepping the PPU so that if VBlank
+      // fires during this step, nmiRaisedAtCycle correctly reflects the
+      // bus cycle these dots belong to. Without this, the NMI delay
+      // formula double-counts: (instrBusCycles - nmiRaisedAtCycle) * 3
+      // would treat these dots as "future steps" while
+      // nmiDotsRemainingInStep already counts remaining dots within them.
+      this.instrBusCycles = cycleCount;
+      this.nes.ppu.step(missingDots);
+    }
+
+    // NMI delay: when nmiRaised was set during this instruction (by inline
+    // PPU stepping triggering VBlank or by a $2000 write enabling NMI),
+    // determine 0-delay vs 1-delay based on remaining PPU dots.
+    //
+    // remainingDots counts PPU dots from the VBlank edge to the end of
+    // the instruction. It has two components:
+    // 1. Dots from subsequent bus cycles: (instrBusCycles - nmiRaisedAtCycle) * 3
+    // 2. Sub-step dots: nmiDotsRemainingInStep (ppu.step() records
+    //    dots - i, which includes the VBlank dot itself)
+    //
+    // >= 5 remaining dots means the edge propagates in time for the
+    // penultimate-cycle poll → 0-delay (nmiImmediate).
+    // < 5 remaining dots means 1-delay: leave nmiRaised set, it gets
+    // promoted to nmiPending at the start of the NEXT emulate() call.
+    //
+    // For $2000 writes that enable NMI during VBlank, nmiRaisedAtCycle
+    // equals instrBusCycles (last cycle) and nmiDotsRemainingInStep = 0,
+    // giving remainingDots = 0 → 1-delay (correct: write always on last
+    // bus cycle, NMI fires after next instruction).
+    //
+    // See https://www.nesdev.org/wiki/CPU_interrupts
+    if (this.nmiRaised) {
+      let remainingDots =
+        (this.instrBusCycles - this.nmiRaisedAtCycle) * 3 +
+        this.nmiDotsRemainingInStep;
+      if (remainingDots >= 5) {
+        // 0-delay: NMI fires before the next instruction.
+        this.nmiImmediate = true;
+        this.nmiRaised = false;
+      }
+      // else: 1-delay. nmiRaised stays set for promotion at start of
+      // next emulate(), giving standard 1-instruction delay.
+    }
+
+    // Fire NMI after the instruction completes. nmiPending comes from
+    // promotion of nmiRaised at the start of this emulate() call
+    // (edge occurred during the PREVIOUS instruction, 1-delay).
     // See https://www.nesdev.org/wiki/CPU_interrupts
     if (this.nmiPending) {
       temp =
@@ -1648,43 +1698,58 @@ class CPU {
     }
   }
 
-  // Each load() call represents one CPU bus read cycle.
-  // Structured with the most common paths first: RAM reads ($0000-$1FFF)
-  // and cartridge/PRG reads ($4000+) skip the PPU/APU catch-up checks
-  // entirely. Only PPU register reads ($2000-$3FFF) trigger catch-up.
+  // Each load() call represents one CPU bus read cycle. After the read,
+  // advances the PPU by 3 dots to keep it in sync. APU is clocked in bulk
+  // by the frame loop after each instruction.
+  //
+  // All reads (including PPU registers) use step-after: read first, then
+  // advance. This matches the old _ppuCatchUp() behavior where the PPU
+  // was advanced by instrBusCycles * 3 dots (completed cycles only, NOT
+  // including the current one) before the read. Since prior bus ops have
+  // already stepped the PPU, the read sees the same PPU state.
   load(addr) {
     if (addr < 0x2000) {
       // RAM (zero page, stack, general): most common path
       this.dataBus = this.mem[addr & 0x7ff];
+      this.instrBusCycles++;
+      this.nes.ppu.step(3);
     } else if (addr >= 0x4000) {
       // Cartridge ROM/RAM, APU, expansion ($4000+)
       if (addr === 0x4015) {
-        // Catch up APU frame counter before reading $4015 so the read sees
+        // APU catch-up: advance frame counter before $4015 read so it sees
         // up-to-date length counter status and IRQ flags.
-        this._apuCatchUp();
+        this.nes.papu.advanceFrameCounter(
+          this.instrBusCycles - this.apuCatchupCycles,
+        );
+        this.apuCatchupCycles = this.instrBusCycles;
         // $4015 reads are internal to the 2A03 — the APU status value does
         // not drive the external data bus. Return the status directly without
         // updating dataBus, so open bus reads after $4015 still see the
         // previous bus value. See https://www.nesdev.org/wiki/Open_bus_behavior
         let apuStatus = this.loadFromCartridge(addr);
         this.instrBusCycles++;
+        this.nes.ppu.step(3);
         return apuStatus;
       }
       this.dataBus = this.loadFromCartridge(addr);
+      this.instrBusCycles++;
+      this.nes.ppu.step(3);
     } else {
-      // PPU registers ($2000-$3FFF): catch up PPU so the read sees
-      // up-to-date VBlank/sprite-0 flags. See _ppuCatchUp().
-      this._ppuCatchUp();
+      // PPU registers ($2000-$3FFF): increment bus cycle counter first
+      // (for correct nmiRaisedAtCycle tracking), then read, then step PPU.
+      // The read sees PPU state after all prior bus cycles' dots have been
+      // stepped (but NOT the current cycle's dots), matching the old
+      // _ppuCatchUp() behavior.
+      this.instrBusCycles++;
       this.dataBus = this.loadFromCartridge(addr);
+      this.nes.ppu.step(3);
     }
-    this.instrBusCycles++;
     return this.dataBus;
   }
 
   // Fast load for addresses guaranteed to be outside the PPU register range
-  // ($2000-$3FFF) and APU status register ($4015). Skips the catch-up checks
-  // that load() performs, but still updates dataBus (open bus behavior) and
-  // instrBusCycles (PPU catch-up accounting for later PPU register accesses).
+  // ($2000-$3FFF) and APU status register ($4015). Still updates dataBus
+  // (open bus behavior) and advances PPU/APU inline.
   //
   // Safe for:
   //   - Zero-page reads ($00-$FF): always internal RAM
@@ -1698,32 +1763,59 @@ class CPU {
       this.dataBus = this.loadFromCartridge(addr);
     }
     this.instrBusCycles++;
+    this.nes.ppu.step(3);
     return this.dataBus;
   }
 
-  // Reads a 16-bit little-endian value from two consecutive addresses.
-  // Uses load() for each byte so the RAM/cartridge boundary at $2000
-  // is handled correctly even when the two bytes straddle it.
-  // (See https://github.com/bfirsh/jsnes/issues/285)
+  // Reads a 16-bit value as two separate bus operations with PPU/APU
+  // stepping between them, matching the real 6502's two-cycle read.
   load16bit(addr) {
-    var lo = this.load(addr);
-    return lo | (this.load(addr + 1) << 8);
+    let lo;
+    if (addr < 0x1fff) {
+      this.dataBus = this.mem[addr & 0x7ff];
+      lo = this.dataBus;
+      this.instrBusCycles++;
+      this.nes.ppu.step(3);
+      this.dataBus = this.mem[(addr + 1) & 0x7ff];
+      this.instrBusCycles++;
+      this.nes.ppu.step(3);
+      return lo | (this.dataBus << 8);
+    } else {
+      this.dataBus = this.loadFromCartridge(addr);
+      lo = this.dataBus;
+      this.instrBusCycles++;
+      this.nes.ppu.step(3);
+      this.dataBus = this.loadFromCartridge(addr + 1);
+      this.instrBusCycles++;
+      this.nes.ppu.step(3);
+      return lo | (this.dataBus << 8);
+    }
   }
 
-  // Each write() call represents one CPU bus write cycle.
+  // Each write() call represents one CPU bus write cycle. Write first,
+  // then advance PPU by 3 dots. For PPU register writes ($2000-$3FFF),
+  // the write takes effect with PPU state from prior cycles' dots (not
+  // including current cycle), matching the old _ppuCatchUp() behavior.
   write(addr, val) {
-    this.dataBus = val;
-    // Catch up PPU before writing PPU registers so the write takes
-    // effect at the correct PPU dot position. See _ppuCatchUp().
     if (addr >= 0x2000 && addr < 0x4000) {
-      this._ppuCatchUp();
-    }
-    if (addr < 0x2000) {
-      this.mem[addr & 0x7ff] = val;
-    } else {
+      // PPU register write: increment bus cycle counter first (so
+      // nmiRaisedAtCycle is correct if _updateNmiOutput fires during
+      // the write), then write, then step PPU. The write sees PPU state
+      // from prior cycles' dots, matching the old _ppuCatchUp() behavior.
+      this.instrBusCycles++;
+      this.dataBus = val;
       this.nes.mmap.write(addr, val);
+      this.nes.ppu.step(3);
+    } else {
+      this.dataBus = val;
+      if (addr < 0x2000) {
+        this.mem[addr & 0x7ff] = val;
+      } else {
+        this.nes.mmap.write(addr, val);
+      }
+      this.instrBusCycles++;
+      this.nes.ppu.step(3);
     }
-    this.instrBusCycles++;
   }
 
   requestIrq(type) {
@@ -1745,6 +1837,7 @@ class CPU {
     this.REG_SP--;
     this.REG_SP = this.REG_SP & 0xff;
     this.instrBusCycles++;
+    this.nes.ppu.step(3);
   }
 
   pull() {
@@ -1753,22 +1846,9 @@ class CPU {
     // Stack is always $0100-$01FF (internal RAM), so read directly from mem[].
     this.dataBus = this.mem[0x100 | this.REG_SP];
     this.instrBusCycles++;
+    this.nes.ppu.step(3);
     return this.dataBus;
   }
-
-  // Advance the PPU to match the current CPU cycle within the instruction.
-  //
-  // On real hardware, the PPU runs at 3x the CPU clock — for each CPU bus
-  // cycle, the PPU advances 3 dots. This emulator runs CPU instructions
-  // atomically and then advances the PPU in nes.js's frame loop, which is
-  // faster but means PPU register reads mid-instruction see stale state.
-  //
-  // This method is called from load()/write() before any PPU register
-  // access ($2000-$3FFF). It advances the PPU by (instrBusCycles * 3)
-  // dots — the number of PPU dots that SHOULD have elapsed based on how
-  // many bus operations the instruction has completed so far. The frame
-  // loop then subtracts ppuCatchupDots from the total to avoid double-
-  // counting.
 
   // --- DMC DMA bus hijacking ---
   //
@@ -1855,99 +1935,6 @@ class CPU {
     return 1;
   }
 
-  // Advances the PPU dot-by-dot to match the current instruction's bus cycle
-  // position. Mirrors the frame loop's dot-level checks for VBlank set/clear,
-  // sprite 0 hit, and scanline boundaries. If VBlank fires mid-instruction,
-  // we set ppuFrameEnded so the frame loop knows to break.
-  //
-  // See https://www.nesdev.org/wiki/Catch-up
-  _ppuCatchUp() {
-    let ppu = this.nes.ppu;
-    let targetDots = this.instrBusCycles * 3;
-    while (this.ppuCatchupDots < targetDots) {
-      // VBlank set at dot 1 of scanline 0 (NES scanline 241), gated on
-      // vblankPending to ensure a full frame has been processed first.
-      // See https://www.nesdev.org/wiki/PPU_frame_timing
-      if (ppu.scanline === 0 && ppu.curX === 1 && ppu.vblankPending) {
-        ppu.vblankPending = false;
-        if (!ppu.nmiSuppressed) {
-          ppu.setStatusFlag(ppu.STATUS_VBLANK, true);
-          ppu._updateNmiOutput();
-        }
-        ppu.nmiSuppressed = false;
-        ppu.startVBlank();
-        this.ppuFrameEnded = true;
-        this.ppuCatchupDots++;
-        return;
-      }
-
-      // VBlank clear at dot 1 of scanline 20 (NES scanline 261, pre-render).
-      if (ppu.scanline === 20 && ppu.curX === 1) {
-        ppu.setStatusFlag(ppu.STATUS_VBLANK, false);
-        ppu.setStatusFlag(ppu.STATUS_SPRITE0HIT, false);
-        ppu.hitSpr0 = false;
-        ppu.spr0HitX = -1;
-        ppu.spr0HitY = -1;
-        ppu._updateNmiOutput();
-      }
-
-      if (
-        ppu.curX === ppu.spr0HitX &&
-        ppu.f_spVisibility === 1 &&
-        ppu.scanline - 21 === ppu.spr0HitY
-      ) {
-        ppu.setStatusFlag(ppu.STATUS_SPRITE0HIT, true);
-      }
-
-      ppu.curX++;
-      if (ppu.curX === 341) {
-        ppu.curX = 0;
-        ppu.endScanline();
-      }
-      this.ppuCatchupDots++;
-    }
-
-    // Post-loop VBlank check: if curX advanced to 1 (via curX++) in the
-    // last iteration but the loop exited before the VBlank check could
-    // fire (because ppuCatchupDots reached targetDots), fire VBlank now.
-    // On real hardware, VBL is set at the START of dot 1, before any CPU
-    // reads at that dot. Without this, $2002 reads at dot 1 would see
-    // stale VBL=false. See https://www.nesdev.org/wiki/PPU_frame_timing
-    if (ppu.scanline === 0 && ppu.curX === 1 && ppu.vblankPending) {
-      ppu.vblankPending = false;
-      if (!ppu.nmiSuppressed) {
-        ppu.setStatusFlag(ppu.STATUS_VBLANK, true);
-        ppu._updateNmiOutput();
-      }
-      ppu.nmiSuppressed = false;
-      ppu.startVBlank();
-      this.ppuFrameEnded = true;
-    }
-
-    // Post-loop VBlank clear: same issue at dot 1 of scanline 20.
-    if (ppu.scanline === 20 && ppu.curX === 1) {
-      ppu.setStatusFlag(ppu.STATUS_VBLANK, false);
-      ppu.setStatusFlag(ppu.STATUS_SPRITE0HIT, false);
-      ppu.hitSpr0 = false;
-      ppu.spr0HitX = -1;
-      ppu.spr0HitY = -1;
-      ppu._updateNmiOutput();
-    }
-  }
-
-  // Advance the APU frame counter to match the current instruction's bus
-  // cycle position, so that $4015 reads see up-to-date length counter status
-  // and IRQ flags. Uses the lightweight advanceFrameCounter() which only
-  // fires frame counter steps (no DMC, channel timers, or audio sampling).
-  // See https://www.nesdev.org/wiki/Catch-up
-  _apuCatchUp() {
-    let targetCycles = this.instrBusCycles;
-    if (targetCycles > this.apuCatchupCycles) {
-      this.nes.papu.advanceFrameCounter(targetCycles - this.apuCatchupCycles);
-      this.apuCatchupCycles = targetCycles;
-    }
-  }
-
   pageCrossed(addr1, addr2) {
     return (addr1 & 0xff00) !== (addr2 & 0xff00);
   }
@@ -1957,8 +1944,21 @@ class CPU {
   }
 
   // Interrupt vector fetches update the data bus, just like normal reads.
+  // The 3 pushes go through push() which already steps the PPU.
+  // The 2 vector reads use loadFromCartridge() directly and need explicit
+  // PPU steps. APU is clocked in the frame loop with the returned cycle count.
   doNonMaskableInterrupt(status) {
     if (this.nes.mmap === null) return;
+
+    // Cycles 1-2: internal operations (dummy reads of PC on real hardware).
+    // These are real bus cycles that advance the PPU but the read values
+    // are discarded. We step the PPU without reading memory to avoid
+    // side effects on the data bus.
+    // See https://www.nesdev.org/wiki/CPU_interrupts
+    this.instrBusCycles++;
+    this.nes.ppu.step(3);
+    this.instrBusCycles++;
+    this.nes.ppu.step(3);
 
     this.REG_PC_NEW++;
     this.push((this.REG_PC_NEW >> 8) & 0xff);
@@ -1967,16 +1967,24 @@ class CPU {
     this.push(status);
 
     this.dataBus = this.loadFromCartridge(0xfffa);
+    this.instrBusCycles++;
+    this.nes.ppu.step(3);
     let lo = this.dataBus;
     this.dataBus = this.loadFromCartridge(0xfffb);
+    this.instrBusCycles++;
+    this.nes.ppu.step(3);
     this.REG_PC_NEW = lo | (this.dataBus << 8);
     this.REG_PC_NEW--;
   }
 
   doResetInterrupt() {
     this.dataBus = this.loadFromCartridge(0xfffc);
+    this.instrBusCycles++;
+    this.nes.ppu.step(3);
     let lo = this.dataBus;
     this.dataBus = this.loadFromCartridge(0xfffd);
+    this.instrBusCycles++;
+    this.nes.ppu.step(3);
     this.REG_PC_NEW = lo | (this.dataBus << 8);
     this.REG_PC_NEW--;
   }
@@ -1990,8 +1998,12 @@ class CPU {
     this.F_BRK_NEW = 0;
 
     this.dataBus = this.loadFromCartridge(0xfffe);
+    this.instrBusCycles++;
+    this.nes.ppu.step(3);
     let lo = this.dataBus;
     this.dataBus = this.loadFromCartridge(0xffff);
+    this.instrBusCycles++;
+    this.nes.ppu.step(3);
     this.REG_PC_NEW = lo | (this.dataBus << 8);
     this.REG_PC_NEW--;
   }

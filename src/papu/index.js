@@ -158,8 +158,6 @@ class PAPU {
       // respectively). Since the emulator clocks the full STA instruction's
       // cycles (4 for STA absolute) after writeReg, we compensate by starting
       // the counter negative so it reaches 0 at the true reset point.
-      // With APU catch-up, the $4015 read sees the frame counter state at
-      // instrBusCycles into the instruction, so the offset must be exact.
       // Offset -6: after STA $4017 (4 cycles) → -2, after 2-cycle stall → 0.
       // See https://www.nesdev.org/wiki/APU_Frame_Counter
       this.frameCycleCounter = -6;
@@ -199,15 +197,11 @@ class PAPU {
   }
 
   // Clocks all APU channel timers and the frame counter by nCycles CPU cycles.
+  // Called once per instruction from the frame loop with the total cycle count.
   // frameCounterAlreadyAdvanced is the number of frame counter cycles already
   // advanced mid-instruction by APU catch-up (advanceFrameCounter). This is
   // subtracted from the frame counter portion only, not from channel timers.
   clockFrameCounter(nCycles, frameCounterAlreadyAdvanced) {
-    // Save original cycle count for frame counter (not subject to sample
-    // rate capping). The extraCycles mechanism limits channel timer updates
-    // to avoid processing beyond the next audio sample point, but the frame
-    // counter must see the true cycle count for accurate step timing.
-    // Subtract any cycles already advanced by APU catch-up.
     let frameCounterCycles = nCycles - (frameCounterAlreadyAdvanced || 0);
 
     // Don't process channel ticks beyond next sampling:
@@ -353,7 +347,7 @@ class PAPU {
   // Advance only the frame counter steps without clocking channel timers,
   // DMC, or audio sampling. Used by CPU APU catch-up to update frame counter
   // state (length counters, envelopes) before $4015 reads, without disturbing
-  // DMC DMA timing or audio generation. See cpu._apuCatchUp().
+  // DMC DMA timing or audio generation.
   advanceFrameCounter(nCycles) {
     this.frameCycleCounter += nCycles;
     let steps = this.countSequence === 0 ? FRAME_STEPS_4 : FRAME_STEPS_5;
