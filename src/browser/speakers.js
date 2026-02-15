@@ -1,6 +1,12 @@
-import RingBuffer from "ringbufferjs";
-import { debug } from "./debug";
-import { handleError } from "./utils";
+import RingBuffer from "./ring-buffer.js";
+
+// Debug logging, enabled via localStorage.jsnes_debug = 1
+let debugEnabled = false;
+try {
+  debugEnabled = !!localStorage.getItem("jsnes_debug");
+} catch {
+  // localStorage not available
+}
 
 export default class Speakers {
   constructor({ onBufferUnderrun }) {
@@ -62,14 +68,14 @@ export default class Speakers {
       this.scriptNode = null;
     }
     if (this.audioCtx) {
-      this.audioCtx.close().catch(handleError);
+      this.audioCtx.close().catch((e) => console.error(e));
       this.audioCtx = null;
     }
   }
 
   writeSample = (left, right) => {
     if (this.buffer.size() / 2 >= this.bufferSize) {
-      debug("Buffer overrun");
+      if (debugEnabled) console.log("Buffer overrun");
       this.buffer.deqN(this.bufferSize / 2);
     }
     this.buffer.enq(left);
@@ -88,14 +94,14 @@ export default class Speakers {
 
     try {
       var samples = this.buffer.deqN(size * 2);
-    } catch (e) {
+    } catch {
       // onBufferUnderrun failed to fill the buffer, so handle a real buffer
       // underrun
 
       // ignore empty buffers... assume audio has just stopped
       var bufferSize = this.buffer.size() / 2;
-      if (bufferSize > 0) {
-        debug(`Buffer underrun (needed ${size}, got ${bufferSize})`);
+      if (bufferSize > 0 && debugEnabled) {
+        console.log(`Buffer underrun (needed ${size}, got ${bufferSize})`);
       }
       for (var j = 0; j < size; j++) {
         left[j] = 0;

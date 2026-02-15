@@ -1,4 +1,4 @@
-import { Controller } from "jsnes";
+import Controller from "../controller.js";
 
 // Mapping keyboard code to [controller, button]
 const KEYS = {

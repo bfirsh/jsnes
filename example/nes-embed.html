@@ -1,19 +1,39 @@
 <!DOCTYPE html>
-
 <html>
-	<head>
-		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-		<title>Embedding Example</title>
-		
-		<script type="text/javascript" src="https://unpkg.com/jsnes/dist/jsnes.min.js"></script>
-		<script type="text/javascript" src="nes-embed.js"></script>
-		<script>window.onload = function(){nes_load_url("nes-canvas", "InterglacticTransmissing.nes");}</script>
-	</head>
-	<body>
-        <button id="audio" style="display: none;">Click to enable audio</button>
-		<div style="margin: auto; width: 75%;">
-			<canvas id="nes-canvas" width="256" height="240" style="width: 100%"/>
-		</div>
-		<p>DPad: Arrow keys<br/>Start: Return, Select: Tab<br/>A Button: A, B Button: S</p>
-	</body>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Embedding Example</title>
+    <script
+      type="text/javascript"
+      src="https://unpkg.com/jsnes/dist/jsnes.min.js"
+    ></script>
+    <script>
+      window.onload = function () {
+        var container = document.getElementById("nes");
+        var browser = new jsnes.Browser(container, null, {
+          onError: function (e) {
+            console.error(e);
+          },
+        });
+        jsnes.Browser.loadROMFromURL(
+          "InterglacticTransmissing.nes",
+          function (err, data) {
+            if (err) {
+              console.error(err);
+              return;
+            }
+            browser.loadROM(data);
+          },
+        );
+      };
+    </script>
+  </head>
+  <body>
+    <div id="nes" style="margin: auto; width: 512px; height: 480px"></div>
+    <p>
+      DPad: Arrow keys<br />
+      Start: Enter, Select: Right Ctrl<br />
+      A: X, B: Z
+    </p>
+  </body>
 </html>
