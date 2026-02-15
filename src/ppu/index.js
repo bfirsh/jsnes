@@ -317,17 +317,24 @@ class PPU {
 
       // VBlank clear at dot 1 of scanline 20 (NES scanline 261, pre-render).
       if (this.scanline === 20 && this.curX === 1) {
+        // The 6502's NMI edge detector samples at φ2 (~2/3 through the bus
+        // cycle). If a $2000 write enabled NMI earlier in the same bus cycle
+        // (creating a rising edge), we must promote nmiRaised to nmiPending
+        // ONLY if φ2 has already sampled the rising edge — i.e., this VBL
+        // clear is on the last dot of the step. If there are dots remaining,
+        // φ2 hasn't sampled yet, so the falling edge from VBL clear should
+        // cancel the not-yet-latched rising edge.
+        // See https://www.nesdev.org/wiki/NMI
+        if (cpu.nmiRaised) {
+          cpu.nmiPending = true;
+          cpu.nmiRaised = false;
+        }
         this.setStatusFlag(this.STATUS_VBLANK, false);
         this.setStatusFlag(this.STATUS_SPRITE0HIT, false);
         this.hitSpr0 = false;
         this.spr0HitX = -1;
         this.spr0HitY = -1;
         this._updateNmiOutput();
-        // Promote falling edge cancellation immediately.
-        if (cpu.nmiRaised) {
-          cpu.nmiPending = true;
-          cpu.nmiRaised = false;
-        }
       }
 
       // Sprite 0 hit check.
@@ -368,16 +375,22 @@ class PPU {
       this.frameEnded = true;
     }
     if (this.scanline === 20 && this.curX === 1) {
+      // Promote nmiRaised to nmiPending BEFORE clearing VBL, matching the
+      // main loop's order. This handles the case where a $2000 write enabled
+      // NMI during the same bus cycle: the rising edge was set before step()
+      // ran, and on real hardware the φ2 edge detector would have latched it.
+      // Clearing VBL first would trigger a falling edge that cancels nmiRaised
+      // before promotion can commit it.
+      if (cpu.nmiRaised) {
+        cpu.nmiPending = true;
+        cpu.nmiRaised = false;
+      }
       this.setStatusFlag(this.STATUS_VBLANK, false);
       this.setStatusFlag(this.STATUS_SPRITE0HIT, false);
       this.hitSpr0 = false;
       this.spr0HitX = -1;
       this.spr0HitY = -1;
       this._updateNmiOutput();
-      if (cpu.nmiRaised) {
-        cpu.nmiPending = true;
-        cpu.nmiRaised = false;
-      }
     }
   }
 
@@ -620,9 +633,29 @@ class PPU {
   }
 
   // Recomputes the NMI output level from (vblankFlag AND nmiEnabled).
-  // On a false→true transition (rising edge), sets nmiPending on the CPU.
-  // On a true→false transition (falling edge), cancels any pending NMI.
-  // This is the core NMI edge-detection mechanism matching real hardware.
+  // On a false→true transition (rising edge), sets nmiRaised on the CPU.
+  // On a true→false transition (falling edge), may cancel a not-yet-latched
+  // NMI edge.
+  //
+  // On real 6502 hardware, the NMI edge detector samples the /NMI line at
+  // φ2 of each CPU cycle. Once a falling edge is detected (line goes low),
+  // the internal NMI signal is latched and held until the NMI handler
+  // begins executing — even if /NMI goes back high on the very next cycle.
+  //
+  // The edge detector needs the NMI output to be stably asserted before φ2
+  // to latch. Two cases where the edge is NOT latched:
+  //
+  // 1. Same bus cycle: NMI output went high→low within one bus cycle.
+  //    The edge detector never saw a stable assertion at φ2.
+  //
+  // 2. Post-loop boundary: NMI output went high at the very end of a
+  //    step() call (post-loop check, nmiDotsRemainingInStep=0), right at
+  //    the φ2 boundary. If the NEXT bus cycle immediately causes a falling
+  //    edge (e.g., $2002 read clearing VBL) BEFORE its step() runs, the
+  //    edge detector at the next φ2 sees the line deasserted. This models
+  //    the PPU→CPU propagation delay for NMI output changes right at φ2.
+  //
+  // nmiPending (promoted from a previous instruction) is never cleared.
   // See https://www.nesdev.org/wiki/NMI
   _updateNmiOutput() {
     let vblank = (this.nes.cpu.mem[0x2002] & 0x80) !== 0;
@@ -631,13 +664,23 @@ class PPU {
       // Rising edge: set nmiRaised. At the end of the current instruction,
       // the CPU checks how many bus cycles remained after this edge to
       // determine 0-delay (immediate) vs 1-delay NMI.
-      // See https://www.nesdev.org/wiki/NMI
       this.nes.cpu.nmiRaised = true;
       this.nes.cpu.nmiRaisedAtCycle = this.nes.cpu.instrBusCycles;
     } else if (!newOutput && this.nmiOutput) {
-      // Falling edge: cancel any raised or pending NMI
-      this.nes.cpu.nmiRaised = false;
-      this.nes.cpu.nmiPending = false;
+      // Falling edge: cancel nmiRaised only if it hasn't been latched yet.
+      if (this.nes.cpu.nmiRaised) {
+        let busCycleDiff =
+          this.nes.cpu.instrBusCycles - this.nes.cpu.nmiRaisedAtCycle;
+        if (
+          busCycleDiff === 0 ||
+          (busCycleDiff === 1 && this.nes.cpu.nmiDotsRemainingInStep === 0)
+        ) {
+          // Case 1: same bus cycle, or Case 2: post-loop edge on the
+          // immediately previous bus cycle. Edge not latched — cancel.
+          this.nes.cpu.nmiRaised = false;
+        }
+        // else: edge was latched at a previous φ2, don't cancel.
+      }
     }
     this.nmiOutput = newOutput;
   }
