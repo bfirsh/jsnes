@@ -357,21 +357,13 @@ class CPU {
         break;
       }
       case 12: {
-        // Indirect Absolute mode. Find the 16-bit address contained
-        // at the given location.
+        // Indirect Absolute mode (JMP indirect). Find the 16-bit address
+        // contained at the given location. The 6502 has a famous bug: when
+        // the pointer's low byte is $FF, the high byte wraps within the
+        // same page instead of crossing to the next page.
         addr = this.load16bit(opaddr + 2); // Find op
-        if (addr < 0x1fff) {
-          addr =
-            this.mem[addr] +
-            (this.mem[(addr & 0xff00) | (((addr & 0xff) + 1) & 0xff)] << 8); // Read from address given in op
-        } else {
-          addr =
-            this.loadFromCartridge(addr) +
-            (this.loadFromCartridge(
-              (addr & 0xff00) | (((addr & 0xff) + 1) & 0xff),
-            ) <<
-              8);
-        }
+        var hiAddr = (addr & 0xff00) | (((addr & 0xff) + 1) & 0xff);
+        addr = this.load(addr) | (this.load(hiAddr) << 8);
         break;
       }
     }
@@ -1710,21 +1702,13 @@ class CPU {
     return this.dataBus;
   }
 
+  // Reads a 16-bit little-endian value from two consecutive addresses.
+  // Uses load() for each byte so the RAM/cartridge boundary at $2000
+  // is handled correctly even when the two bytes straddle it.
+  // (See https://github.com/bfirsh/jsnes/issues/285)
   load16bit(addr) {
-    let lo;
-    if (addr < 0x1fff) {
-      this.dataBus = this.mem[addr & 0x7ff];
-      lo = this.dataBus;
-      this.dataBus = this.mem[(addr + 1) & 0x7ff];
-      this.instrBusCycles += 2;
-      return lo | (this.dataBus << 8);
-    } else {
-      this.dataBus = this.loadFromCartridge(addr);
-      lo = this.dataBus;
-      this.dataBus = this.loadFromCartridge(addr + 1);
-      this.instrBusCycles += 2;
-      return lo | (this.dataBus << 8);
-    }
+    var lo = this.load(addr);
+    return lo | (this.load(addr + 1) << 8);
   }
 
   // Each write() call represents one CPU bus write cycle.
