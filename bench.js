@@ -64,8 +64,7 @@ for (const [name, romPath] of Object.entries(ROMS)) {
 }
 
 if (results.length > 1) {
-  const avgFps =
-    results.reduce((sum, r) => sum + r.fps, 0) / results.length;
+  const avgFps = results.reduce((sum, r) => sum + r.fps, 0) / results.length;
   const avgMs =
     results.reduce((sum, r) => sum + r.msPerFrame, 0) / results.length;
   console.log(

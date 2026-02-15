@@ -18,8 +18,7 @@
     "@testing-library/react": "^16.3.2",
     "@vitejs/plugin-react": "^5.1.4",
     "jsdom": "^28.0.0",
-    "prettier": "^3.8.1",
-    "tailwindcss": "^4.1.0",
+"tailwindcss": "^4.1.0",
     "vite": "^7.3.1",
     "vitest": "^4.0.18"
   },
@@ -28,7 +27,6 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "prettier --check 'src/**/*.{js,jsx,css}' && vitest run",
-    "format": "prettier --write 'src/**/*.{js,jsx,css}'"
+    "test": "vitest run"
   }
 }

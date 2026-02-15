@@ -600,8 +600,7 @@ function runNestest(romData) {
   // is properly emulated — the nestest automation mode executes from open
   // bus addresses, and the data bus values lead to a KIL opcode.
   let crashInOpenBus =
-    crashMessage !== null &&
-    /address \$[45][0-9a-f]{3}$/.test(crashMessage);
+    crashMessage !== null && /address \$[45][0-9a-f]{3}$/.test(crashMessage);
 
   return {
     result02: nes.cpu.mem[0x10],
