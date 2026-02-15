@@ -878,6 +878,10 @@ class PPU {
   }
 
   triggerRendering() {
+    // Guard against recursion from mapper latch bank switches during rendering.
+    // When the PPU is already rendering and a latch-triggered loadVromBank calls
+    // triggerRendering, we must not re-enter the rendering loop.
+    if (this._inRendering) return;
     if (this.scanline >= 21 && this.scanline <= 260) {
       // Render sprites, and combine:
       this.renderFramePartially(
@@ -891,6 +895,7 @@ class PPU {
   }
 
   renderFramePartially(startScan, scanCount) {
+    this._inRendering = true;
     if (this.f_spVisibility === 1) {
       this.renderSpritesPartially(startScan, scanCount, 1);
     }
@@ -915,11 +920,16 @@ class PPU {
       this.renderSpritesPartially(startScan, scanCount, 0);
     }
 
+    this._inRendering = false;
     this.validTileData = false;
   }
 
   renderBgScanline(bgbuffer, scan) {
     let baseTile = this.regS === 0 ? 0 : 256;
+    // Base address for pattern table fetches (used for mapper latch triggers).
+    // On real hardware, the PPU puts this address on its bus when fetching tile
+    // data, and mappers like MMC2 monitor these fetches.
+    let baseAddr = this.regS === 0 ? 0x0000 : 0x1000;
     let destIndex = (scan << 8) - this.regFH;
 
     this.curNt = this.ntable1[this.cntV + this.cntV + this.cntH];
@@ -937,11 +947,34 @@ class PPU {
       let imgPalette = this.imgPalette;
       let pixrendered = this.pixrendered;
       let targetBuffer = bgbuffer ? this.bgbuffer : this.buffer;
+      let mmap = this.nes.mmap;
 
       let t, tpix, att, col;
 
+      this._inRendering = true;
+
+      // Simulate unused sprite slot dummy fetches from the previous scanline.
+      // On real hardware, the PPU fetches patterns for 8 sprites per scanline
+      // during cycles 257-320. Unused slots fetch tile $FF. In 8x16 sprite
+      // mode, tile $FF selects pattern table $1000 (bit 0 = 1) with top-half
+      // tile $FE. The high-plane byte fetch at $1FE8 triggers MMC2/MMC4
+      // latch 1 → $FE, resetting it before the next scanline's BG fetches.
+      // Without this, latch 1 can stay at $FD from a previous BG trigger tile,
+      // causing sprite corruption (e.g. in Punch-Out!!'s crowd).
+      // See https://www.nesdev.org/wiki/MMC2
+      if (this.f_spriteSize === 1) {
+        mmap.latchAccess(0x1fe8);
+      }
+
       for (let tile = 0; tile < 32; tile++) {
         if (scan >= 0) {
+          // Look up nametable tile index (needed for both rendering and mapper
+          // latch access even when tile data is cached).
+          let tileIndex = nameTable[this.curNt].getTileIndex(
+            this.cntHT,
+            this.cntVT,
+          );
+
           // Fetch tile & attrib data:
           if (this.validTileData) {
             // Get data from array:
@@ -953,11 +986,7 @@ class PPU {
             att = attrib[tile];
           } else {
             // Fetch data:
-            t =
-              ptTile[
-                baseTile +
-                  nameTable[this.curNt].getTileIndex(this.cntHT, this.cntVT)
-              ];
+            t = ptTile[baseTile + tileIndex];
             if (typeof t === "undefined") {
               continue;
             }
@@ -994,6 +1023,16 @@ class PPU {
               }
             }
           }
+
+          // Mapper latch access: simulate the PPU's pattern table high byte
+          // fetch. On real hardware, the PPU reads the high plane byte at
+          // (baseAddr + tileIndex*16 + fineY + 8), and MMC2/MMC4 monitor
+          // this address to trigger CHR bank switches. The latch updates
+          // AFTER the fetch, so the current tile is rendered with the old
+          // bank (correct, since we already read from ptTile above) and
+          // subsequent tiles will use the new bank.
+          // See https://www.nesdev.org/wiki/MMC2
+          mmap.latchAccess(baseAddr + tileIndex * 16 + this.cntFV + 8);
         }
 
         // Increase Horizontal Tile Counter:
@@ -1004,6 +1043,7 @@ class PPU {
           this.curNt = this.ntable1[(this.cntV << 1) + this.cntH];
         }
       }
+      this._inRendering = false;
 
       // Tile data for one row should now have been fetched,
       // so the data in the array is valid.
@@ -1031,6 +1071,7 @@ class PPU {
 
   renderSpritesPartially(startscan, scancount, bgPri) {
     if (this.f_spVisibility === 1) {
+      let mmap = this.nes.mmap;
       for (let i = 0; i < 64; i++) {
         if (
           this.bgPriority[i] === bgPri &&
@@ -1042,6 +1083,7 @@ class PPU {
           // Show sprite.
           if (this.f_spriteSize === 0) {
             // 8x8 sprites
+            let sprBaseAddr = this.f_spPatternTable === 0 ? 0x0000 : 0x1000;
 
             this.srcy1 = 0;
             this.srcy2 = 8;
@@ -1087,9 +1129,17 @@ class PPU {
                 this.pixrendered,
               );
             }
+
+            // Mapper latch: simulate PPU's sprite pattern table fetch.
+            // Use fineY=0 (high byte at +8), matching the first scanline row.
+            mmap.latchAccess(sprBaseAddr + this.sprTile[i] * 16 + 8);
           } else {
             // 8x16 sprites
             let top = this.sprTile[i];
+            // 8x16 sprites select their pattern table via bit 0 of the tile
+            // index: odd tile numbers use $1000, even use $0000.
+            let sprBaseAddr = (top & 1) !== 0 ? 0x1000 : 0x0000;
+            let topTileNum = top & 0xfe;
             if ((top & 1) !== 0) {
               top = this.sprTile[i] - 1 + 256;
             }
@@ -1147,6 +1197,10 @@ class PPU {
               i,
               this.pixrendered,
             );
+
+            // Mapper latch: simulate fetches for both halves of 8x16 sprite.
+            mmap.latchAccess(sprBaseAddr + topTileNum * 16 + 8);
+            mmap.latchAccess(sprBaseAddr + (topTileNum + 1) * 16 + 8);
           }
         }
       }

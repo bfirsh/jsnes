@@ -5,6 +5,7 @@ import Mapper3 from "./mapper3.js";
 import Mapper4 from "./mapper4.js";
 import Mapper5 from "./mapper5.js";
 import Mapper7 from "./mapper7.js";
+import Mapper9 from "./mapper9.js";
 import Mapper11 from "./mapper11.js";
 import Mapper34 from "./mapper34.js";
 import Mapper38 from "./mapper38.js";
@@ -25,6 +26,7 @@ export default {
   4: Mapper4,
   5: Mapper5,
   7: Mapper7,
+  9: Mapper9,
   11: Mapper11,
   34: Mapper34,
   38: Mapper38,
