@@ -21,7 +21,9 @@ class Emulator extends Component {
 
   componentDidMount() {
     try {
-      this.browser = new Browser(this.container, this.props.romData, {
+      this.browser = new Browser({
+        container: this.container,
+        romData: this.props.romData,
         onError: this.props.onError,
       });
     } catch (e) {

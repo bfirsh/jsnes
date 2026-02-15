@@ -1,6 +1,10 @@
 import { NES } from "./nes";
 
 export interface BrowserOptions {
+  /** The container element to render into. */
+  container: HTMLElement;
+  /** ROM data to load immediately. If omitted, call loadROM() then start(). */
+  romData?: string | null;
   /** Called when the emulator encounters an error during frame execution. */
   onError?: (error: Error) => void;
   /** Called when battery-backed SRAM is written. */
@@ -24,11 +28,7 @@ export class Browser {
     promptButton: (callback: ((buttonInfo: unknown) => void) | null) => void;
   };
 
-  constructor(
-    container: HTMLElement,
-    romData?: string | null,
-    options?: BrowserOptions,
-  );
+  constructor(options: BrowserOptions);
 
   /** Start emulation. Called automatically if romData is provided to constructor. */
   start(): void;
