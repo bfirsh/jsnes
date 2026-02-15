@@ -65,13 +65,81 @@ This will create `dist/jsnes.min.js`.
 
 ## Embedding JSNES in a web page
 
-You can use JSNES to embed a playable version of a ROM in a web page. This is handy if you are a homebrew ROM developer and want to put a playable version of your ROM on its web page.
+The easiest way to embed JSNES in a web page is with `jsnes.Browser`. It handles canvas rendering, audio, keyboard input, gamepad input, and frame timing automatically.
 
-The best implementation is [jsnes-web](https://github.com/bfirsh/jsnes-web) but unfortunately it is not trivial to reuse the code. You'll have to copy and paste the code from that repository, the use the [`<Emulator>`](https://github.com/bfirsh/jsnes-web/blob/master/src/Emulator.js) React component. [Here is a usage example.](https://github.com/bfirsh/jsnes-web/blob/d3c35eec11986412626cbd08668dbac700e08751/src/RunPage.js#L119-L125).
+```html
+<div id="nes" style="width: 512px; height: 480px"></div>
+<script src="https://unpkg.com/jsnes/dist/jsnes.min.js"></script>
+<script>
+  var browser = new jsnes.Browser(document.getElementById("nes"), null, {
+    onError: function (e) {
+      console.error(e);
+    },
+  });
+  jsnes.Browser.loadROMFromURL("my-rom.nes", function (err, data) {
+    if (err) {
+      console.error(err);
+      return;
+    }
+    browser.loadROM(data);
+  });
+</script>
+```
 
-A project for potential contributors (hello!): jsnes-web should be reusable and on NPM! It just needs compiling and bundling.
+If you already have ROM data as a string or byte array, you can pass it directly:
 
-A more basic example is in the `example/` directory of this repository. Unfortunately this is known to be flawed, and doesn't do timing and sound as well as jsnes-web.
+```javascript
+var browser = new jsnes.Browser(document.getElementById("nes"), romData);
+```
+
+Default keyboard controls:
+
+| Button | Player 1 | Player 2 |
+|--------|----------|----------|
+| Up / Down / Left / Right | Arrow keys | Numpad 8 / 2 / 4 / 6 |
+| A | X | Numpad 7 |
+| B | Z | Numpad 9 |
+| Start | Enter | Numpad 1 |
+| Select | Right Ctrl | Numpad 3 |
+
+Gamepads are also supported automatically.
+
+### Browser API
+
+```javascript
+browser.start();             // Start emulation (automatic if romData provided)
+browser.stop();              // Pause emulation
+browser.loadROM(data);       // Load a new ROM and start
+browser.fitInParent();       // Re-layout canvas to fill container
+browser.screenshot();        // Returns an HTMLImageElement
+browser.destroy();           // Full cleanup: stop, remove listeners, remove canvas
+
+browser.nes                  // The underlying NES instance
+browser.keyboard             // KeyboardController (for remapping keys)
+browser.gamepad              // GamepadController (for remapping gamepad buttons)
+```
+
+### Using with React
+
+```jsx
+import { Browser } from "jsnes";
+
+function Emulator({ romData }) {
+  const containerRef = useRef(null);
+  const browserRef = useRef(null);
+
+  useEffect(() => {
+    browserRef.current = new Browser(containerRef.current, romData);
+    return () => browserRef.current.destroy();
+  }, [romData]);
+
+  return <div ref={containerRef} />;
+}
+```
+
+A full-featured React frontend is available in the `web/` directory of this repository.
+
+A complete embedding example is in the `example/` directory.
 
 ## Formatting code
 
