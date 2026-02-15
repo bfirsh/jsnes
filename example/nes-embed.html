@@ -9,8 +9,8 @@
     ></script>
     <script>
       window.onload = function () {
-        var container = document.getElementById("nes");
-        var browser = new jsnes.Browser(container, null, {
+        var browser = new jsnes.Browser({
+          container: document.getElementById("nes"),
           onError: function (e) {
             console.error(e);
           },

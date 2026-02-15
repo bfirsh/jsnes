@@ -21,22 +21,20 @@ function debug(...args) {
  * keyboard/gamepad input, and frame timing.
  *
  * Usage:
- *   const browser = new jsnes.Browser(document.getElementById("nes"), romData);
- *
- * Or with options:
- *   const browser = new jsnes.Browser(container, romData, {
+ *   const browser = new jsnes.Browser({
+ *     container: document.getElementById("nes"),
+ *     romData: romData,
  *     onError: (e) => console.error(e),
  *   });
  *
- * If romData is null, call browser.loadROM(data) then browser.start().
+ * If romData is omitted, call browser.loadROM(data) then browser.start().
  */
 export default class Browser {
-  constructor(container, romData, options = {}) {
-    this._container = container;
+  constructor(options = {}) {
     this._options = options;
 
     // Create screen (creates <canvas> inside container)
-    this._screen = new Screen(container, {
+    this._screen = new Screen(options.container, {
       onMouseDown: (x, y) => {
         this.nes.zapperMove(x, y);
         this.nes.zapperFireDown();
@@ -115,8 +113,8 @@ export default class Browser {
     document.addEventListener("keypress", this.keyboard.handleKeyPress);
 
     // Load ROM and start if provided
-    if (romData) {
-      this.nes.loadROM(romData);
+    if (options.romData) {
+      this.nes.loadROM(options.romData);
       this.start();
     }
   }

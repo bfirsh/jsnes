@@ -71,7 +71,8 @@ The easiest way to embed JSNES in a web page is with `jsnes.Browser`. It handles
 <div id="nes" style="width: 512px; height: 480px"></div>
 <script src="https://unpkg.com/jsnes/dist/jsnes.min.js"></script>
 <script>
-  var browser = new jsnes.Browser(document.getElementById("nes"), null, {
+  var browser = new jsnes.Browser({
+    container: document.getElementById("nes"),
     onError: function (e) {
       console.error(e);
     },
@@ -89,7 +90,10 @@ The easiest way to embed JSNES in a web page is with `jsnes.Browser`. It handles
 If you already have ROM data as a string or byte array, you can pass it directly:
 
 ```javascript
-var browser = new jsnes.Browser(document.getElementById("nes"), romData);
+var browser = new jsnes.Browser({
+  container: document.getElementById("nes"),
+  romData: romData,
+});
 ```
 
 Default keyboard controls:
@@ -129,7 +133,10 @@ function Emulator({ romData }) {
   const browserRef = useRef(null);
 
   useEffect(() => {
-    browserRef.current = new Browser(containerRef.current, romData);
+    browserRef.current = new Browser({
+      container: containerRef.current,
+      romData: romData,
+    });
     return () => browserRef.current.destroy();
   }, [romData]);
 
