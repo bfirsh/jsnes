@@ -325,7 +325,7 @@ class PPU {
         // φ2 hasn't sampled yet, so the falling edge from VBL clear should
         // cancel the not-yet-latched rising edge.
         // See https://www.nesdev.org/wiki/NMI
-        if (cpu.nmiRaised) {
+        if (cpu.nmiRaised && i === dots - 1) {
           cpu.nmiPending = true;
           cpu.nmiRaised = false;
         }

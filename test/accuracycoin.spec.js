@@ -258,8 +258,7 @@ const TEST_PAGES = [
 
 // Tests known to fail — skip these until the emulator is fixed.
 const KNOWN_FAILURES = {
-  // PPU VBlank timing: edge case needs dot-level accuracy
-  0x0455: "NMI at VBlank end not accurate",
+  // (NMI timing tests now pass — 0x0454, 0x0455, 0x0456)
 
   // CPU interrupts: not cycle-accurate enough
   0x0461: "Interrupt flag latency not emulated",
