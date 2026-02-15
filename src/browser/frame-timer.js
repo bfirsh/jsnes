@@ -1,4 +1,10 @@
-import { debug } from "./debug";
+// Debug logging, enabled via localStorage.jsnes_debug = 1
+let debugEnabled = false;
+try {
+  debugEnabled = !!localStorage.getItem("jsnes_debug");
+} catch {
+  // localStorage not available
+}
 
 const FPS = 60.098;
 
@@ -55,7 +61,6 @@ export default class FrameTimer {
 
     // This can happen a lot on a 144Hz display
     if (numFrames === 0) {
-      //console.log("WOAH, no frames");
       return;
     }
 
@@ -76,6 +81,8 @@ export default class FrameTimer {
         (i * timeToNextFrame) / numFrames,
       );
     }
-    if (numFrames > 1) debug("SKIP", numFrames - 1, this.lastFrameTime);
+    if (numFrames > 1 && debugEnabled) {
+      console.log("SKIP", numFrames - 1, this.lastFrameTime);
+    }
   };
 }

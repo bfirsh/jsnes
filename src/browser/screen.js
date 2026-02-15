@@ -1,34 +1,39 @@
-import React, { Component } from "react";
-import "./Screen.css";
-
 const SCREEN_WIDTH = 256;
 const SCREEN_HEIGHT = 240;
 
-class Screen extends Component {
-  render() {
-    return (
-      <canvas
-        className="Screen"
-        width={SCREEN_WIDTH}
-        height={SCREEN_HEIGHT}
-        onMouseDown={this.handleMouseDown}
-        onMouseUp={this.props.onMouseUp}
-        ref={(canvas) => {
-          this.canvas = canvas;
-        }}
-      />
-    );
+export default class Screen {
+  constructor(container, options = {}) {
+    this.onMouseDown = options.onMouseDown;
+    this.onMouseUp = options.onMouseUp;
+
+    // Create canvas element
+    this.canvas = document.createElement("canvas");
+    this.canvas.width = SCREEN_WIDTH;
+    this.canvas.height = SCREEN_HEIGHT;
+    this.canvas.style.imageRendering = "pixelated";
+    this.canvas.style.imageRendering = "crisp-edges";
+    container.appendChild(this.canvas);
+
+    // Mouse events for Zapper support
+    this._handleMouseDown = (e) => {
+      if (!this.onMouseDown) return;
+      // Make coordinates unscaled
+      let scale = SCREEN_WIDTH / parseFloat(this.canvas.style.width);
+      let rect = this.canvas.getBoundingClientRect();
+      let x = Math.round((e.clientX - rect.left) * scale);
+      let y = Math.round((e.clientY - rect.top) * scale);
+      this.onMouseDown(x, y);
+    };
+    this._handleMouseUp = () => {
+      if (this.onMouseUp) this.onMouseUp();
+    };
+    this.canvas.addEventListener("mousedown", this._handleMouseDown);
+    this.canvas.addEventListener("mouseup", this._handleMouseUp);
+
+    this._initCanvas();
   }
 
-  componentDidMount() {
-    this.initCanvas();
-  }
-
-  componentDidUpdate() {
-    this.initCanvas();
-  }
-
-  initCanvas() {
+  _initCanvas() {
     this.context = this.canvas.getContext("2d");
     this.imageData = this.context.getImageData(
       0,
@@ -71,9 +76,7 @@ class Screen extends Component {
 
   fitInParent = () => {
     let parent = this.canvas.parentNode;
-    // @ts-ignore
     let parentWidth = parent.clientWidth;
-    // @ts-ignore
     let parentHeight = parent.clientHeight;
     let parentRatio = parentWidth / parentHeight;
     let desiredRatio = SCREEN_WIDTH / SCREEN_HEIGHT;
@@ -92,15 +95,9 @@ class Screen extends Component {
     return img;
   }
 
-  handleMouseDown = (e) => {
-    if (!this.props.onMouseDown) return;
-    // Make coordinates unscaled
-    let scale = SCREEN_WIDTH / parseFloat(this.canvas.style.width);
-    let rect = this.canvas.getBoundingClientRect();
-    let x = Math.round((e.clientX - rect.left) * scale);
-    let y = Math.round((e.clientY - rect.top) * scale);
-    this.props.onMouseDown(x, y);
-  };
+  destroy() {
+    this.canvas.removeEventListener("mousedown", this._handleMouseDown);
+    this.canvas.removeEventListener("mouseup", this._handleMouseUp);
+    this.canvas.parentNode.removeChild(this.canvas);
+  }
 }
-
-export default Screen;
