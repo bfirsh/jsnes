@@ -167,13 +167,22 @@ The ROM parser only supports iNES 1.0 format. NES 2.0 headers provide more accur
 
 **Reference**: https://www.nesdev.org/wiki/NES_2.0
 
-### 6c. Expand the README
+### 6c. Add npm cache and coverage to CI
+
+The GitHub Actions workflow (`ci.yaml`) reinstalls all dependencies from scratch on every run. Adding the `actions/cache` step for `node_modules` would speed up CI. Additionally, there's no code coverage tracking — adding `c8` or similar would help identify untested paths and prevent coverage regressions.
+
+### 6d. Run benchmarks in CI
+
+`bench.js` exists but only runs manually. Running it in CI and tracking results over time would catch performance regressions early, especially since the CPU is a sensitive hot path where small changes can have outsized effects.
+
+### 6e. Expand the README
 
 The README is minimal. Adding these sections would help users and contributors:
 - Supported mapper list (which mappers work, which are stubs)
 - Known limitations
 - Architecture overview for contributors
-- Link to CLAUDE.md for detailed architecture docs
+- Save state and Game Genie usage examples
+- Zapper (light gun) support documentation
 
 ---
 
