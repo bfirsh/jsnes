@@ -66,11 +66,23 @@ The pattern of manually encoding/decoding the CPU status register byte from indi
 
 **Note**: Be careful with performance here — the CPU is the hot path. Benchmark before/after any refactor.
 
-### 2d. Complete the Mapper 5 (MMC5) implementation
+### 2d. Fix Mapper 3 (CNROM) redundant bank loading
+
+In `src/mappers/mapper3.js:24-27`, the CHR bank switch does three loads:
+```javascript
+let bank = (value % (this.nes.rom.vromCount / 2)) * 2;
+this.loadVromBank(bank, 0x0000);        // Load 4KB bank
+this.loadVromBank(bank + 1, 0x1000);    // Load next 4KB bank
+this.load8kVromBank(value * 2, 0x0000); // Overwrites both of the above!
+```
+
+The `load8kVromBank` call on line 27 overwrites both of the `loadVromBank` calls above it. Either the first two calls are dead code, or the third call is a leftover from an older implementation. CNROM simply switches an 8KB CHR bank, so only one of these approaches is needed.
+
+### 2f. Complete the Mapper 5 (MMC5) implementation
 
 `src/mappers/mapper5.js` is explicitly marked as a stub. The write handler has placeholders (`// vram write`, `// additional ram write`) with no actual implementation. MMC5 is used by notable games (Castlevania III, Just Breed). Either complete it or clearly document it as unsupported and handle it gracefully at ROM load time.
 
-### 2e. Implement battery RAM loading
+### 2g. Implement battery RAM loading
 
 `rom.js:57-59` has a commented-out TODO for `loadBatteryRam()`. The `batteryRam` flag is parsed from the ROM header but never acted on. The `onBatteryRamWrite` callback exists in the NES options, so the save path works — but there's no corresponding load path for restoring battery RAM on ROM load.
 
@@ -169,14 +181,15 @@ The README is minimal. Adding these sections would help users and contributors:
 
 | # | Improvement | Impact | Effort |
 |---|-----------|--------|--------|
-| 1 | Extract duplicated PPU dot loop (2a) | High | Small |
-| 2 | Fix TypeScript definitions (3a) | High | Small |
-| 3 | Clean up preferredFrameRate FIXME (6a) | Low | Small |
-| 4 | Extract CPU status flag helpers (2b) | Medium | Small |
-| 5 | Add PPU/PAPU/controller unit tests (4a-c) | Medium | Medium |
-| 6 | Sprite evaluation accuracy (1b) | High | Medium |
-| 7 | VBlank/NMI timing (1c) | High | Medium |
-| 8 | Instruction timing audit (1d) | Medium | Medium |
-| 9 | Cycle-accurate DMA (1a) | High | Large |
-| 10 | NES 2.0 header support (6b) | Medium | Medium |
-| 11 | Complete Mapper 5 (2d) | Medium | Large |
+| 1 | Fix Mapper 3 redundant bank loading (2d) | High | Tiny |
+| 2 | Extract duplicated PPU dot loop (2a) | High | Small |
+| 3 | Fix TypeScript definitions (3a) | High | Small |
+| 4 | Clean up preferredFrameRate FIXME (6a) | Low | Small |
+| 5 | Extract CPU status flag helpers (2b) | Medium | Small |
+| 6 | Add PPU/PAPU/controller unit tests (4a-c) | Medium | Medium |
+| 7 | Sprite evaluation accuracy (1b) | High | Medium |
+| 8 | VBlank/NMI timing (1c) | High | Medium |
+| 9 | Instruction timing audit (1d) | Medium | Medium |
+| 10 | Cycle-accurate DMA (1a) | High | Large |
+| 11 | NES 2.0 header support (6b) | Medium | Medium |
+| 12 | Complete Mapper 5 (2f) | Medium | Large |
