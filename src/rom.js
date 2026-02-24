@@ -70,7 +70,9 @@ class ROM {
     }
     // Load PRG-ROM banks:
     this.rom = new Array(this.romCount);
-    let offset = 16;
+    // Skip past the 16-byte header, plus 512-byte trainer if present.
+    // See https://www.nesdev.org/wiki/INES#Trainer
+    let offset = 16 + (this.trainer ? 512 : 0);
     for (i = 0; i < this.romCount; i++) {
       this.rom[i] = new Uint8Array(16384);
       for (j = 0; j < 16384; j++) {
