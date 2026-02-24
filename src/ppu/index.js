@@ -1396,7 +1396,7 @@ class PPU {
                 this.pixrendered[bufferIndex] > 0xff
               ) {
                 if (t.pix[toffset + i] !== 0) {
-                  this.spr0HitX = bufferIndex % 256;
+                  this.spr0HitX = bufferIndex & 255;
                   this.spr0HitY = scan;
                   return true;
                 }
@@ -1414,7 +1414,7 @@ class PPU {
                 this.pixrendered[bufferIndex] > 0xff
               ) {
                 if (t.pix[toffset + i] !== 0) {
-                  this.spr0HitX = bufferIndex % 256;
+                  this.spr0HitX = bufferIndex & 255;
                   this.spr0HitY = scan;
                   return true;
                 }
@@ -1473,7 +1473,7 @@ class PPU {
                 this.pixrendered[bufferIndex] > 0xff
               ) {
                 if (t.pix[toffset + i] !== 0) {
-                  this.spr0HitX = bufferIndex % 256;
+                  this.spr0HitX = bufferIndex & 255;
                   this.spr0HitY = scan;
                   return true;
                 }
@@ -1491,7 +1491,7 @@ class PPU {
                 this.pixrendered[bufferIndex] > 0xff
               ) {
                 if (t.pix[toffset + i] !== 0) {
-                  this.spr0HitX = bufferIndex % 256;
+                  this.spr0HitX = bufferIndex & 255;
                   this.spr0HitY = scan;
                   return true;
                 }
@@ -1571,8 +1571,8 @@ class PPU {
   // table buffers with this new byte.
   // In vNES, there is a version of this with 4 arguments which isn't used.
   patternWrite(address, value) {
-    let tileIndex = Math.floor(address / 16);
-    let leftOver = address % 16;
+    let tileIndex = address >> 4;
+    let leftOver = address & 15;
     if (leftOver < 8) {
       this.ptTile[tileIndex].setScanline(
         leftOver,
@@ -1608,28 +1608,33 @@ class PPU {
   // Updates the internally buffered sprite
   // data with this new byte of info.
   spriteRamWriteUpdate(address, value) {
-    let tIndex = Math.floor(address / 4);
+    let tIndex = address >> 2;
 
     if (tIndex === 0) {
       //updateSpr0Hit();
       this.checkSprite0(this.scanline - 20);
     }
 
-    if (address % 4 === 0) {
-      // Y coordinate
-      this.sprY[tIndex] = value;
-    } else if (address % 4 === 1) {
-      // Tile index
-      this.sprTile[tIndex] = value;
-    } else if (address % 4 === 2) {
-      // Attributes
-      this.vertFlip[tIndex] = (value >> 7) & 1;
-      this.horiFlip[tIndex] = (value >> 6) & 1;
-      this.bgPriority[tIndex] = (value >> 5) & 1;
-      this.sprCol[tIndex] = (value & 3) << 2;
-    } else if (address % 4 === 3) {
-      // X coordinate
-      this.sprX[tIndex] = value;
+    switch (address & 3) {
+      case 0:
+        // Y coordinate
+        this.sprY[tIndex] = value;
+        break;
+      case 1:
+        // Tile index
+        this.sprTile[tIndex] = value;
+        break;
+      case 2:
+        // Attributes
+        this.vertFlip[tIndex] = (value >> 7) & 1;
+        this.horiFlip[tIndex] = (value >> 6) & 1;
+        this.bgPriority[tIndex] = (value >> 5) & 1;
+        this.sprCol[tIndex] = (value & 3) << 2;
+        break;
+      case 3:
+        // X coordinate
+        this.sprX[tIndex] = value;
+        break;
     }
   }
 
