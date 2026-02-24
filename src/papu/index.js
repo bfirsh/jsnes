@@ -203,6 +203,41 @@ class PAPU {
   clockFrameCounter(nCycles, frameCounterAlreadyAdvanced) {
     let frameCounterCycles = nCycles - (frameCounterAlreadyAdvanced || 0);
 
+    let dmc = this.dmc;
+
+    // Clock DMC: must always run for DMA timing and IRQ behavior.
+    if (dmc.isEnabled) {
+      dmc.shiftCounter -= nCycles << 3;
+      while (dmc.shiftCounter <= 0 && dmc.dmaFrequency > 0) {
+        dmc.shiftCounter += dmc.dmaFrequency;
+        dmc.clockDmc();
+      }
+    }
+
+    // Frame IRQ handling:
+    if (this.frameIrqEnabled && this.frameIrqActive) {
+      this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NORMAL);
+    }
+
+    // Clock frame counter: fire steps at the correct CPU cycle positions.
+    // Uses the uncapped cycle count to maintain accurate timing.
+    // See https://www.nesdev.org/wiki/APU_Frame_Counter
+    this.frameCycleCounter += frameCounterCycles;
+    let steps = this.countSequence === 0 ? FRAME_STEPS_4 : FRAME_STEPS_5;
+    let period = this.countSequence === 0 ? FRAME_PERIOD_4 : FRAME_PERIOD_5;
+    while (this.frameCycleCounter >= steps[this.frameStep]) {
+      this.fireFrameStep(this.frameStep);
+      this.frameStep++;
+      if (this.frameStep >= steps.length) {
+        this.frameStep = 0;
+        this.frameCycleCounter -= period;
+      }
+    }
+
+    // Skip audio waveform generation when no audio callback is set.
+    // DMC, frame counter, and IRQs still run above for correct behavior.
+    if (!this.nes.opts.onAudioSample) return;
+
     // Don't process channel ticks beyond next sampling:
     nCycles += this.extraCycles;
     let maxCycles = this.sampleTimerMax - this.sampleTimer;
@@ -213,20 +248,10 @@ class PAPU {
       this.extraCycles = 0;
     }
 
-    let dmc = this.dmc;
     let triangle = this.triangle;
     let square1 = this.square1;
     let square2 = this.square2;
     let noise = this.noise;
-
-    // Clock DMC:
-    if (dmc.isEnabled) {
-      dmc.shiftCounter -= nCycles << 3;
-      while (dmc.shiftCounter <= 0 && dmc.dmaFrequency > 0) {
-        dmc.shiftCounter += dmc.dmaFrequency;
-        dmc.clockDmc();
-      }
-    }
 
     // Clock Triangle channel Prog timer:
     if (triangle.progTimerMax > 0) {
@@ -311,26 +336,6 @@ class PAPU {
       }
     }
 
-    // Frame IRQ handling:
-    if (this.frameIrqEnabled && this.frameIrqActive) {
-      this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NORMAL);
-    }
-
-    // Clock frame counter: fire steps at the correct CPU cycle positions.
-    // Uses the uncapped cycle count to maintain accurate timing.
-    // See https://www.nesdev.org/wiki/APU_Frame_Counter
-    this.frameCycleCounter += frameCounterCycles;
-    let steps = this.countSequence === 0 ? FRAME_STEPS_4 : FRAME_STEPS_5;
-    let period = this.countSequence === 0 ? FRAME_PERIOD_4 : FRAME_PERIOD_5;
-    while (this.frameCycleCounter >= steps[this.frameStep]) {
-      this.fireFrameStep(this.frameStep);
-      this.frameStep++;
-      if (this.frameStep >= steps.length) {
-        this.frameStep = 0;
-        this.frameCycleCounter -= period;
-      }
-    }
-
     // Accumulate sample value:
     this.accSample(nCycles);
 
@@ -364,9 +369,10 @@ class PAPU {
   accSample(cycles) {
     // Special treatment for triangle channel - need to interpolate.
     if (this.triangle.sampleCondition) {
-      this.triValue = Math.floor(
-        (this.triangle.progTimerCount << 4) / (this.triangle.progTimerMax + 1),
-      );
+      this.triValue =
+        ((this.triangle.progTimerCount << 4) /
+          (this.triangle.progTimerMax + 1)) |
+        0;
       if (this.triValue > 16) {
         this.triValue = 16;
       }
@@ -488,15 +494,15 @@ class PAPU {
 
     if (this.accCount > 0) {
       this.smpSquare1 <<= 4;
-      this.smpSquare1 = Math.floor(this.smpSquare1 / this.accCount);
+      this.smpSquare1 = (this.smpSquare1 / this.accCount) | 0;
 
       this.smpSquare2 <<= 4;
-      this.smpSquare2 = Math.floor(this.smpSquare2 / this.accCount);
+      this.smpSquare2 = (this.smpSquare2 / this.accCount) | 0;
 
-      this.smpTriangle = Math.floor(this.smpTriangle / this.accCount);
+      this.smpTriangle = (this.smpTriangle / this.accCount) | 0;
 
       this.smpDmc <<= 4;
-      this.smpDmc = Math.floor(this.smpDmc / this.accCount);
+      this.smpDmc = (this.smpDmc / this.accCount) | 0;
 
       this.accCount = 0;
     } else {
@@ -506,7 +512,7 @@ class PAPU {
       this.smpDmc = this.dmc.sample << 4;
     }
 
-    let smpNoise = Math.floor((this.noise.accValue << 4) / this.noise.accCount);
+    let smpNoise = ((this.noise.accValue << 4) / this.noise.accCount) | 0;
     this.noise.accValue = smpNoise >> 4;
     this.noise.accCount = 1;
 
