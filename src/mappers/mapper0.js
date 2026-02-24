@@ -17,6 +17,11 @@ class Mapper0 {
     this.zapperFired = false;
     this.zapperX = null;
     this.zapperY = null;
+
+    // Set to true by mappers that need per-tile BG override (e.g. MMC5
+    // ExRAM mode 1). When true, the PPU calls getBgTileData() for each
+    // background tile during rendering.
+    this.bgTileOverride = false;
   }
 
   write(address, value) {
@@ -503,6 +508,14 @@ class Mapper0 {
   // Called by the PPU before rendering sprites.
   // Override in mappers that need per-phase CHR bank switching.
   onSpriteRender() {}
+
+  // Called per-tile during BG rendering when bgTileOverride is true.
+  // Returns {tile, attrib} to override the tile and attribute for a
+  // background tile, or null to use the default lookup.
+  // Used by MMC5 ExRAM mode 1 for per-tile CHR bank selection.
+  getBgTileData(/* baseTile, tileIndex, ht, vt */) {
+    return null;
+  }
 
   toJSON() {
     return {

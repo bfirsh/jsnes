@@ -210,7 +210,7 @@ class Mapper5 extends Mapper0 {
   // In modes where a region can map to RAM (bit 7 of bank reg = 0),
   // reads come from prgRam. Otherwise, reads come from ROM.
   _readPrg(address) {
-    let slot, reg, isRam, bank;
+    let slot, reg, isRam, bank, base;
 
     switch (this.prgMode) {
       case 0:
@@ -285,7 +285,7 @@ class Mapper5 extends Mapper0 {
           slot = 4; // $5117
         }
         reg = this.prgBankReg[slot];
-        let base =
+        base =
           slot === 1
             ? 0x8000
             : slot === 2
@@ -404,6 +404,9 @@ class Mapper5 extends Mapper0 {
     // $5104: ExRAM mode
     if (address === 0x5104) {
       this.exramMode = value & 0x03;
+      // ExRAM mode 1 enables per-tile BG override: each ExRAM byte provides
+      // a 4KB CHR bank + attribute for the corresponding background tile.
+      this.bgTileOverride = this.exramMode === 1;
       this._syncNametables();
       return;
     }
@@ -702,7 +705,8 @@ class Mapper5 extends Mapper0 {
   // Apply the current CHR bank registers to PPU pattern table memory.
   // See https://www.nesdev.org/wiki/MMC5#CHR_banking
   _syncChr() {
-    // Invalidate cached CHR bank target so the render hooks re-apply.
+    // Invalidate cached CHR bank target so the render hooks re-apply
+    // when rendering starts.
     this._chrBankTarget = -1;
 
     if (this.nes.ppu.f_spriteSize === 0) {
@@ -711,9 +715,18 @@ class Mapper5 extends Mapper0 {
       // This was confirmed by hardware tests — see FCEUX bug #787.
       this._applyChrSetA();
       this._chrBankTarget = 0;
+    } else {
+      // 8x16 sprite mode: apply the last-written set immediately so that
+      // $2007 reads during VBlank see the correct CHR data. During
+      // rendering, the onBgRender/onSpriteRender hooks will override this
+      // with the phase-appropriate set (B for BG, A for sprites).
+      // _chrBankTarget stays -1 so the hooks always re-apply.
+      if (this.lastChrWrite === 1) {
+        this._applyChrSetB();
+      } else {
+        this._applyChrSetA();
+      }
     }
-    // In 8x16 sprite mode, the onBgRender/onSpriteRender hooks handle
-    // switching between set A (sprites) and set B (backgrounds) per phase.
   }
 
   // Apply CHR bank set A ($5120-$5127) based on chrMode.
@@ -904,7 +917,7 @@ class Mapper5 extends Mapper0 {
   // The MMC5 uses dual CHR bank sets in 8x16 sprite mode ($2000 bit 5 = 1):
   //   - Bank set A ($5120-$5127) is used for sprite pattern fetches
   //   - Bank set B ($5128-$512B) is used for background pattern fetches
-  // In 8x8 sprite mode, only the last-written set is used for all fetches.
+  // In 8x8 sprite mode, only bank set A is used for all fetches.
   // The PPU calls these hooks before each rendering phase so we can swap
   // the pattern table data in the ptTile cache.
   // See https://www.nesdev.org/wiki/MMC5#CHR_banking
@@ -923,6 +936,38 @@ class Mapper5 extends Mapper0 {
       this._applyChrSetA();
       this._chrBankTarget = 0;
     }
+  }
+
+  // ExRAM mode 1 (extended attributes): per-tile CHR bank and palette override.
+  // Each byte in ExRAM at $5C00-$5FFF corresponds to a nametable tile position:
+  //   Bits 5-0: 4KB CHR bank number (combined with $5130 upper bits)
+  //   Bits 7-6: Palette/attribute number for this tile
+  // This replaces both the normal CHR bank set B and the attribute table for
+  // background tiles, allowing each tile to independently select from up to
+  // 16,384 unique background tiles. Used by Castlevania III for detailed BGs.
+  // See https://www.nesdev.org/wiki/MMC5#Extended_RAM
+  getBgTileData(baseTile, tileIndex, ht, vt) {
+    if (this.exramMode !== 1 || this.nes.rom.vromCount === 0) return null;
+
+    // ExRAM byte for this nametable tile position
+    let exAddr = vt * 32 + ht;
+    let exByte = this.exram[exAddr];
+
+    // Bits 5-0 select a 4KB CHR bank, combined with chrUpperBits ($5130)
+    // to form the full bank number: (upper << 6) | (exByte & 0x3F)
+    let chrBank4k = (exByte & 0x3f) | (this.chrUpperBits << 6);
+    let bank4k = chrBank4k % this.nes.rom.vromCount;
+
+    // Look up the pre-decoded tile from VROM. The tile index (0-255) from
+    // the nametable directly indexes into the selected 4KB bank.
+    let tile = this.nes.rom.vromTile[bank4k][tileIndex];
+    if (!tile) return null;
+
+    // Bits 7-6 provide the attribute (palette number), replacing the
+    // normal attribute table. Shift left by 2 to match PPU palette format.
+    let attrib = ((exByte >> 6) & 0x03) << 2;
+
+    return { tile, attrib };
   }
 
   // --- ROM Loading ---

@@ -1166,6 +1166,25 @@ class PPU {
             }
             tpix = t.pix;
             att = nameTable[this.curNt].getAttrib(this.cntHT, this.cntVT);
+
+            // MMC5 ExRAM mode 1: per-tile CHR bank and attribute override.
+            // Each ExRAM byte provides a 4KB CHR bank (bits 5-0) and palette
+            // (bits 7-6) for the corresponding background tile, allowing
+            // each tile to use a different CHR bank independently.
+            if (mmap.bgTileOverride) {
+              let override = mmap.getBgTileData(
+                baseTile,
+                tileIndex,
+                this.cntHT,
+                this.cntVT,
+              );
+              if (override) {
+                t = override.tile;
+                tpix = t.pix;
+                att = override.attrib;
+              }
+            }
+
             scantile[tile] = t;
             attrib[tile] = att;
           }
