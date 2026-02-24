@@ -124,19 +124,9 @@ class CPU {
       this.nmiRaised = false;
       this.instrBusCycles = 0;
 
-      let temp =
-        this.F_CARRY |
-        ((this.F_ZERO === 0 ? 1 : 0) << 1) |
-        (this.F_INTERRUPT << 2) |
-        (this.F_DECIMAL << 3) |
-        (this.F_BRK << 4) |
-        (this.F_NOTUSED << 5) |
-        (this.F_OVERFLOW << 6) |
-        (this.F_SIGN << 7);
-
       this.REG_PC_NEW = this.REG_PC;
       this.F_INTERRUPT_NEW = this.F_INTERRUPT;
-      this.doNonMaskableInterrupt(temp & 0xef);
+      this.doNonMaskableInterrupt(this.getStatus() & 0xef);
       this.REG_PC = this.REG_PC_NEW;
       this.F_INTERRUPT = this.F_INTERRUPT_NEW;
       this.F_BRK = this.F_BRK_NEW;
@@ -171,15 +161,7 @@ class CPU {
 
     // Check IRQ/reset at the start of each instruction.
     if (this.irqRequested) {
-      temp =
-        this.F_CARRY |
-        ((this.F_ZERO === 0 ? 1 : 0) << 1) |
-        (this.F_INTERRUPT << 2) |
-        (this.F_DECIMAL << 3) |
-        (this.F_BRK << 4) |
-        (this.F_NOTUSED << 5) |
-        (this.F_OVERFLOW << 6) |
-        (this.F_SIGN << 7);
+      temp = this.getStatus();
 
       this.REG_PC_NEW = this.REG_PC;
       this.F_INTERRUPT_NEW = this.F_INTERRUPT;
@@ -536,17 +518,7 @@ class CPU {
         this.push((this.REG_PC >> 8) & 255);
         this.push(this.REG_PC & 255);
         this.F_BRK = 1;
-
-        this.push(
-          this.F_CARRY |
-            ((this.F_ZERO === 0 ? 1 : 0) << 1) |
-            (this.F_INTERRUPT << 2) |
-            (this.F_DECIMAL << 3) |
-            (this.F_BRK << 4) |
-            (this.F_NOTUSED << 5) |
-            (this.F_OVERFLOW << 6) |
-            (this.F_SIGN << 7),
-        );
+        this.push(this.getStatus());
 
         this.F_INTERRUPT = 1;
         //this.REG_PC = load(0xFFFE) | (load(0xFFFF) << 8);
@@ -876,16 +848,7 @@ class CPU {
 
         // Push processor status on stack
         this.F_BRK = 1;
-        this.push(
-          this.F_CARRY |
-            ((this.F_ZERO === 0 ? 1 : 0) << 1) |
-            (this.F_INTERRUPT << 2) |
-            (this.F_DECIMAL << 3) |
-            (this.F_BRK << 4) |
-            (this.F_NOTUSED << 5) |
-            (this.F_OVERFLOW << 6) |
-            (this.F_SIGN << 7),
-        );
+        this.push(this.getStatus());
         break;
       }
       case 37: {
@@ -905,15 +868,7 @@ class CPU {
         // *******
 
         // Pull processor status from stack
-        // Bits 4 (B) and 5 (unused) don't exist as physical flags in the
-        // 6502 and are ignored by PLP.
-        temp = this.pull();
-        this.F_CARRY = temp & 1;
-        this.F_ZERO = ((temp >> 1) & 1) === 1 ? 0 : 1;
-        this.F_INTERRUPT = (temp >> 2) & 1;
-        this.F_DECIMAL = (temp >> 3) & 1;
-        this.F_OVERFLOW = (temp >> 6) & 1;
-        this.F_SIGN = (temp >> 7) & 1;
+        this.setStatusFromStack(this.pull());
         break;
       }
       case 39: {
@@ -985,15 +940,7 @@ class CPU {
         // *******
 
         // Return from interrupt. Pull status and PC from stack.
-        // Bits 4 (B) and 5 (unused) are ignored, same as PLP.
-
-        temp = this.pull();
-        this.F_CARRY = temp & 1;
-        this.F_ZERO = ((temp >> 1) & 1) === 0 ? 1 : 0;
-        this.F_INTERRUPT = (temp >> 2) & 1;
-        this.F_DECIMAL = (temp >> 3) & 1;
-        this.F_OVERFLOW = (temp >> 6) & 1;
-        this.F_SIGN = (temp >> 7) & 1;
+        this.setStatusFromStack(this.pull());
 
         this.REG_PC = this.pull();
         this.REG_PC += this.pull() << 8;
@@ -1639,20 +1586,10 @@ class CPU {
     // (edge occurred during the PREVIOUS instruction, 1-delay).
     // See https://www.nesdev.org/wiki/CPU_interrupts
     if (this.nmiPending) {
-      temp =
-        this.F_CARRY |
-        ((this.F_ZERO === 0 ? 1 : 0) << 1) |
-        (this.F_INTERRUPT << 2) |
-        (this.F_DECIMAL << 3) |
-        (this.F_BRK << 4) |
-        (this.F_NOTUSED << 5) |
-        (this.F_OVERFLOW << 6) |
-        (this.F_SIGN << 7);
-
       this.REG_PC_NEW = this.REG_PC;
       this.F_INTERRUPT_NEW = this.F_INTERRUPT;
       // Clear the B flag (bit 4) for hardware interrupts
-      this.doNonMaskableInterrupt(temp & 0xef);
+      this.doNonMaskableInterrupt(this.getStatus() & 0xef);
       this.REG_PC = this.REG_PC_NEW;
       this.F_INTERRUPT = this.F_INTERRUPT_NEW;
       this.F_BRK = this.F_BRK_NEW;
@@ -2030,6 +1967,19 @@ class CPU {
     this.F_DECIMAL = (st >> 3) & 1;
     this.F_BRK = (st >> 4) & 1;
     this.F_NOTUSED = (st >> 5) & 1;
+    this.F_OVERFLOW = (st >> 6) & 1;
+    this.F_SIGN = (st >> 7) & 1;
+  }
+
+  // Set status flags from a value pulled off the stack (PLP, RTI).
+  // Bits 4 (B) and 5 (unused) don't exist as physical flags in the
+  // 6502 and are ignored when pulling status from the stack.
+  // See https://www.nesdev.org/wiki/Status_flags#The_B_flag
+  setStatusFromStack(st) {
+    this.F_CARRY = st & 1;
+    this.F_ZERO = ((st >> 1) & 1) === 1 ? 0 : 1;
+    this.F_INTERRUPT = (st >> 2) & 1;
+    this.F_DECIMAL = (st >> 3) & 1;
     this.F_OVERFLOW = (st >> 6) & 1;
     this.F_SIGN = (st >> 7) & 1;
   }
