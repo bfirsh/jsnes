@@ -14,16 +14,11 @@ export default {
     filename: "[name].js",
     library: "jsnes",
     libraryTarget: "umd",
+    globalObject: "globalThis",
     umdNamedDefine: true,
     clean: true,
   },
-  module: {
-    rules: [
-      // Import files as raw strings with ?raw suffix (e.g. AudioWorklet code).
-      // Matches Vite's built-in ?raw behavior.
-      { resourceQuery: /raw/, type: "asset/source" },
-    ],
-  },
+  module: {},
   optimization: {
     minimize: true,
     minimizer: [

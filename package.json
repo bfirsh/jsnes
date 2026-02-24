@@ -5,10 +5,21 @@
   "homepage": "https://github.com/bfirsh/jsnes",
   "author": "Ben Firshman <ben@firshman.com>",
   "main": "src/index.js",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
   "repository": {
     "type": "git",
     "url": "git://github.com/bfirsh/jsnes.git"
   },
+  "files": [
+    "dist",
+    "src",
+    "index.d.ts"
+  ],
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
@@ -16,7 +27,7 @@
     "typecheck": "tsc --noEmit",
     "test": "npm run typecheck && prettier --check '**/*.{js,jsx,css}' && node --test ./test/*.spec.js",
     "test:watch": "node --test --watch ./test/*.spec.js",
-    "prepublish": "npm run build",
+    "prepublishOnly": "npm run build",
     "format": "prettier --write '**/*.{js,jsx,css}'"
   },
   "devDependencies": {
