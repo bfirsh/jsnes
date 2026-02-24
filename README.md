@@ -52,18 +52,6 @@ var browser = new jsnes.Browser({
 });
 ```
 
-Default keyboard controls:
-
-| Button | Player 1 | Player 2 |
-|--------|----------|----------|
-| Up / Down / Left / Right | Arrow keys | Numpad 8 / 2 / 4 / 6 |
-| A | X | Numpad 7 |
-| B | Z | Numpad 9 |
-| Start | Enter | Numpad 1 |
-| Select | Right Ctrl | Numpad 3 |
-
-Gamepads are also supported automatically.
-
 ### React
 
 ```jsx
@@ -201,6 +189,31 @@ var browser = new jsnes.Browser(options);
 | `browser.nes` | The underlying `NES` instance. |
 | `browser.keyboard` | The `KeyboardController` for remapping keys. |
 | `browser.gamepad` | The `GamepadController` for remapping gamepad buttons. |
+
+## Keyboard & Gamepad
+
+When using `jsnes.Browser`, keyboard and gamepad input is handled automatically with the following default mappings.
+
+### Default keyboard controls
+
+| Button | Player 1 | Player 2 |
+|--------|----------|----------|
+| Up | Arrow Up | Numpad 8 |
+| Down | Arrow Down | Numpad 2 |
+| Left | Arrow Left | Numpad 4 |
+| Right | Arrow Right | Numpad 6 |
+| A | X | Numpad 7 |
+| B | Z (or Y) | Numpad 9 |
+| Start | Enter | Numpad 1 |
+| Select | Right Ctrl | Numpad 3 |
+| Turbo A | S | — |
+| Turbo B | A | — |
+
+Keyboard mappings can be customized via `browser.keyboard.setKeys()` and are persisted to localStorage.
+
+### Gamepad
+
+Gamepads are supported automatically via the Gamepad API. Mappings can be customized via `browser.gamepad.setGamepadConfig()`.
 
 ## Build
 
