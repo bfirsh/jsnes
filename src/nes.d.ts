@@ -1,14 +1,16 @@
-import { ControllerKey, ButtonKey } from "./controller";
+import { ButtonKey } from "./controller";
+
+export type ControllerId = 1 | 2;
 
 export interface EmulatorData {
-  cpu: string;
-  mmap: string;
-  ppu: string;
-  papu: string;
+  cpu: object;
+  mmap: object;
+  ppu: object;
+  papu: object;
 }
 
 export interface NESOptions {
-  onFrame?: (buffer: Buffer) => void;
+  onFrame?: (buffer: Uint32Array) => void;
   onAudioSample?: (left: number, right: number) => void;
   onStatusUpdate?: (status: string) => void;
   onBatteryRamWrite?: (address: number, value: number) => void;
@@ -19,11 +21,10 @@ export interface NESOptions {
 
 export class NES {
   constructor(opts: NESOptions);
-  stop: () => void;
   reset: () => void;
   frame: () => void;
-  buttonDown: (controller: ControllerKey, button: ButtonKey) => void;
-  buttonUp: (controller: ControllerKey, button: ButtonKey) => void;
+  buttonDown: (controller: ControllerId, button: ButtonKey) => void;
+  buttonUp: (controller: ControllerId, button: ButtonKey) => void;
   zapperMove: (x: number, y: number) => void;
   zapperFireDown: () => void;
   zapperFireUp: () => void;
