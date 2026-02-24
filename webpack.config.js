@@ -17,6 +17,13 @@ export default {
     umdNamedDefine: true,
     clean: true,
   },
+  module: {
+    rules: [
+      // Import files as raw strings with ?raw suffix (e.g. AudioWorklet code).
+      // Matches Vite's built-in ?raw behavior.
+      { resourceQuery: /raw/, type: "asset/source" },
+    ],
+  },
   optimization: {
     minimize: true,
     minimizer: [

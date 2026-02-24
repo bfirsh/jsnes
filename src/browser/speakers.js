@@ -1,18 +1,21 @@
-import RingBuffer from "./ring-buffer.js";
+// Webpack's asset/source and Vite's ?raw both inline this file's contents
+// as a string at build time, so the worklet code lives in a real .js file
+// (with proper syntax highlighting and linting) but gets bundled inline.
+import workletCode from "./audio-worklet-processor.js?raw";
 
-// Debug logging, enabled via localStorage.jsnes_debug = 1
-let debugEnabled = false;
-try {
-  debugEnabled = !!localStorage.getItem("jsnes_debug");
-} catch {
-  // localStorage not available
-}
+// How many samples to batch before posting to the worklet. Posting every
+// single sample individually would be too much MessagePort overhead.
+// 128 matches the AudioWorklet render quantum size.
+const BATCH_SIZE = 128;
 
 export default class Speakers {
   constructor({ onBufferUnderrun }) {
     this.onBufferUnderrun = onBufferUnderrun;
-    this.bufferSize = 8192;
-    this.buffer = new RingBuffer(this.bufferSize * 2);
+    this.audioCtx = null;
+    this.node = null;
+    this.batchL = new Float32Array(BATCH_SIZE);
+    this.batchR = new Float32Array(BATCH_SIZE);
+    this.batchPos = 0;
   }
 
   getSampleRate() {
@@ -25,15 +28,31 @@ export default class Speakers {
     return sampleRate;
   }
 
-  start() {
-    // Audio is not supported
+  // start() is async because audioWorklet.addModule() returns a promise.
+  // Callers may fire-and-forget — the node will be null until the worklet
+  // loads, and writeSample() silently drops samples during that brief window.
+  async start() {
     if (!window.AudioContext) {
       return;
     }
     this.audioCtx = new window.AudioContext();
-    this.scriptNode = this.audioCtx.createScriptProcessor(1024, 0, 2);
-    this.scriptNode.onaudioprocess = this.onaudioprocess;
-    this.scriptNode.connect(this.audioCtx.destination);
+
+    const blob = new Blob([workletCode], { type: "application/javascript" });
+    const workletUrl = URL.createObjectURL(blob);
+    await this.audioCtx.audioWorklet.addModule(workletUrl);
+    URL.revokeObjectURL(workletUrl);
+
+    this.node = new AudioWorkletNode(this.audioCtx, "nes-audio-processor", {
+      outputChannelCount: [2],
+    });
+
+    this.node.port.onmessage = (e) => {
+      if (e.data.type === "underrun" && this.onBufferUnderrun) {
+        this.onBufferUnderrun();
+      }
+    };
+
+    this.node.connect(this.audioCtx.destination);
 
     // Chrome and other browsers require a user gesture before AudioContext can
     // start. If suspended, resume on the first user interaction.
@@ -62,56 +81,44 @@ export default class Speakers {
 
   stop() {
     this._removeResumeListeners();
-    if (this.scriptNode) {
-      this.scriptNode.disconnect(this.audioCtx.destination);
-      this.scriptNode.onaudioprocess = null;
-      this.scriptNode = null;
+    if (this.node) {
+      this.node.disconnect(this.audioCtx.destination);
+      this.node = null;
     }
     if (this.audioCtx) {
       this.audioCtx.close().catch((e) => console.error(e));
       this.audioCtx = null;
     }
+    this.batchPos = 0;
   }
 
   writeSample = (left, right) => {
-    if (this.buffer.size() / 2 >= this.bufferSize) {
-      if (debugEnabled) console.log("Buffer overrun");
-      this.buffer.deqN(this.bufferSize / 2);
-    }
-    this.buffer.enq(left);
-    this.buffer.enq(right);
-  };
+    if (!this.node) return;
 
-  onaudioprocess = (e) => {
-    var left = e.outputBuffer.getChannelData(0);
-    var right = e.outputBuffer.getChannelData(1);
-    var size = left.length;
+    this.batchL[this.batchPos] = left;
+    this.batchR[this.batchPos] = right;
+    this.batchPos++;
 
-    // We're going to buffer underrun. Attempt to fill the buffer.
-    if (this.buffer.size() < size * 2 && this.onBufferUnderrun) {
-      this.onBufferUnderrun(this.buffer.size(), size * 2);
-    }
-
-    try {
-      var samples = this.buffer.deqN(size * 2);
-    } catch {
-      // onBufferUnderrun failed to fill the buffer, so handle a real buffer
-      // underrun
-
-      // ignore empty buffers... assume audio has just stopped
-      var bufferSize = this.buffer.size() / 2;
-      if (bufferSize > 0 && debugEnabled) {
-        console.log(`Buffer underrun (needed ${size}, got ${bufferSize})`);
-      }
-      for (var j = 0; j < size; j++) {
-        left[j] = 0;
-        right[j] = 0;
-      }
-      return;
-    }
-    for (var i = 0; i < size; i++) {
-      left[i] = samples[i * 2];
-      right[i] = samples[i * 2 + 1];
+    if (this.batchPos >= BATCH_SIZE) {
+      this.node.port.postMessage({
+        type: "samples",
+        left: this.batchL.slice(),
+        right: this.batchR.slice(),
+      });
+      this.batchPos = 0;
     }
   };
+
+  // Flush any remaining batched samples to the worklet. Called after each
+  // frame to ensure partial batches are sent promptly.
+  flush() {
+    if (this.batchPos > 0 && this.node) {
+      this.node.port.postMessage({
+        type: "samples",
+        left: this.batchL.slice(0, this.batchPos),
+        right: this.batchR.slice(0, this.batchPos),
+      });
+      this.batchPos = 0;
+    }
+  }
 }

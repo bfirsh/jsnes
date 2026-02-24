@@ -47,8 +47,8 @@ export default class Browser {
 
     // Create speakers
     this._speakers = new Speakers({
-      onBufferUnderrun: (actualSize, desiredSize) => {
-        // Skip a video frame so audio remains consistent. This happens for
+      onBufferUnderrun: () => {
+        // Generate extra frames so audio remains consistent. This happens for
         // a variety of reasons:
         // - Frame rate is not quite 60fps, so sometimes buffer empties
         // - Page is not visible, so requestAnimationFrame doesn't get fired.
@@ -56,16 +56,12 @@ export default class Browser {
         //   done by audio instead of requestAnimationFrame.
         // - System can't run emulator at full speed. In this case it'll stop
         //    firing requestAnimationFrame.
-        debug("Buffer underrun, running another frame to try and catch up");
+        debug("Buffer underrun, running extra frames to catch up");
 
+        // The NES produces ~800 samples per frame at 48kHz. Run two frames
+        // to ensure the worklet buffer is refilled.
         this._frameTimer.generateFrame();
-        // desiredSize will be 2048, and the NES produces 1468 samples on each
-        // frame so we might need a second frame to be run. Give up after that
-        // though -- the system is not catching up
-        if (this._speakers.buffer.size() < desiredSize) {
-          debug("Still buffer underrun, running a second frame");
-          this._frameTimer.generateFrame();
-        }
+        this._frameTimer.generateFrame();
       },
     });
 
@@ -83,6 +79,7 @@ export default class Browser {
       onGenerateFrame: () => {
         try {
           this.nes.frame();
+          this._speakers.flush();
         } catch (e) {
           this.stop();
           if (this._options.onError) {

@@ -4,6 +4,17 @@ import eslintConfigPrettier from "eslint-config-prettier";
 export default [
   js.configs.recommended,
   eslintConfigPrettier,
+  // AudioWorklet processor runs in a worklet scope with its own globals
+  {
+    files: ["src/browser/audio-worklet-processor.js"],
+    languageOptions: {
+      globals: {
+        AudioWorkletProcessor: "readonly",
+        registerProcessor: "readonly",
+        Float32Array: "readonly",
+      },
+    },
+  },
   {
     languageOptions: {
       ecmaVersion: 2022,
@@ -15,6 +26,9 @@ export default [
         navigator: "readonly",
         console: "readonly",
         AudioContext: "readonly",
+        AudioWorkletNode: "readonly",
+        Blob: "readonly",
+        URL: "readonly",
         requestAnimationFrame: "readonly",
         cancelAnimationFrame: "readonly",
         setTimeout: "readonly",
