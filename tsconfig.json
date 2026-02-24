@@ -10,6 +10,6 @@
     "target": "es5",
     "lib": ["es2015", "dom"]
   },
-  "include": ["src/**/*.d.ts", "index.d.ts", "test/types.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*.d.ts", "index.d.ts"],
+  "exclude": ["node_modules", "dist", "test"]
 }
