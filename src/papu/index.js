@@ -65,8 +65,7 @@ class PAPU {
 
     this.sampleRate = this.nes.opts.sampleRate;
     this.sampleTimerMax = Math.floor(
-      (1024.0 * CPU_FREQ_NTSC * this.nes.opts.preferredFrameRate) /
-        (this.sampleRate * 60.0),
+      (1024.0 * CPU_FREQ_NTSC) / this.sampleRate,
     );
     this.sampleTimer = 0;
     this.updateChannelEnable(0);
@@ -598,6 +597,16 @@ class PAPU {
       return this.noiseWavelengthLookup[value];
     }
     return 0;
+  }
+
+  // Recalculate the sample timer for a non-standard host frame rate.
+  // At 60fps the timer fires once per (CPU_FREQ / sampleRate) cycles. If the
+  // host calls frame() at a different rate, scale proportionally so the total
+  // audio output per second stays constant.
+  setFrameRate(rate) {
+    this.sampleTimerMax = Math.floor(
+      (1024.0 * CPU_FREQ_NTSC * rate) / (this.sampleRate * 60.0),
+    );
   }
 
   setPanning(pos) {

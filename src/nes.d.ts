@@ -12,7 +12,6 @@ export interface NESOptions {
   onAudioSample?: (left: number, right: number) => void;
   onStatusUpdate?: (status: string) => void;
   onBatteryRamWrite?: (address: number, value: number) => void;
-  preferredFrameRate?: number;
   emulateSound?: boolean;
   sampleRate?: number;
 }

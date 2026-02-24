@@ -13,16 +13,11 @@ class NES {
       onStatusUpdate: function () {},
       onBatteryRamWrite: function () {},
 
-      // FIXME: not actually used except for in PAPU
-      preferredFrameRate: 60,
-
       emulateSound: true,
       sampleRate: 48000, // Sound sample rate in hz
 
       ...opts,
     };
-
-    this.frameTime = 1000 / this.opts.preferredFrameRate;
 
     this.ui = {
       writeFrame: this.opts.onFrame,
@@ -171,10 +166,12 @@ class NES {
     this.romData = data;
   }
 
+  // Adjust audio sample timing for a non-standard host frame rate. At the
+  // default 60fps each frame() produces ~800 samples at 48kHz. If the host
+  // calls frame() less often (e.g. 30fps), the sample timer must fire more
+  // frequently per CPU cycle so each frame still fills the audio buffer.
   setFramerate(rate) {
-    this.opts.preferredFrameRate = rate;
-    this.frameTime = 1000 / rate;
-    this.papu.setSampleRate(this.opts.sampleRate, false);
+    this.papu.setFrameRate(rate);
   }
 
   toJSON() {
