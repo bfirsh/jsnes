@@ -88,6 +88,11 @@ class Mapper5 extends Mapper0 {
     this.pcmReadMode = false; // $5010 bit 0
     this.pcmIrqEnabled = false; // $5010 bit 7
     this.audioEnabled = 0; // $5015: pulse channel enable bits
+
+    // Tracks which CHR bank set is currently loaded into the PPU's pattern
+    // table cache. Used by onBgRender/onSpriteRender to avoid redundant
+    // bank switches. -1 = unknown/dirty, 0 = set A (sprites), 1 = set B (BG).
+    this._chrBankTarget = -1;
   }
 
   // Initialize a pulse channel state object.
@@ -695,22 +700,24 @@ class Mapper5 extends Mapper0 {
 
   // --- CHR Synchronization ---
   // Apply the current CHR bank registers to PPU pattern table memory.
-  // With 8x8 sprites, the "last written" set is used for all graphics.
-  // With 8x16 sprites, set A is used for sprites and set B for background,
-  // but since we don't have per-fetch CHR switching, we apply the last-written
-  // set for static rendering and set A as default.
   // See https://www.nesdev.org/wiki/MMC5#CHR_banking
   _syncChr() {
-    // For simplicity, apply the last-written CHR set to the full 8K pattern table.
-    // The MMC5's per-fetch sprite/BG CHR switching would require PPU-level hooks
-    // that this emulator doesn't have. Most games work fine with this approach
-    // because they either use 8x8 sprites (so only one set matters) or write
-    // both sets identically for the overlapping range.
-    if (this.lastChrWrite === 1) {
-      this._applyChrSetB();
-    } else {
-      this._applyChrSetA();
+    // Invalidate cached CHR bank target so the render hooks re-apply.
+    this._chrBankTarget = -1;
+
+    if (this.nes.ppu.f_spriteSize === 0) {
+      // 8x8 sprite mode: only one CHR bank set is used for all fetches.
+      // Apply whichever set was last written to.
+      if (this.lastChrWrite === 1) {
+        this._applyChrSetB();
+        this._chrBankTarget = 1;
+      } else {
+        this._applyChrSetA();
+        this._chrBankTarget = 0;
+      }
     }
+    // In 8x16 sprite mode, the onBgRender/onSpriteRender hooks handle
+    // switching between set A (sprites) and set B (backgrounds) per phase.
   }
 
   // Apply CHR bank set A ($5120-$5127) based on chrMode.
@@ -894,6 +901,31 @@ class Mapper5 extends Mapper0 {
       if (this.irqEnabled) {
         this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NORMAL);
       }
+    }
+  }
+
+  // --- CHR Bank Switching for Sprite/BG Phases ---
+  // The MMC5 uses dual CHR bank sets in 8x16 sprite mode ($2000 bit 5 = 1):
+  //   - Bank set A ($5120-$5127) is used for sprite pattern fetches
+  //   - Bank set B ($5128-$512B) is used for background pattern fetches
+  // In 8x8 sprite mode, only the last-written set is used for all fetches.
+  // The PPU calls these hooks before each rendering phase so we can swap
+  // the pattern table data in the ptTile cache.
+  // See https://www.nesdev.org/wiki/MMC5#CHR_banking
+
+  onBgRender() {
+    if (this.nes.ppu.f_spriteSize === 1 && this._chrBankTarget !== 1) {
+      this._applyChrSetB();
+      this._chrBankTarget = 1;
+      // Invalidate the PPU's tile cache since we swapped CHR data
+      this.nes.ppu.validTileData = false;
+    }
+  }
+
+  onSpriteRender() {
+    if (this.nes.ppu.f_spriteSize === 1 && this._chrBankTarget !== 0) {
+      this._applyChrSetA();
+      this._chrBankTarget = 0;
     }
   }
 

@@ -1058,6 +1058,11 @@ class PPU {
 
   renderFramePartially(startScan, scanCount) {
     this._inRendering = true;
+
+    // Let the mapper swap CHR banks for sprite rendering.
+    // MMC5 uses separate CHR bank sets for sprites vs backgrounds.
+    this.nes.mmap.onSpriteRender();
+
     if (this.f_spVisibility === 1) {
       this.renderSpritesPartially(startScan, scanCount, 1);
     }
@@ -1081,6 +1086,9 @@ class PPU {
     if (this.f_spVisibility === 1) {
       this.renderSpritesPartially(startScan, scanCount, 0);
     }
+
+    // Restore BG CHR banks for subsequent background scanline rendering.
+    this.nes.mmap.onBgRender();
 
     this._inRendering = false;
     this.validTileData = false;
@@ -1114,6 +1122,10 @@ class PPU {
       let t, tpix, att, col;
 
       this._inRendering = true;
+
+      // Let the mapper swap CHR banks for background rendering.
+      // MMC5 uses separate CHR bank sets for sprites vs backgrounds.
+      this.nes.mmap.onBgRender();
 
       // Simulate unused sprite slot dummy fetches from the previous scanline.
       // On real hardware, the PPU fetches patterns for 8 sprites per scanline

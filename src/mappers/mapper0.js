@@ -495,6 +495,15 @@ class Mapper0 {
     // Does nothing. This is used by MMC2.
   }
 
+  // Called by the PPU before rendering background tiles for a scanline.
+  // Override in mappers that need per-phase CHR bank switching (e.g. MMC5,
+  // which uses separate CHR bank sets for sprites vs backgrounds).
+  onBgRender() {}
+
+  // Called by the PPU before rendering sprites.
+  // Override in mappers that need per-phase CHR bank switching.
+  onSpriteRender() {}
+
   toJSON() {
     return {
       joy1StrobeState: this.joy1StrobeState,
