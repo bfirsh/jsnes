@@ -289,7 +289,7 @@ const KNOWN_FAILURES = {
   0x048a: "$2007 read during rendering not accurate",
 
   // Sprite evaluation: need accurate OAM/sprite evaluation
-  0x0457: "Sprite 0 hit behavior not accurate",
+  // (0x0457 sprite 0 hit now passes via pre-compute look-ahead in endScanline)
   0x0489: "Suddenly resize sprite not accurate",
   0x0458: "Arbitrary sprite zero not accurate",
   0x045a: "Misaligned OAM behavior not accurate",
@@ -298,11 +298,7 @@ const KNOWN_FAILURES = {
   0x0480: "INC $4014 not accurate",
 
   // PPU misc: need dot-accurate PPU rendering pipeline
-  // Note: 0x0481 tile array fix is in place (attribTableWrite stores raw bytes
-  // in tile[960+]), but the test still fails because the pre-render dummy
-  // render advances cntFV, preventing BG rendering on the first tile row when
-  // fine Y > 0. Fixing this requires reworking the render pipeline.
-  0x0481: "Attributes as tiles - rendering with non-zero fine Y not accurate",
+  // (0x0481 attributes as tiles now passes with tile array fix + pre-compute)
   0x0483: "Stale BG shift registers not accurate",
   0x0487: "BG serial in not accurate",
   0x0484: "Sprites on scanline 0 not accurate",

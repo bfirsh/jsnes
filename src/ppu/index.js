@@ -486,9 +486,22 @@ class PPU {
 
         if (this.f_bgVisibility === 1 && this.f_spVisibility === 1) {
           // Check sprite 0 hit for dummy scanline (buffer row 0).
-          // Note: sprite 0 hit for NES scanline 0 (buffer row 1) is checked
-          // in the first visible scanline's endScanline, after BG is rendered.
           this.checkSprite0(0);
+        }
+
+        // Pre-compute sprite 0 hit for the first visible scanline (buffer
+        // row 1). The dummy render above advanced the scroll counters to point
+        // at row 1's vertical position, and the secondary OAM for row 1 was
+        // set up from stale data above. This allows the dot-by-dot loop in
+        // step() to detect the hit at the correct PPU dot during scanline 21.
+        if (
+          !this.hitSpr0 &&
+          this.f_bgVisibility === 1 &&
+          this.f_spVisibility === 1
+        ) {
+          if (this._precomputeSprite0Hit(1)) {
+            this.hitSpr0 = true;
+          }
         }
 
         if (this.f_bgVisibility === 1 || this.f_spVisibility === 1) {
@@ -515,8 +528,6 @@ class PPU {
           // first visible scanline. The buffer row is scanline - 20 (1-240),
           // offset by 1 because the pre-render scanline renders row 0.
           let bufferScan = this.scanline + 1 - 21;
-          // NES scanline for sprite evaluation (0-based visible scanlines)
-          let nesScanline = this.scanline - 21;
 
           // OAM corruption at the start of each visible scanline.
           // Normally OAMADDR is 0 here (reset by evaluation on the previous
@@ -564,6 +575,23 @@ class PPU {
           // See https://www.nesdev.org/wiki/PPU_sprite_evaluation
           if (bufferScan < 240) {
             this.evaluateSprites(bufferScan + 1);
+          }
+
+          // Pre-compute sprite 0 hit for the NEXT visible scanline. The BG
+          // render above advanced the scroll counters to the next row, and
+          // evaluateSprites just set up the secondary OAM for the next row.
+          // By detecting the hit now, step()'s dot loop will see spr0HitX/Y
+          // when processing the next scanline's dots, allowing the hit flag
+          // to be set at the correct PPU cycle.
+          if (
+            !this.hitSpr0 &&
+            this.f_bgVisibility === 1 &&
+            this.f_spVisibility === 1
+          ) {
+            this._precomputeSprite0Hit(bufferScan + 1);
+            if (this.spr0HitX !== -1) {
+              this.hitSpr0 = true;
+            }
           }
 
           if (this.f_bgVisibility === 1 || this.f_spVisibility === 1) {
@@ -1841,6 +1869,116 @@ class PPU {
         }
       }
       bufferIndex++;
+    }
+    return false;
+  }
+
+  // Pre-computes sprite 0 hit for the NEXT scanline by checking BG tile data
+  // directly, without requiring a full BG render. This is called after
+  // renderBgScanline advances the scroll counters (cntFV/cntVT/cntV) to the
+  // next row's position. By detecting the hit one scanline early, the dot-by-
+  // dot loop in step() can set STATUS_SPRITE0HIT at the correct PPU cycle
+  // instead of one full scanline late.
+  //
+  // The approach: for each of sprite 0's 8 pixels, compute which BG tile
+  // occupies that screen position using the scroll registers, then check if
+  // both the sprite pixel and BG pixel are non-transparent.
+  //
+  // See https://www.nesdev.org/wiki/PPU_OAM#Sprite_zero_hits
+  _precomputeSprite0Hit(nextBufferScan) {
+    if (nextBufferScan < 1 || nextBufferScan > 239) return false;
+    if (!this.scanlineSprite0[nextBufferScan]) return false;
+    if (this.scanlineSpriteCount[nextBufferScan] === 0) return false;
+
+    // Read sprite 0 from secondary OAM for the next scanline.
+    let oamBase = nextBufferScan * 32;
+    let sprY = this.scanlineSecondaryOAM[oamBase + 0];
+    let sprTile = this.scanlineSecondaryOAM[oamBase + 1];
+    let sprAttr = this.scanlineSecondaryOAM[oamBase + 2];
+    let sprX = this.scanlineSecondaryOAM[oamBase + 3];
+    let y = sprY + 1; // +1 because sprite Y in OAM is display line - 1
+
+    let vertFlip = (sprAttr >> 7) & 1;
+    let horiFlip = (sprAttr >> 6) & 1;
+    let leftClip = this.f_spClipping === 0 || this.f_bgClipping === 0;
+
+    // Check if sprite 0 overlaps the next scanline.
+    let spriteHeight = this.f_spriteSize === 0 ? 8 : 16;
+    if (!(y <= nextBufferScan && y + spriteHeight > nextBufferScan))
+      return false;
+    if (sprX >= 256) return false;
+
+    // Compute sprite tile row for this scanline.
+    let sprRow = vertFlip
+      ? spriteHeight - 1 - (nextBufferScan - y)
+      : nextBufferScan - y;
+    let sprTileObj, toffset;
+
+    if (this.f_spriteSize === 0) {
+      // 8x8 sprites.
+      let tIndexAdd = this.f_spPatternTable === 0 ? 0 : 256;
+      sprTileObj = this.ptTile[sprTile + tIndexAdd];
+      toffset = sprRow * 8;
+    } else {
+      // 8x16 sprites: tile index bit 0 selects pattern table.
+      let patternBase = (sprTile & 1) !== 0 ? 256 : 0;
+      let baseTileIdx = sprTile & ~1;
+      if (sprRow < 8) {
+        sprTileObj =
+          this.ptTile[baseTileIdx + patternBase + (vertFlip ? 1 : 0)];
+        toffset = sprRow * 8;
+      } else {
+        sprTileObj =
+          this.ptTile[baseTileIdx + patternBase + (vertFlip ? 0 : 1)];
+        toffset = (sprRow - 8) * 8;
+      }
+    }
+    if (!sprTileObj) return false;
+
+    // BG vertical position: cntFV/cntVT/cntV have already been advanced to
+    // the next row by renderBgScanline's scroll update.
+    let bgFineY = this.cntFV;
+    let bgCoarseY = this.cntVT;
+    let bgNtV = this.cntV;
+    let baseBgTile = this.regS === 0 ? 0 : 256;
+
+    // Check each sprite pixel against the BG tile at that position.
+    for (let px = 0; px < 8; px++) {
+      let screenX = sprX + px;
+      if (screenX >= 255) continue; // no hit at x=255
+      if (leftClip && screenX < 8) continue;
+
+      // Check sprite pixel non-transparent.
+      let tileIdx = horiFlip ? 7 - px : px;
+      if (sprTileObj.pix[toffset + tileIdx] === 0) continue;
+
+      // Compute which BG tile covers this screen X using the horizontal
+      // scroll registers (regHT/regH are reloaded at the start of each
+      // visible scanline on real hardware).
+      let tileOffset = (screenX + this.regFH) >> 3;
+      let absCol = this.regHT + tileOffset;
+      let bgNtH = this.regH;
+      if (absCol >= 32) {
+        absCol -= 32;
+        bgNtH ^= 1; // toggle horizontal nametable
+      }
+
+      // Look up the BG tile from the nametable.
+      let ntIdx = this.ntable1[(bgNtV << 1) + bgNtH];
+      let bgTileIndex = this.nameTable[ntIdx].getTileIndex(absCol, bgCoarseY);
+      let bgTile = this.ptTile[baseBgTile + bgTileIndex];
+      if (!bgTile) continue;
+
+      // Check BG pixel non-transparent at (fineX, fineY).
+      let bgPixelX = (screenX + this.regFH) & 7;
+      if (bgTile.pix[bgFineY * 8 + bgPixelX] !== 0) {
+        // Hit found! Store in NES scanline coordinates for step() matching.
+        // step() compares scanline - 21 against spr0HitY, where
+        // scanline - 21 = bufferScan - 1, so we store nextBufferScan - 1.
+        this.spr0HitX = screenX;
+        this.spr0HitY = nextBufferScan - 1;
+        return true;
+      }
     }
     return false;
   }
