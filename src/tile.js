@@ -58,89 +58,86 @@ class Tile {
       srcy2 = 240 - dy;
     }
 
-    let fbIndex, tIndex, palIndex, tpri;
+    let palIndex, tpri;
+    let pix = this.pix;
+
+    // Pre-compute row/col ranges to eliminate per-pixel bounds checks.
+    // The outer loop iterates only over visible rows (srcy1..srcy2-1),
+    // the inner loop only over visible columns (srcx1..srcx2-1).
+    let fbBase = ((dy + srcy1) << 8) + dx + srcx1;
+    let xSpan = srcx2 - srcx1;
 
     if (!flipHorizontal && !flipVertical) {
-      fbIndex = (dy << 8) + dx;
-      tIndex = 0;
-      for (let y = 0; y < 8; y++) {
-        for (let x = 0; x < 8; x++) {
-          if (x >= srcx1 && x < srcx2 && y >= srcy1 && y < srcy2) {
-            palIndex = this.pix[tIndex];
-            tpri = priTable[fbIndex];
-            if (palIndex !== 0 && pri <= (tpri & 0xff)) {
-              buffer[fbIndex] = palette[palIndex + palAdd];
-              tpri = (tpri & 0xf00) | pri;
-              priTable[fbIndex] = tpri;
-            }
+      let tBase = (srcy1 << 3) + srcx1;
+      for (let y = srcy1; y < srcy2; y++) {
+        let fbIndex = fbBase;
+        let tIndex = tBase;
+        for (let x = 0; x < xSpan; x++) {
+          palIndex = pix[tIndex];
+          tpri = priTable[fbIndex];
+          if (palIndex !== 0 && pri <= (tpri & 0xff)) {
+            buffer[fbIndex] = palette[palIndex + palAdd];
+            priTable[fbIndex] = (tpri & 0xf00) | pri;
           }
           fbIndex++;
           tIndex++;
         }
-        fbIndex -= 8;
-        fbIndex += 256;
+        fbBase += 256;
+        tBase += 8;
       }
     } else if (flipHorizontal && !flipVertical) {
-      fbIndex = (dy << 8) + dx;
-      tIndex = 7;
-      for (let y = 0; y < 8; y++) {
-        for (let x = 0; x < 8; x++) {
-          if (x >= srcx1 && x < srcx2 && y >= srcy1 && y < srcy2) {
-            palIndex = this.pix[tIndex];
-            tpri = priTable[fbIndex];
-            if (palIndex !== 0 && pri <= (tpri & 0xff)) {
-              buffer[fbIndex] = palette[palIndex + palAdd];
-              tpri = (tpri & 0xf00) | pri;
-              priTable[fbIndex] = tpri;
-            }
+      let tBase = (srcy1 << 3) + (7 - srcx1);
+      for (let y = srcy1; y < srcy2; y++) {
+        let fbIndex = fbBase;
+        let tIndex = tBase;
+        for (let x = 0; x < xSpan; x++) {
+          palIndex = pix[tIndex];
+          tpri = priTable[fbIndex];
+          if (palIndex !== 0 && pri <= (tpri & 0xff)) {
+            buffer[fbIndex] = palette[palIndex + palAdd];
+            priTable[fbIndex] = (tpri & 0xf00) | pri;
           }
           fbIndex++;
           tIndex--;
         }
-        fbIndex -= 8;
-        fbIndex += 256;
-        tIndex += 16;
+        fbBase += 256;
+        tBase += 8;
       }
     } else if (flipVertical && !flipHorizontal) {
-      fbIndex = (dy << 8) + dx;
-      tIndex = 56;
-      for (let y = 0; y < 8; y++) {
-        for (let x = 0; x < 8; x++) {
-          if (x >= srcx1 && x < srcx2 && y >= srcy1 && y < srcy2) {
-            palIndex = this.pix[tIndex];
-            tpri = priTable[fbIndex];
-            if (palIndex !== 0 && pri <= (tpri & 0xff)) {
-              buffer[fbIndex] = palette[palIndex + palAdd];
-              tpri = (tpri & 0xf00) | pri;
-              priTable[fbIndex] = tpri;
-            }
+      let tBase = ((7 - srcy1) << 3) + srcx1;
+      for (let y = srcy1; y < srcy2; y++) {
+        let fbIndex = fbBase;
+        let tIndex = tBase;
+        for (let x = 0; x < xSpan; x++) {
+          palIndex = pix[tIndex];
+          tpri = priTable[fbIndex];
+          if (palIndex !== 0 && pri <= (tpri & 0xff)) {
+            buffer[fbIndex] = palette[palIndex + palAdd];
+            priTable[fbIndex] = (tpri & 0xf00) | pri;
           }
           fbIndex++;
           tIndex++;
         }
-        fbIndex -= 8;
-        fbIndex += 256;
-        tIndex -= 16;
+        fbBase += 256;
+        tBase -= 8;
       }
     } else {
-      fbIndex = (dy << 8) + dx;
-      tIndex = 63;
-      for (let y = 0; y < 8; y++) {
-        for (let x = 0; x < 8; x++) {
-          if (x >= srcx1 && x < srcx2 && y >= srcy1 && y < srcy2) {
-            palIndex = this.pix[tIndex];
-            tpri = priTable[fbIndex];
-            if (palIndex !== 0 && pri <= (tpri & 0xff)) {
-              buffer[fbIndex] = palette[palIndex + palAdd];
-              tpri = (tpri & 0xf00) | pri;
-              priTable[fbIndex] = tpri;
-            }
+      let tBase = ((7 - srcy1) << 3) + (7 - srcx1);
+      for (let y = srcy1; y < srcy2; y++) {
+        let fbIndex = fbBase;
+        let tIndex = tBase;
+        for (let x = 0; x < xSpan; x++) {
+          palIndex = pix[tIndex];
+          tpri = priTable[fbIndex];
+          if (palIndex !== 0 && pri <= (tpri & 0xff)) {
+            buffer[fbIndex] = palette[palIndex + palAdd];
+            priTable[fbIndex] = (tpri & 0xf00) | pri;
           }
           fbIndex++;
           tIndex--;
         }
-        fbIndex -= 8;
-        fbIndex += 256;
+        fbBase += 256;
+        tBase -= 8;
       }
     }
   }
