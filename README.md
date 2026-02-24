@@ -52,17 +52,7 @@ var browser = new jsnes.Browser({
 });
 ```
 
-Default keyboard controls:
-
-| Button | Player 1 | Player 2 |
-|--------|----------|----------|
-| Up / Down / Left / Right | Arrow keys | Numpad 8 / 2 / 4 / 6 |
-| A | X | Numpad 7 |
-| B | Z | Numpad 9 |
-| Start | Enter | Numpad 1 |
-| Select | Right Ctrl | Numpad 3 |
-
-Gamepads are also supported automatically.
+See [Keyboard Controls](#keyboard-controls) below for default key bindings. Gamepads are also supported automatically.
 
 ### React
 
@@ -201,6 +191,33 @@ var browser = new jsnes.Browser(options);
 | `browser.nes` | The underlying `NES` instance. |
 | `browser.keyboard` | The `KeyboardController` for remapping keys. |
 | `browser.gamepad` | The `GamepadController` for remapping gamepad buttons. |
+
+## Keyboard Controls
+
+When using `jsnes.Browser`, the following keyboard bindings are set up by default:
+
+| Button | Player 1 | Player 2 |
+|--------|----------|----------|
+| Up / Down / Left / Right | Arrow keys | Numpad 8 / 2 / 4 / 6 |
+| A | X | Numpad 7 |
+| B | Z (or Y) | Numpad 9 |
+| Turbo A | S | — |
+| Turbo B | A | — |
+| Start | Enter | Numpad 1 |
+| Select | Right Ctrl | Numpad 3 |
+
+Turbo A and Turbo B behave like A and B but auto-fire repeatedly while the key is held.
+
+Key bindings can be customized at runtime via the `browser.keyboard` property. Use `setKeys()` to provide a custom mapping (persisted to localStorage) and `loadKeys()` to reload it:
+
+```javascript
+// Get the current key map
+var keys = browser.keyboard.keys;
+
+// Remap Player 1 A button to the J key (keyCode 74)
+keys[74] = [1, jsnes.Controller.BUTTON_A, "J"];
+browser.keyboard.setKeys(keys);
+```
 
 ## Build
 
