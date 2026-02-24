@@ -145,42 +145,65 @@ class ChannelDM {
       this.dacLsb = value & 1;
       this.sample = (this.deltaCounter << 1) + this.dacLsb; // update sample value
     } else if (address === 0x4012) {
-      // DMA address load register
+      // DMA address load register.
+      // Only updates the start address register — the active playAddress is
+      // loaded from playStartAddress when a sample restart occurs (via $4015).
+      // See https://www.nesdev.org/wiki/APU_DMC
       this.playStartAddress = (value << 6) | 0x0c000;
-      this.playAddress = this.playStartAddress;
       this.reg4012 = value;
     } else if (address === 0x4013) {
-      // Length of play code
+      // Length of play code.
+      // Only updates the length register — the active playLengthCounter is
+      // loaded from playLength when a sample restart occurs (via $4015 or
+      // loop). Writing $4013 does not affect a currently playing sample.
+      // See https://www.nesdev.org/wiki/APU_DMC
       this.playLength = (value << 4) + 1;
-      this.playLengthCounter = this.playLength;
       this.reg4013 = value;
     } else if (address === 0x4015) {
       // DMC/IRQ Status
+      // Writing $4015 always clears the DMC IRQ flag first, before any
+      // other effects. On real hardware, the flag clear occurs on the
+      // write cycle, while DMA fetches happen 3-4 cycles later — so a
+      // DMA fetch triggered by this write CAN set a new IRQ flag.
+      // See https://www.nesdev.org/wiki/APU_DMC
+      this.irqGenerated = false;
+
       if (((value >> 4) & 1) === 0) {
-        // Disable:
+        // Disable: set bytes remaining to 0.
         this.playLengthCounter = 0;
       } else {
-        // Restart:
-        this.playAddress = this.playStartAddress;
-        this.playLengthCounter = this.playLength;
-        // On real hardware, when DMC is enabled and the sample buffer is
-        // empty, a DMA fetch fires within a few CPU cycles. Trigger it
-        // immediately so the DMASync loop in test ROMs can detect the
-        // first fetch. See https://www.nesdev.org/wiki/APU_DMC
-        if (!this.hasSample && this.playLengthCounter > 0) {
-          this.nextSample();
-          this.dmaCounter = 8;
-          this.shiftCounter = this.dmaFrequency;
+        // Enable: only restart the sample if bytes remaining is 0.
+        // If the sample is still playing (bytes remaining > 0), this
+        // write has no effect on playback.
+        if (this.playLengthCounter === 0) {
+          this.playAddress = this.playStartAddress;
+          this.playLengthCounter = this.playLength;
+          // On real hardware, when DMC is enabled and the sample buffer is
+          // empty, a DMA fetch fires within a few CPU cycles. Trigger it
+          // immediately so the DMASync loop in test ROMs can detect the
+          // first fetch. See https://www.nesdev.org/wiki/APU_DMC
+          if (!this.hasSample && this.playLengthCounter > 0) {
+            this.nextSample();
+            this.dmaCounter = 8;
+            this.shiftCounter = this.dmaFrequency;
+            // If the immediate DMA fetch consumed the last byte (e.g. a
+            // 1-byte sample), set the IRQ flag just like endOfSample does.
+            if (
+              this.playLengthCounter === 0 &&
+              this.playMode === ChannelDM.MODE_IRQ
+            ) {
+              this.irqGenerated = true;
+            }
+          }
         }
       }
-      this.irqGenerated = false;
     }
   }
 
   setEnabled(value) {
-    if (!this.isEnabled && value) {
-      this.playLengthCounter = this.playLength;
-    }
+    // Just track the enable flag. The restart logic (reloading address and
+    // length counter) is handled in writeReg for $4015, which is always
+    // called after setEnabled in the $4015 write path.
     this.isEnabled = value;
   }
 
