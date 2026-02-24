@@ -166,3 +166,4 @@ The NES has a `crashed` flag that prevents further frame execution after excepti
 - Controller input uses simple button state management with 8 buttons per controller
 - Liberally document things with comments, particularly if it's not obvious why something is like it is. Link to documentation and references (e.g. nesdev wiki pages) where it makes sense.
 - Update CLAUDE.md if you make mistakes and you want to remind yourself in the future not to do something. Only put it in CLAUDE.md if it's high-level architecture and things that apply to several parts of the codebase. If it's about a particular part of the code or tests, just add it as comments.
+- Keep `README.md` up to date when changing the public API (adding/removing/renaming methods, options, or exports). The README contains usage examples and an API reference for both the `NES` and `Browser` classes.
