@@ -266,13 +266,50 @@ class PPU {
     this.lastRenderedScanline = -1;
   }
 
+  // Fire the VBlank set event at dot 1 of scanline 0 (NES scanline 241).
+  // dotsRemaining is the number of dots left in the current advanceDots()
+  // call (including the VBlank dot), used for NMI delay calculation.
+  // 0 means VBlank fires at the boundary between steps.
+  _fireVblankSet(cpu, dotsRemaining) {
+    this.vblankPending = false;
+    if (!this.nmiSuppressed) {
+      this.setStatusFlag(this.STATUS_VBLANK, true);
+      this._updateNmiOutput();
+      if (cpu.nmiRaised) {
+        cpu.nmiDotsRemainingInStep = dotsRemaining;
+      }
+    }
+    this.nmiSuppressed = false;
+    this.startVBlank();
+    this.frameEnded = true;
+  }
+
+  // Fire the VBlank clear event at dot 1 of scanline 20 (NES scanline 261,
+  // pre-render). isLastDot indicates whether this is the last dot of the
+  // current advanceDots() call. The 6502's NMI edge detector samples at φ2
+  // (~2/3 through the bus cycle), so we only promote nmiRaised to nmiPending
+  // when φ2 has had time to sample the rising edge — i.e., on the last dot.
+  // See https://www.nesdev.org/wiki/NMI
+  _fireVblankClear(cpu, isLastDot) {
+    if (cpu.nmiRaised && isLastDot) {
+      cpu.nmiPending = true;
+      cpu.nmiRaised = false;
+    }
+    this.setStatusFlag(this.STATUS_VBLANK, false);
+    this.setStatusFlag(this.STATUS_SPRITE0HIT, false);
+    this.hitSpr0 = false;
+    this.spr0HitX = -1;
+    this.spr0HitY = -1;
+    this._updateNmiOutput();
+  }
+
   // Advance the PPU by the given number of dots. Called after every CPU bus
   // cycle with dots=3 (PPU runs at 3x CPU clock). Handles all per-dot events:
   // VBlank set/clear, sprite 0 hit, and scanline boundaries.
   //
   // Sets this.frameEnded = true when VBlank fires (scanline 0, dot 1),
   // signaling the frame loop to break after the current instruction.
-  step(dots) {
+  advanceDots(dots) {
     let finalCurX = this.curX + dots;
 
     // Fast path: skip dot-by-dot when no per-dot events can fire.
@@ -298,43 +335,14 @@ class PPU {
     for (let i = 0; i < dots; i++) {
       // VBlank set at dot 1 of scanline 0 (NES scanline 241).
       if (this.scanline === 0 && this.curX === 1 && this.vblankPending) {
-        this.vblankPending = false;
-        if (!this.nmiSuppressed) {
-          this.setStatusFlag(this.STATUS_VBLANK, true);
-          this._updateNmiOutput();
-          // Record sub-dot position for NMI delay calculation.
-          // dots - i counts remaining dots including the VBlank dot.
-          if (cpu.nmiRaised) {
-            cpu.nmiDotsRemainingInStep = dots - i;
-          }
-        }
-        this.nmiSuppressed = false;
-        this.startVBlank();
-        this.frameEnded = true;
+        this._fireVblankSet(cpu, dots - i);
         this.curX++;
         continue;
       }
 
       // VBlank clear at dot 1 of scanline 20 (NES scanline 261, pre-render).
       if (this.scanline === 20 && this.curX === 1) {
-        // The 6502's NMI edge detector samples at φ2 (~2/3 through the bus
-        // cycle). If a $2000 write enabled NMI earlier in the same bus cycle
-        // (creating a rising edge), we must promote nmiRaised to nmiPending
-        // ONLY if φ2 has already sampled the rising edge — i.e., this VBL
-        // clear is on the last dot of the step. If there are dots remaining,
-        // φ2 hasn't sampled yet, so the falling edge from VBL clear should
-        // cancel the not-yet-latched rising edge.
-        // See https://www.nesdev.org/wiki/NMI
-        if (cpu.nmiRaised && i === dots - 1) {
-          cpu.nmiPending = true;
-          cpu.nmiRaised = false;
-        }
-        this.setStatusFlag(this.STATUS_VBLANK, false);
-        this.setStatusFlag(this.STATUS_SPRITE0HIT, false);
-        this.hitSpr0 = false;
-        this.spr0HitX = -1;
-        this.spr0HitY = -1;
-        this._updateNmiOutput();
+        this._fireVblankClear(cpu, i === dots - 1);
       }
 
       // Sprite 0 hit check.
@@ -361,36 +369,11 @@ class PPU {
     // reads at that dot must see the updated state.
     // See https://www.nesdev.org/wiki/PPU_frame_timing
     if (this.scanline === 0 && this.curX === 1 && this.vblankPending) {
-      this.vblankPending = false;
-      if (!this.nmiSuppressed) {
-        this.setStatusFlag(this.STATUS_VBLANK, true);
-        this._updateNmiOutput();
-        if (cpu.nmiRaised) {
-          // VBlank fires at the boundary — 0 remaining dots in this step.
-          cpu.nmiDotsRemainingInStep = 0;
-        }
-      }
-      this.nmiSuppressed = false;
-      this.startVBlank();
-      this.frameEnded = true;
+      this._fireVblankSet(cpu, 0);
     }
     if (this.scanline === 20 && this.curX === 1) {
-      // Promote nmiRaised to nmiPending BEFORE clearing VBL, matching the
-      // main loop's order. This handles the case where a $2000 write enabled
-      // NMI during the same bus cycle: the rising edge was set before step()
-      // ran, and on real hardware the φ2 edge detector would have latched it.
-      // Clearing VBL first would trigger a falling edge that cancels nmiRaised
-      // before promotion can commit it.
-      if (cpu.nmiRaised) {
-        cpu.nmiPending = true;
-        cpu.nmiRaised = false;
-      }
-      this.setStatusFlag(this.STATUS_VBLANK, false);
-      this.setStatusFlag(this.STATUS_SPRITE0HIT, false);
-      this.hitSpr0 = false;
-      this.spr0HitX = -1;
-      this.spr0HitY = -1;
-      this._updateNmiOutput();
+      // isLastDot=true: the loop exhausted all dots so φ2 has sampled.
+      this._fireVblankClear(cpu, true);
     }
   }
 

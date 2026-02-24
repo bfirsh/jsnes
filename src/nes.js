@@ -98,7 +98,7 @@ class NES {
           // DMA halt cycles: step PPU per cycle. APU is clocked in bulk.
           let chunk = Math.min(cpu.cyclesToHalt, 8);
           for (let i = 0; i < chunk; i++) {
-            ppu.step(3);
+            ppu.advanceDots(3);
           }
           papu.clockFrameCounter(chunk);
           cpu.cyclesToHalt -= chunk;

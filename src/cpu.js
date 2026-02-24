@@ -105,7 +105,7 @@ class CPU {
     // 1-delay NMI determination at end of instruction.
     this.nmiRaisedAtCycle = 0;
     // Sub-dot precision: remaining dots (including the VBlank dot) within
-    // the ppu.step() call that raised NMI. Used together with
+    // the ppu.advanceDots() call that raised NMI. Used together with
     // nmiRaisedAtCycle to compute remaining PPU dots for the >= 5
     // threshold check (matching the old frame loop behavior).
     this.nmiDotsRemainingInStep = 0;
@@ -222,7 +222,7 @@ class CPU {
     let opcode = this.loadFromCartridge(this.REG_PC + 1);
     this.dataBus = opcode;
     this.instrBusCycles = 1;
-    this.nes.ppu.step(3);
+    this.nes.ppu.advanceDots(3);
     let opinf = this.opdata[opcode];
     let cycleCount = opinf >> 24;
     let cycleAdd = 0;
@@ -1597,7 +1597,7 @@ class CPU {
       // would treat these dots as "future steps" while
       // nmiDotsRemainingInStep already counts remaining dots within them.
       this.instrBusCycles = cycleCount;
-      this.nes.ppu.step(missingDots);
+      this.nes.ppu.advanceDots(missingDots);
     }
 
     // NMI delay: when nmiRaised was set during this instruction (by inline
@@ -1607,7 +1607,7 @@ class CPU {
     // remainingDots counts PPU dots from the VBlank edge to the end of
     // the instruction. It has two components:
     // 1. Dots from subsequent bus cycles: (instrBusCycles - nmiRaisedAtCycle) * 3
-    // 2. Sub-step dots: nmiDotsRemainingInStep (ppu.step() records
+    // 2. Sub-step dots: nmiDotsRemainingInStep (ppu.advanceDots() records
     //    dots - i, which includes the VBlank dot itself)
     //
     // >= 5 remaining dots means the edge propagates in time for the
@@ -1712,7 +1712,7 @@ class CPU {
       // RAM (zero page, stack, general): most common path
       this.dataBus = this.mem[addr & 0x7ff];
       this.instrBusCycles++;
-      this.nes.ppu.step(3);
+      this.nes.ppu.advanceDots(3);
     } else if (addr >= 0x4000) {
       // Cartridge ROM/RAM, APU, expansion ($4000+)
       if (addr === 0x4015) {
@@ -1728,12 +1728,12 @@ class CPU {
         // previous bus value. See https://www.nesdev.org/wiki/Open_bus_behavior
         let apuStatus = this.loadFromCartridge(addr);
         this.instrBusCycles++;
-        this.nes.ppu.step(3);
+        this.nes.ppu.advanceDots(3);
         return apuStatus;
       }
       this.dataBus = this.loadFromCartridge(addr);
       this.instrBusCycles++;
-      this.nes.ppu.step(3);
+      this.nes.ppu.advanceDots(3);
     } else {
       // PPU registers ($2000-$3FFF): increment bus cycle counter first
       // (for correct nmiRaisedAtCycle tracking), then read, then step PPU.
@@ -1742,7 +1742,7 @@ class CPU {
       // _ppuCatchUp() behavior.
       this.instrBusCycles++;
       this.dataBus = this.loadFromCartridge(addr);
-      this.nes.ppu.step(3);
+      this.nes.ppu.advanceDots(3);
     }
     return this.dataBus;
   }
@@ -1763,7 +1763,7 @@ class CPU {
       this.dataBus = this.loadFromCartridge(addr);
     }
     this.instrBusCycles++;
-    this.nes.ppu.step(3);
+    this.nes.ppu.advanceDots(3);
     return this.dataBus;
   }
 
@@ -1775,19 +1775,19 @@ class CPU {
       this.dataBus = this.mem[addr & 0x7ff];
       lo = this.dataBus;
       this.instrBusCycles++;
-      this.nes.ppu.step(3);
+      this.nes.ppu.advanceDots(3);
       this.dataBus = this.mem[(addr + 1) & 0x7ff];
       this.instrBusCycles++;
-      this.nes.ppu.step(3);
+      this.nes.ppu.advanceDots(3);
       return lo | (this.dataBus << 8);
     } else {
       this.dataBus = this.loadFromCartridge(addr);
       lo = this.dataBus;
       this.instrBusCycles++;
-      this.nes.ppu.step(3);
+      this.nes.ppu.advanceDots(3);
       this.dataBus = this.loadFromCartridge(addr + 1);
       this.instrBusCycles++;
-      this.nes.ppu.step(3);
+      this.nes.ppu.advanceDots(3);
       return lo | (this.dataBus << 8);
     }
   }
@@ -1805,7 +1805,7 @@ class CPU {
       this.instrBusCycles++;
       this.dataBus = val;
       this.nes.mmap.write(addr, val);
-      this.nes.ppu.step(3);
+      this.nes.ppu.advanceDots(3);
     } else {
       this.dataBus = val;
       if (addr < 0x2000) {
@@ -1814,7 +1814,7 @@ class CPU {
         this.nes.mmap.write(addr, val);
       }
       this.instrBusCycles++;
-      this.nes.ppu.step(3);
+      this.nes.ppu.advanceDots(3);
     }
   }
 
@@ -1837,7 +1837,7 @@ class CPU {
     this.REG_SP--;
     this.REG_SP = this.REG_SP & 0xff;
     this.instrBusCycles++;
-    this.nes.ppu.step(3);
+    this.nes.ppu.advanceDots(3);
   }
 
   pull() {
@@ -1846,7 +1846,7 @@ class CPU {
     // Stack is always $0100-$01FF (internal RAM), so read directly from mem[].
     this.dataBus = this.mem[0x100 | this.REG_SP];
     this.instrBusCycles++;
-    this.nes.ppu.step(3);
+    this.nes.ppu.advanceDots(3);
     return this.dataBus;
   }
 
@@ -1956,9 +1956,9 @@ class CPU {
     // side effects on the data bus.
     // See https://www.nesdev.org/wiki/CPU_interrupts
     this.instrBusCycles++;
-    this.nes.ppu.step(3);
+    this.nes.ppu.advanceDots(3);
     this.instrBusCycles++;
-    this.nes.ppu.step(3);
+    this.nes.ppu.advanceDots(3);
 
     this.REG_PC_NEW++;
     this.push((this.REG_PC_NEW >> 8) & 0xff);
@@ -1968,11 +1968,11 @@ class CPU {
 
     this.dataBus = this.loadFromCartridge(0xfffa);
     this.instrBusCycles++;
-    this.nes.ppu.step(3);
+    this.nes.ppu.advanceDots(3);
     let lo = this.dataBus;
     this.dataBus = this.loadFromCartridge(0xfffb);
     this.instrBusCycles++;
-    this.nes.ppu.step(3);
+    this.nes.ppu.advanceDots(3);
     this.REG_PC_NEW = lo | (this.dataBus << 8);
     this.REG_PC_NEW--;
   }
@@ -1980,11 +1980,11 @@ class CPU {
   doResetInterrupt() {
     this.dataBus = this.loadFromCartridge(0xfffc);
     this.instrBusCycles++;
-    this.nes.ppu.step(3);
+    this.nes.ppu.advanceDots(3);
     let lo = this.dataBus;
     this.dataBus = this.loadFromCartridge(0xfffd);
     this.instrBusCycles++;
-    this.nes.ppu.step(3);
+    this.nes.ppu.advanceDots(3);
     this.REG_PC_NEW = lo | (this.dataBus << 8);
     this.REG_PC_NEW--;
   }
@@ -1999,11 +1999,11 @@ class CPU {
 
     this.dataBus = this.loadFromCartridge(0xfffe);
     this.instrBusCycles++;
-    this.nes.ppu.step(3);
+    this.nes.ppu.advanceDots(3);
     let lo = this.dataBus;
     this.dataBus = this.loadFromCartridge(0xffff);
     this.instrBusCycles++;
-    this.nes.ppu.step(3);
+    this.nes.ppu.advanceDots(3);
     this.REG_PC_NEW = lo | (this.dataBus << 8);
     this.REG_PC_NEW--;
   }

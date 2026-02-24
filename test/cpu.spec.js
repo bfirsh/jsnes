@@ -51,7 +51,7 @@ const NES = function (mmap) {
   this.mmap = mmap;
   this.gameGenie = new GameGenie();
   // Stub for inline PPU stepping in CPU bus operations
-  this.ppu = { step() {} };
+  this.ppu = { advanceDots() {} };
   // Stub for APU catch-up during $4015 reads
   this.papu = { advanceFrameCounter() {} };
 };
