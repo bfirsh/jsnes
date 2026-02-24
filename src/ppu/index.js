@@ -53,6 +53,10 @@ class PPU {
     this.dummyCycleToggle = false;
     this.validTileData = false;
     this.scanlineAlreadyRendered = null;
+    // Fast-path flag for CPU's _stepPpu3(): when false, no per-dot events
+    // (VBlank set/clear, sprite 0 hit) can fire on the current scanline,
+    // so the CPU only needs to check the scanline boundary (curX + 3 < 341).
+    this._dotEvents = false;
 
     // Control Flags Register 1:
     this.f_nmiOnVblank = 0; // NMI on VBlank. 0=disable, 1=enable
@@ -272,6 +276,7 @@ class PPU {
   // 0 means VBlank fires at the boundary between steps.
   _fireVblankSet(cpu, dotsRemaining) {
     this.vblankPending = false;
+    this._dotEvents = this.spr0HitX >= 0; // vblankPending cleared
     if (!this.nmiSuppressed) {
       this.setStatusFlag(this.STATUS_VBLANK, true);
       this._updateNmiOutput();
@@ -301,6 +306,7 @@ class PPU {
     this.spr0HitX = -1;
     this.spr0HitY = -1;
     this._updateNmiOutput();
+    this._dotEvents = false; // scanline 20 event fired, spr0HitX cleared
   }
 
   // Advance the PPU by the given number of dots. Called after every CPU bus
@@ -310,24 +316,27 @@ class PPU {
   // Sets this.frameEnded = true when VBlank fires (scanline 0, dot 1),
   // signaling the frame loop to break after the current instruction.
   advanceDots(dots) {
-    let finalCurX = this.curX + dots;
+    let curX = this.curX;
+    let finalCurX = curX + dots;
 
     // Fast path: skip dot-by-dot when no per-dot events can fire.
     // This handles ~99% of calls since VBlank, sprite 0, and scanline
     // boundaries are rare relative to total dots per frame.
-    if (
-      finalCurX < 341 &&
-      !(
-        this.scanline === 0 &&
-        this.vblankPending &&
-        this.curX <= 1 &&
-        finalCurX >= 1
-      ) &&
-      !(this.scanline === 20 && this.curX <= 1 && finalCurX >= 1) &&
-      (this.spr0HitX < this.curX || this.spr0HitX >= finalCurX)
-    ) {
+    if (finalCurX < 341 && !this._dotEvents) {
       this.curX = finalCurX;
       return;
+    }
+    // Medium path: no scanline boundary but events possible — check specifics.
+    if (finalCurX < 341) {
+      let scanline = this.scanline;
+      if (
+        (scanline !== 0 || !this.vblankPending || curX > 1 || finalCurX < 1) &&
+        (scanline !== 20 || curX > 1 || finalCurX < 1) &&
+        (this.spr0HitX < curX || this.spr0HitX >= finalCurX)
+      ) {
+        this.curX = finalCurX;
+        return;
+      }
     }
 
     // Slow path: advance dot-by-dot checking for events.
@@ -469,6 +478,7 @@ class PPU {
     this.scanline++;
     this.regsToAddress();
     this.cntsToAddress();
+    this._updateDotEvents();
   }
 
   startFrame() {
@@ -510,15 +520,8 @@ class PPU {
       }
     }
 
-    let buffer = this.buffer;
-    let i;
-    for (i = 0; i < 256 * 240; i++) {
-      buffer[i] = bgColor;
-    }
-    let pixrendered = this.pixrendered;
-    for (i = 0; i < pixrendered.length; i++) {
-      pixrendered[i] = 65;
-    }
+    this.buffer.fill(bgColor);
+    this.pixrendered.fill(65);
   }
 
   endFrame() {
@@ -567,29 +570,19 @@ class PPU {
     ) {
       // Clip left 8-pixels column:
       for (y = 0; y < 240; y++) {
-        for (x = 0; x < 8; x++) {
-          buffer[(y << 8) + x] = 0;
-        }
+        buffer.fill(0, y << 8, (y << 8) + 8);
       }
     }
 
     if (this.clipToTvSize) {
       // Clip right 8-pixels column too:
       for (y = 0; y < 240; y++) {
-        for (x = 0; x < 8; x++) {
-          buffer[(y << 8) + 255 - x] = 0;
-        }
+        buffer.fill(0, (y << 8) + 248, (y << 8) + 256);
       }
-    }
 
-    // Clip top and bottom 8 pixels:
-    if (this.clipToTvSize) {
-      for (y = 0; y < 8; y++) {
-        for (x = 0; x < 256; x++) {
-          buffer[(y << 8) + x] = 0;
-          buffer[((239 - y) << 8) + x] = 0;
-        }
-      }
+      // Clip top and bottom 8 pixels:
+      buffer.fill(0, 0, 8 << 8);
+      buffer.fill(0, 232 << 8, 240 << 8);
     }
 
     this.nes.ui.writeFrame(buffer);
@@ -613,6 +606,16 @@ class PPU {
     // enabled during VBlank, a rising edge fires NMI. If disabled, a pending
     // NMI is cancelled. See https://www.nesdev.org/wiki/NMI
     this._updateNmiOutput();
+  }
+
+  // Recompute the _dotEvents flag. Called when scanline, vblankPending,
+  // or spr0HitX changes. When false, the CPU's _stepPpu3() fast-path can
+  // skip all per-dot event checks and just increment curX.
+  _updateDotEvents() {
+    this._dotEvents =
+      (this.scanline === 0 && this.vblankPending) ||
+      this.scanline === 20 ||
+      this.spr0HitX >= 0;
   }
 
   // Recomputes the NMI output level from (vblankFlag AND nmiEnabled).
@@ -1396,8 +1399,9 @@ class PPU {
                 this.pixrendered[bufferIndex] > 0xff
               ) {
                 if (t.pix[toffset + i] !== 0) {
-                  this.spr0HitX = bufferIndex % 256;
+                  this.spr0HitX = bufferIndex & 255;
                   this.spr0HitY = scan;
+                  this._dotEvents = true;
                   return true;
                 }
               }
@@ -1414,8 +1418,9 @@ class PPU {
                 this.pixrendered[bufferIndex] > 0xff
               ) {
                 if (t.pix[toffset + i] !== 0) {
-                  this.spr0HitX = bufferIndex % 256;
+                  this.spr0HitX = bufferIndex & 255;
                   this.spr0HitY = scan;
+                  this._dotEvents = true;
                   return true;
                 }
               }
@@ -1473,8 +1478,9 @@ class PPU {
                 this.pixrendered[bufferIndex] > 0xff
               ) {
                 if (t.pix[toffset + i] !== 0) {
-                  this.spr0HitX = bufferIndex % 256;
+                  this.spr0HitX = bufferIndex & 255;
                   this.spr0HitY = scan;
+                  this._dotEvents = true;
                   return true;
                 }
               }
@@ -1491,8 +1497,9 @@ class PPU {
                 this.pixrendered[bufferIndex] > 0xff
               ) {
                 if (t.pix[toffset + i] !== 0) {
-                  this.spr0HitX = bufferIndex % 256;
+                  this.spr0HitX = bufferIndex & 255;
                   this.spr0HitY = scan;
+                  this._dotEvents = true;
                   return true;
                 }
               }
@@ -1571,8 +1578,8 @@ class PPU {
   // table buffers with this new byte.
   // In vNES, there is a version of this with 4 arguments which isn't used.
   patternWrite(address, value) {
-    let tileIndex = Math.floor(address / 16);
-    let leftOver = address % 16;
+    let tileIndex = address >> 4;
+    let leftOver = address & 15;
     if (leftOver < 8) {
       this.ptTile[tileIndex].setScanline(
         leftOver,
@@ -1608,28 +1615,33 @@ class PPU {
   // Updates the internally buffered sprite
   // data with this new byte of info.
   spriteRamWriteUpdate(address, value) {
-    let tIndex = Math.floor(address / 4);
+    let tIndex = address >> 2;
 
     if (tIndex === 0) {
       //updateSpr0Hit();
       this.checkSprite0(this.scanline - 20);
     }
 
-    if (address % 4 === 0) {
-      // Y coordinate
-      this.sprY[tIndex] = value;
-    } else if (address % 4 === 1) {
-      // Tile index
-      this.sprTile[tIndex] = value;
-    } else if (address % 4 === 2) {
-      // Attributes
-      this.vertFlip[tIndex] = (value >> 7) & 1;
-      this.horiFlip[tIndex] = (value >> 6) & 1;
-      this.bgPriority[tIndex] = (value >> 5) & 1;
-      this.sprCol[tIndex] = (value & 3) << 2;
-    } else if (address % 4 === 3) {
-      // X coordinate
-      this.sprX[tIndex] = value;
+    switch (address & 3) {
+      case 0:
+        // Y coordinate
+        this.sprY[tIndex] = value;
+        break;
+      case 1:
+        // Tile index
+        this.sprTile[tIndex] = value;
+        break;
+      case 2:
+        // Attributes
+        this.vertFlip[tIndex] = (value >> 7) & 1;
+        this.horiFlip[tIndex] = (value >> 6) & 1;
+        this.bgPriority[tIndex] = (value >> 5) & 1;
+        this.sprCol[tIndex] = (value & 3) << 2;
+        break;
+      case 3:
+        // X coordinate
+        this.sprX[tIndex] = value;
+        break;
     }
   }
 

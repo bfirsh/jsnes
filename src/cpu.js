@@ -204,7 +204,7 @@ class CPU {
     let opcode = this.loadFromCartridge(this.REG_PC + 1);
     this.dataBus = opcode;
     this.instrBusCycles = 1;
-    this.nes.ppu.advanceDots(3);
+    this._stepPpu3();
     let opinf = this.opdata[opcode];
     let cycleCount = opinf >> 24;
     let cycleAdd = 0;
@@ -1635,6 +1635,24 @@ class CPU {
     }
   }
 
+  // Inline PPU fast-path: advance curX by 3 without a function call.
+  // Called after every bus cycle (~30k/frame). The full advanceDots() is
+  // only needed when crossing a scanline boundary or hitting a per-dot
+  // event (VBlank, sprite 0 hit), which is <1% of calls.
+  //
+  // Uses ppu._dotEvents flag: when false, no per-dot events (VBlank,
+  // sprite 0) are possible on this scanline, so we only need to check
+  // the scanline boundary (curX + 3 < 341).
+  _stepPpu3() {
+    let ppu = this.nes.ppu;
+    let newCurX = ppu.curX + 3;
+    if (newCurX < 341 && !ppu._dotEvents) {
+      ppu.curX = newCurX;
+      return;
+    }
+    ppu.advanceDots(3);
+  }
+
   // Each load() call represents one CPU bus read cycle. After the read,
   // advances the PPU by 3 dots to keep it in sync. APU is clocked in bulk
   // by the frame loop after each instruction.
@@ -1649,7 +1667,7 @@ class CPU {
       // RAM (zero page, stack, general): most common path
       this.dataBus = this.mem[addr & 0x7ff];
       this.instrBusCycles++;
-      this.nes.ppu.advanceDots(3);
+      this._stepPpu3();
     } else if (addr >= 0x4000) {
       // Cartridge ROM/RAM, APU, expansion ($4000+)
       if (addr === 0x4015) {
@@ -1665,12 +1683,12 @@ class CPU {
         // previous bus value. See https://www.nesdev.org/wiki/Open_bus_behavior
         let apuStatus = this.loadFromCartridge(addr);
         this.instrBusCycles++;
-        this.nes.ppu.advanceDots(3);
+        this._stepPpu3();
         return apuStatus;
       }
       this.dataBus = this.loadFromCartridge(addr);
       this.instrBusCycles++;
-      this.nes.ppu.advanceDots(3);
+      this._stepPpu3();
     } else {
       // PPU registers ($2000-$3FFF): increment bus cycle counter first
       // (for correct nmiRaisedAtCycle tracking), then read, then step PPU.
@@ -1700,7 +1718,7 @@ class CPU {
       this.dataBus = this.loadFromCartridge(addr);
     }
     this.instrBusCycles++;
-    this.nes.ppu.advanceDots(3);
+    this._stepPpu3();
     return this.dataBus;
   }
 
@@ -1712,19 +1730,19 @@ class CPU {
       this.dataBus = this.mem[addr & 0x7ff];
       lo = this.dataBus;
       this.instrBusCycles++;
-      this.nes.ppu.advanceDots(3);
+      this._stepPpu3();
       this.dataBus = this.mem[(addr + 1) & 0x7ff];
       this.instrBusCycles++;
-      this.nes.ppu.advanceDots(3);
+      this._stepPpu3();
       return lo | (this.dataBus << 8);
     } else {
       this.dataBus = this.loadFromCartridge(addr);
       lo = this.dataBus;
       this.instrBusCycles++;
-      this.nes.ppu.advanceDots(3);
+      this._stepPpu3();
       this.dataBus = this.loadFromCartridge(addr + 1);
       this.instrBusCycles++;
-      this.nes.ppu.advanceDots(3);
+      this._stepPpu3();
       return lo | (this.dataBus << 8);
     }
   }
@@ -1751,7 +1769,7 @@ class CPU {
         this.nes.mmap.write(addr, val);
       }
       this.instrBusCycles++;
-      this.nes.ppu.advanceDots(3);
+      this._stepPpu3();
     }
   }
 
@@ -1774,7 +1792,7 @@ class CPU {
     this.REG_SP--;
     this.REG_SP = this.REG_SP & 0xff;
     this.instrBusCycles++;
-    this.nes.ppu.advanceDots(3);
+    this._stepPpu3();
   }
 
   pull() {
@@ -1783,7 +1801,7 @@ class CPU {
     // Stack is always $0100-$01FF (internal RAM), so read directly from mem[].
     this.dataBus = this.mem[0x100 | this.REG_SP];
     this.instrBusCycles++;
-    this.nes.ppu.advanceDots(3);
+    this._stepPpu3();
     return this.dataBus;
   }
 
