@@ -706,15 +706,11 @@ class Mapper5 extends Mapper0 {
     this._chrBankTarget = -1;
 
     if (this.nes.ppu.f_spriteSize === 0) {
-      // 8x8 sprite mode: only one CHR bank set is used for all fetches.
-      // Apply whichever set was last written to.
-      if (this.lastChrWrite === 1) {
-        this._applyChrSetB();
-        this._chrBankTarget = 1;
-      } else {
-        this._applyChrSetA();
-        this._chrBankTarget = 0;
-      }
+      // 8x8 sprite mode: only bank set A is used for ALL fetches (sprites,
+      // backgrounds, and $2007 reads). Bank set B is completely ignored.
+      // This was confirmed by hardware tests — see FCEUX bug #787.
+      this._applyChrSetA();
+      this._chrBankTarget = 0;
     }
     // In 8x16 sprite mode, the onBgRender/onSpriteRender hooks handle
     // switching between set A (sprites) and set B (backgrounds) per phase.
