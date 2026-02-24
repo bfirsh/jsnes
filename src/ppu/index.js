@@ -427,8 +427,15 @@ class PPU {
         }
 
         if (this.f_bgVisibility === 1 && this.f_spVisibility === 1) {
-          // Check sprite 0 hit for first scanline:
+          // Check sprite 0 hit for first scanline.
+          // Switch to sprite CHR banks first — renderBgScanline() left the
+          // BG set loaded, but sprite 0 needs the sprite CHR data (set A
+          // on MMC5). Restore BG banks and tile cache state afterward.
+          let savedValid = this.validTileData;
+          this.nes.mmap.onSpriteRender();
           this.checkSprite0(0);
+          this.nes.mmap.onBgRender();
+          this.validTileData = savedValid;
         }
 
         if (this.f_bgVisibility === 1 || this.f_spVisibility === 1) {
@@ -469,9 +476,16 @@ class PPU {
                 this.sprY[0] + 1 + (this.f_spriteSize === 0 ? 8 : 16) >=
                   this.scanline - 20
               ) {
+                // Switch to sprite CHR banks — renderBgScanline() left BG
+                // banks loaded, but sprite 0 hit detection needs sprite
+                // CHR data (set A on MMC5). Restore afterward.
+                let savedValid = this.validTileData;
+                this.nes.mmap.onSpriteRender();
                 if (this.checkSprite0(this.scanline - 20)) {
                   this.hitSpr0 = true;
                 }
+                this.nes.mmap.onBgRender();
+                this.validTileData = savedValid;
               }
             }
           }
