@@ -298,7 +298,11 @@ const KNOWN_FAILURES = {
   0x0480: "INC $4014 not accurate",
 
   // PPU misc: need dot-accurate PPU rendering pipeline
-  0x0481: "Attributes as tiles not accurate",
+  // Note: 0x0481 tile array fix is in place (attribTableWrite stores raw bytes
+  // in tile[960+]), but the test still fails because the pre-render dummy
+  // render advances cntFV, preventing BG rendering on the first tile row when
+  // fine Y > 0. Fixing this requires reworking the render pipeline.
+  0x0481: "Attributes as tiles - rendering with non-zero fine Y not accurate",
   0x0483: "Stale BG shift registers not accurate",
   0x0487: "BG serial in not accurate",
   0x0484: "Sprites on scanline 0 not accurate",

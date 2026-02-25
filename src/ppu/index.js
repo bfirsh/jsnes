@@ -376,9 +376,12 @@ class PPU {
         this._fireVblankClear(cpu, i === dots - 1);
       }
 
-      // Sprite 0 hit check.
+      // Sprite 0 hit check. On real hardware, sprite 0 hit requires BOTH
+      // background and sprite rendering to be enabled at the hit dot.
+      // See https://www.nesdev.org/wiki/PPU_OAM#Sprite_zero_hits
       if (
         this.curX === this.spr0HitX &&
+        this.f_bgVisibility === 1 &&
         this.f_spVisibility === 1 &&
         this.scanline - 21 === this.spr0HitY
       ) {
@@ -440,7 +443,13 @@ class PPU {
           this.cntVT = this.regVT;
           this.cntHT = this.regHT;
 
-          if (this.f_bgVisibility === 1) {
+          // On real hardware, the PPU runs a unified rendering pipeline
+          // whenever either BG or sprites is enabled. BG tile fetches and
+          // shift register loading happen regardless of which specific layer
+          // flag is set. The individual visibility flags only affect the
+          // final pixel output stage.
+          // See https://www.nesdev.org/wiki/PPU_rendering
+          if (this.f_bgVisibility === 1 || this.f_spVisibility === 1) {
             // Render dummy scanline:
             this.renderBgScanline(false, 0);
           }
@@ -514,8 +523,15 @@ class PPU {
           // scanline), but writes to $2003 during rendering can trigger this.
           this.performOAMCorruption();
 
-          // Render normally:
-          if (this.f_bgVisibility === 1) {
+          // Render normally. On real hardware the PPU runs a unified
+          // rendering pipeline when either BG or sprites is enabled — BG
+          // tile fetches, shift register loading, and VRAM address
+          // increments all happen regardless of which layer flag is set.
+          // The individual visibility flags only suppress the final pixel
+          // output. We must always populate bgbuffer/pixrendered so that
+          // sprite 0 hit detection works even when BG was briefly disabled.
+          // See https://www.nesdev.org/wiki/PPU_rendering
+          if (this.f_bgVisibility === 1 || this.f_spVisibility === 1) {
             if (!this.scanlineAlreadyRendered) {
               // update scroll:
               this.cntHT = this.regHT;
@@ -527,8 +543,10 @@ class PPU {
             // Check for sprite 0 hit on this scanline.
             // Only check if sprite 0 is in the secondary OAM for this scanline
             // (determined by evaluation on the previous scanline).
+            // Sprite 0 hit requires BOTH BG and sprite rendering to be enabled.
             if (
               !this.hitSpr0 &&
+              this.f_bgVisibility === 1 &&
               this.f_spVisibility === 1 &&
               this.scanlineSprite0[bufferScan]
             ) {
@@ -564,12 +582,14 @@ class PPU {
     // Clear per-scanline sprite evaluation data from the previous frame.
     // scanlineSpriteCount is set to 0 so no sprites render on un-evaluated
     // scanlines. scanlineSprite0 is cleared to prevent stale sprite 0 hits.
+    // Note: the pre-render scanline handler (case 20 in endScanline) may
+    // later set scanlineSpriteCount[1] with stale data from the hardware
+    // secondary OAM, allowing sprites to appear on NES scanline 0.
     // We don't need to clear scanlineSecondaryOAM here because:
     // - Evaluated scanlines fill it in evaluateSprites() (phase 1 clear)
-    // - Non-evaluated scanlines (0, 1) have scanlineSpriteCount = 0 so
-    //   their secondary OAM data is never read for rendering
-    // - $2004 reads during tile loading for non-evaluated scanlines will
-    //   see stale data, but this is acceptable since those reads are rare
+    // - The pre-render handler fills row 1 from stale secondaryOAM
+    // - scanlineSecondaryOAM for other non-evaluated rows is never read
+    //   because their scanlineSpriteCount is 0
     this.scanlineSpriteCount.fill(0);
     this.scanlineSprite0.fill(0);
 
@@ -762,6 +782,26 @@ class PPU {
     this.f_bgClipping = (value >> 1) & 1;
     this.f_dispType = value & 1;
 
+    // When both BG and sprite rendering become enabled mid-scanline,
+    // re-check sprite 0 hit. The unified PPU pipeline populates BG shift
+    // registers whenever either flag is set, so BG tile data exists in
+    // pixrendered even if only sprites were previously enabled. Re-enabling
+    // BG mid-scanline can trigger sprite 0 hit against this data.
+    if (
+      !this.hitSpr0 &&
+      this.f_bgVisibility === 1 &&
+      this.f_spVisibility === 1 &&
+      this.scanline >= 21 &&
+      this.scanline <= 260
+    ) {
+      let bufferScan = this.scanline + 1 - 21;
+      if (this.scanlineSprite0[bufferScan]) {
+        if (this.checkSprite0(bufferScan)) {
+          this.hitSpr0 = true;
+        }
+      }
+    }
+
     if (this.f_dispType === 0) {
       this.palTable.setEmphasis(this.f_color);
     }
@@ -876,10 +916,23 @@ class PPU {
   // Write to SPR-RAM (Sprite RAM).
   // The address should be set first.
   sramWrite(value) {
-    this.spriteMem[this.sramAddress] = value;
-    this.spriteRamWriteUpdate(this.sramAddress, value);
-    this.sramAddress++; // Increment address
-    this.sramAddress %= 0x100;
+    let renderingEnabled =
+      this.f_spVisibility === 1 || this.f_bgVisibility === 1;
+
+    if (renderingEnabled && this.scanline >= 20 && this.scanline <= 260) {
+      // During rendering on visible/pre-render scanlines, writes to $2004
+      // are suppressed (value is NOT stored to OAM). Instead, OAMADDR is
+      // incremented by 4 and ANDed with $FC, matching the hardware's
+      // internal evaluation counter behavior.
+      // See https://www.nesdev.org/wiki/PPU_registers#OAMDATA
+      this.sramAddress = (this.sramAddress + 4) & 0xfc;
+    } else {
+      // Normal write during VBlank or rendering disabled
+      this.spriteMem[this.sramAddress] = value;
+      this.spriteRamWriteUpdate(this.sramAddress, value);
+      this.sramAddress++;
+      this.sramAddress %= 0x100;
+    }
   }
 
   // CPU Register $2005:
@@ -958,8 +1011,7 @@ class PPU {
         this.nes.mmap.latchAccess(this.vramAddress);
       }
 
-      // Increment by either 1 or 32, depending on d2 of Control Register 1:
-      this.vramAddress += this.f_addrInc === 1 ? 32 : 1;
+      this._incrementVramAddress();
 
       this.cntsFromAddress();
       this.regsFromAddress();
@@ -983,8 +1035,7 @@ class PPU {
     // Update buffer with nametable data behind the palette
     this.vramBufferedReadValue = this.mirroredLoad(this.vramAddress & 0x2fff);
 
-    // Increment by either 1 or 32, depending on d2 of Control Register 1:
-    this.vramAddress += this.f_addrInc === 1 ? 32 : 1;
+    this._incrementVramAddress();
 
     this.cntsFromAddress();
     this.regsFromAddress();
@@ -1015,8 +1066,7 @@ class PPU {
       this.nes.mmap.latchAccess(this.vramAddress);
     }
 
-    // Increment by either 1 or 32, depending on d2 of Control Register 1:
-    this.vramAddress += this.f_addrInc === 1 ? 32 : 1;
+    this._incrementVramAddress();
     this.regsFromAddress();
     this.cntsFromAddress();
   }
@@ -1050,6 +1100,51 @@ class PPU {
     address = this.vramTmpAddress & 0xff;
     this.regVT = (this.regVT & 24) | ((address >> 5) & 7);
     this.regHT = address & 31;
+  }
+
+  // Increments the VRAM address after a $2007 read or write. During active
+  // rendering (either BG or sprites enabled on a visible/pre-render scanline),
+  // the increment behaves differently: instead of the normal +1 or +32 linear
+  // increment, the PPU performs simultaneous coarse X and Y increments with
+  // proper wrapping. This is because the v register is being used as part of
+  // the rendering address logic, not as a simple pointer.
+  // See https://www.nesdev.org/wiki/PPU_scrolling#$2007_reads_and_writes
+  // See https://www.nesdev.org/wiki/PPU_registers#PPUDATA
+  _incrementVramAddress() {
+    let renderingEnabled =
+      this.f_spVisibility === 1 || this.f_bgVisibility === 1;
+    // jsnes scanlines 20-260 = NES pre-render + visible scanlines
+    let onRenderingScanline = this.scanline >= 20 && this.scanline <= 260;
+
+    if (renderingEnabled && onRenderingScanline) {
+      // Coarse X increment (with horizontal nametable toggle on overflow)
+      if ((this.vramAddress & 0x001f) === 31) {
+        this.vramAddress &= ~0x001f; // coarse X = 0
+        this.vramAddress ^= 0x0400; // toggle horizontal nametable
+      } else {
+        this.vramAddress += 1;
+      }
+
+      // Y increment: fine Y first, then coarse Y on overflow
+      if ((this.vramAddress & 0x7000) !== 0x7000) {
+        this.vramAddress += 0x1000; // fine Y += 1
+      } else {
+        this.vramAddress &= ~0x7000; // fine Y = 0
+        let coarseY = (this.vramAddress >> 5) & 0x1f;
+        if (coarseY === 29) {
+          coarseY = 0;
+          this.vramAddress ^= 0x0800; // toggle vertical nametable
+        } else if (coarseY === 31) {
+          coarseY = 0; // wrap without nametable toggle
+        } else {
+          coarseY += 1;
+        }
+        this.vramAddress = (this.vramAddress & ~0x03e0) | (coarseY << 5);
+      }
+    } else {
+      // Normal linear increment outside rendering
+      this.vramAddress += this.f_addrInc === 1 ? 32 : 1;
+    }
   }
 
   // Updates the scroll registers from a new VRAM address.
@@ -1846,6 +1941,12 @@ class PPU {
   // table byte.
   attribTableWrite(index, address, value) {
     this.nameTable[index].writeAttrib(address, value);
+    // Also store the raw attribute byte in the tile array at offset 0x3C0
+    // (= 960 = 30*32). On real hardware, when coarse Y is 30 or 31, the PPU's
+    // nametable fetch address lands in the attribute table region and the raw
+    // byte is used as a tile index. This is the "attributes as tiles" quirk.
+    // See https://www.nesdev.org/wiki/PPU_scrolling
+    this.nameTable[index].tile[0x3c0 + address] = value;
   }
 
   // Updates the internally buffered sprite
