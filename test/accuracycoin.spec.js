@@ -289,7 +289,6 @@ const KNOWN_FAILURES = {
   0x048a: "$2007 read during rendering not accurate",
 
   // Sprite evaluation: need accurate OAM/sprite evaluation
-  0x0459: "Sprite overflow behavior not accurate",
   0x0457: "Sprite 0 hit behavior not accurate",
   0x0489: "Suddenly resize sprite not accurate",
   0x0458: "Arbitrary sprite zero not accurate",

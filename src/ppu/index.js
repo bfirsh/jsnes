@@ -106,7 +106,7 @@ class PPU {
     this.lastRenderedScanline = -1;
     this.curX = 0;
 
-    // Sprite data:
+    // Sprite data (unpacked from primary OAM for quick access):
     this.sprX = new Uint8Array(64); // X coordinate
     this.sprY = new Uint8Array(64); // Y coordinate
     this.sprTile = new Uint8Array(64); // Tile Index (into pattern table)
@@ -117,6 +117,33 @@ class PPU {
     this.spr0HitX = 0; // Sprite #0 hit X coordinate
     this.spr0HitY = 0; // Sprite #0 hit Y coordinate
     this.hitSpr0 = false;
+
+    // Secondary OAM: 32 bytes (8 sprites × 4 bytes each).
+    // On real hardware, the PPU evaluates sprites during cycles 65-256 of each
+    // visible scanline, copying in-range sprites into this buffer. Only these
+    // sprites (max 8) are rendered on the next scanline.
+    // This buffer persists across scanlines — it is NOT cleared on the
+    // pre-render scanline, so stale data from the last evaluation can cause
+    // sprites to appear on NES scanline 0.
+    // See https://www.nesdev.org/wiki/PPU_sprite_evaluation
+    this.secondaryOAM = new Uint8Array(32);
+    this.secondaryOAM.fill(0xff); // $FF = no valid sprites (matches hardware clear)
+    // How many sprites were found during the last evaluation (0-8).
+    this.spritesFound = 0;
+    // Whether sprite 0 (relative to OAMADDR) was in the last evaluation.
+    // This determines whether sprite 0 hit detection is active.
+    this.sprite0InSecondary = false;
+
+    // Per-scanline sprite evaluation results. Evaluation on visible scanline N
+    // determines which sprites appear on scanline N+1. Because jsnes uses
+    // batched/lazy sprite rendering, we store results per scanline so the
+    // renderer can look them up when it runs later.
+    // See https://www.nesdev.org/wiki/PPU_sprite_evaluation
+    //
+    // Storage layout: 240 scanlines × up to 8 sprites × 4 bytes = flat arrays.
+    this.scanlineSpriteCount = new Uint8Array(241); // +1 for buffer
+    this.scanlineSecondaryOAM = new Uint8Array(241 * 32);
+    this.scanlineSprite0 = new Uint8Array(241); // 1 if sprite 0 present
 
     // Palette data:
     this.sprPalette = new Uint32Array(16);
@@ -297,6 +324,10 @@ class PPU {
     }
     this.setStatusFlag(this.STATUS_VBLANK, false);
     this.setStatusFlag(this.STATUS_SPRITE0HIT, false);
+    // Sprite overflow flag is cleared at the same time as VBlank and
+    // sprite 0 hit, at dot 1 of the pre-render scanline.
+    // See https://www.nesdev.org/wiki/PPU_registers#PPUSTATUS
+    this.setStatusFlag(this.STATUS_SLSPRITECOUNT, false);
     this.hitSpr0 = false;
     this.spr0HitX = -1;
     this.spr0HitY = -1;
@@ -395,6 +426,12 @@ class PPU {
         // flags are cleared at dot 1, handled by the frame loop and catch-up
         // loop for cycle-accurate timing.
 
+        // OAM corruption: if OAMADDR != 0 at the beginning of the pre-render
+        // scanline, the 8 bytes at (OAMADDR & $F8) overwrite OAM[0..7].
+        // This happens BEFORE the OAMADDR reset at cycles 257-320.
+        // See https://www.nesdev.org/wiki/PPU_OAM#Sprite_0_corruption
+        this.performOAMCorruption();
+
         if (this.f_bgVisibility === 1 || this.f_spVisibility === 1) {
           // Update counters:
           this.cntFV = this.regFV;
@@ -407,10 +444,41 @@ class PPU {
             // Render dummy scanline:
             this.renderBgScanline(false, 0);
           }
+
+          // Sprite evaluation does NOT happen on the pre-render scanline, and
+          // secondary OAM is NOT cleared either. The pre-render scanline's sprite
+          // tile loading (cycles 257-320) reads from the stale secondary OAM left
+          // over from the last visible scanline's evaluation. If any stale sprites
+          // happen to be at Y=0, they will render on NES scanline 0.
+          // See https://www.nesdev.org/wiki/PPU_sprite_evaluation
+          //
+          // Buffer row 0 is the pre-render dummy row (no sprites).
+          this.scanlineSpriteCount[0] = 0;
+          this.scanlineSprite0[0] = 0;
+          for (let i = 0; i < 32; i++) {
+            this.scanlineSecondaryOAM[i] = 0xff;
+          }
+
+          // Buffer row 1 = NES scanline 0. Copy stale secondary OAM data from
+          // the last evaluation (preserved in this.secondaryOAM). On real hardware,
+          // the secondary OAM register persists and the pre-render scanline doesn't
+          // clear it, allowing stale sprites to appear on scanline 0.
+          // See AccuracyCoin "Sprites on Scanline 0" test.
+          let scanline0Base = 1 * 32;
+          for (let i = 0; i < 32; i++) {
+            this.scanlineSecondaryOAM[scanline0Base + i] = this.secondaryOAM[i];
+          }
+          this.scanlineSpriteCount[1] = this.spritesFound;
+          this.scanlineSprite0[1] = this.sprite0InSecondary ? 1 : 0;
+
+          // OAMADDR is reset to 0 during sprite tile loading (cycles 257-320).
+          this.sramAddress = 0;
         }
 
         if (this.f_bgVisibility === 1 && this.f_spVisibility === 1) {
-          // Check sprite 0 hit for first scanline:
+          // Check sprite 0 hit for dummy scanline (buffer row 0).
+          // Note: sprite 0 hit for NES scanline 0 (buffer row 1) is checked
+          // in the first visible scanline's endScanline, after BG is rendered.
           this.checkSprite0(0);
         }
 
@@ -433,30 +501,51 @@ class PPU {
 
       default:
         if (this.scanline >= 21 && this.scanline <= 260) {
+          // NES visible scanline index (0-239). The PPU's internal scanline
+          // counter starts at 0 for VBlank, 20 for pre-render, 21 for the
+          // first visible scanline. The buffer row is scanline - 20 (1-240),
+          // offset by 1 because the pre-render scanline renders row 0.
+          let bufferScan = this.scanline + 1 - 21;
+          // NES scanline for sprite evaluation (0-based visible scanlines)
+          let nesScanline = this.scanline - 21;
+
+          // OAM corruption at the start of each visible scanline.
+          // Normally OAMADDR is 0 here (reset by evaluation on the previous
+          // scanline), but writes to $2003 during rendering can trigger this.
+          this.performOAMCorruption();
+
           // Render normally:
           if (this.f_bgVisibility === 1) {
             if (!this.scanlineAlreadyRendered) {
               // update scroll:
               this.cntHT = this.regHT;
               this.cntH = this.regH;
-              this.renderBgScanline(true, this.scanline + 1 - 21);
+              this.renderBgScanline(true, bufferScan);
             }
             this.scanlineAlreadyRendered = false;
 
-            // Check for sprite 0 (next scanline):
-            if (!this.hitSpr0 && this.f_spVisibility === 1) {
-              if (
-                this.sprX[0] >= -7 &&
-                this.sprX[0] < 256 &&
-                this.sprY[0] + 1 <= this.scanline - 20 &&
-                this.sprY[0] + 1 + (this.f_spriteSize === 0 ? 8 : 16) >=
-                  this.scanline - 20
-              ) {
-                if (this.checkSprite0(this.scanline - 20)) {
-                  this.hitSpr0 = true;
-                }
+            // Check for sprite 0 hit on this scanline.
+            // Only check if sprite 0 is in the secondary OAM for this scanline
+            // (determined by evaluation on the previous scanline).
+            if (
+              !this.hitSpr0 &&
+              this.f_spVisibility === 1 &&
+              this.scanlineSprite0[bufferScan]
+            ) {
+              if (this.checkSprite0(bufferScan)) {
+                this.hitSpr0 = true;
               }
             }
+          }
+
+          // Evaluate sprites for the NEXT scanline. On real hardware this
+          // happens during cycles 65-256 of each visible scanline. Evaluation
+          // on scanline N determines sprites for scanline N+1.
+          // The evaluation target is bufferScan+1 because sprites have a +1 Y
+          // offset (sprite Y=0 renders on display row 1, not row 0).
+          // See https://www.nesdev.org/wiki/PPU_sprite_evaluation
+          if (bufferScan < 240) {
+            this.evaluateSprites(bufferScan + 1);
           }
 
           if (this.f_bgVisibility === 1 || this.f_spVisibility === 1) {
@@ -472,6 +561,18 @@ class PPU {
   }
 
   startFrame() {
+    // Clear per-scanline sprite evaluation data from the previous frame.
+    // scanlineSpriteCount is set to 0 so no sprites render on un-evaluated
+    // scanlines. scanlineSprite0 is cleared to prevent stale sprite 0 hits.
+    // We don't need to clear scanlineSecondaryOAM here because:
+    // - Evaluated scanlines fill it in evaluateSprites() (phase 1 clear)
+    // - Non-evaluated scanlines (0, 1) have scanlineSpriteCount = 0 so
+    //   their secondary OAM data is never read for rendering
+    // - $2004 reads during tile loading for non-evaluated scanlines will
+    //   see stale data, but this is acceptable since those reads are rare
+    this.scanlineSpriteCount.fill(0);
+    this.scanlineSprite0.fill(0);
+
     // Set background color:
     let bgColor;
 
@@ -720,14 +821,55 @@ class PPU {
   }
 
   // CPU Register $2004 (R):
-  // Read from SPR-RAM (Sprite RAM).
-  // The address should be set first.
+  // Read from SPR-RAM (Sprite RAM / OAM).
+  // During rendering, returns phase-dependent values instead of normal OAM:
+  //  - Cycles 1-64 (secondary OAM clear): returns $FF
+  //  - Cycles 65-256 (sprite evaluation): returns the byte being read
+  //  - Cycles 257-320 (sprite tile loading): returns secondary OAM data
+  // During VBlank or when rendering is disabled, returns OAM[OAMADDR] normally.
+  // Bits 2-4 of byte 2 (attributes) always read as 0 (unimplemented bits).
+  // See https://www.nesdev.org/wiki/PPU_registers#OAMDATA
   sramLoad() {
-    /*short tmp = sprMem.load(sramAddress);
-        sramAddress++; // Increment address
-        sramAddress%=0x100;
-        return tmp;*/
-    return this.spriteMem[this.sramAddress];
+    let renderingEnabled =
+      this.f_spVisibility === 1 || this.f_bgVisibility === 1;
+
+    // During visible or pre-render scanlines with rendering enabled,
+    // $2004 reads return internal PPU sprite data, not OAM directly.
+    // See https://www.nesdev.org/wiki/PPU_registers#OAMDATA
+    if (renderingEnabled && this.scanline >= 20 && this.scanline <= 260) {
+      let dot = this.curX;
+      if (dot <= 64) {
+        // Dots 0-64: secondary OAM clear phase (dots 1-64, plus idle dot 0).
+        // $2004 reads always return $FF because the internal clear signal
+        // forces the OAM read bus to $FF.
+        return 0xff;
+      } else if (dot <= 256) {
+        // Dots 65-256: sprite evaluation phase. $2004 returns the OAM byte
+        // currently being read by the evaluation logic. We approximate this
+        // by returning OAM[OAMADDR] since OAMADDR tracks the evaluation
+        // read pointer during this phase.
+        // Bits 2-4 of attribute bytes (byte 2 of each entry) always read as 0.
+        let val = this.spriteMem[this.sramAddress];
+        if ((this.sramAddress & 3) === 2) {
+          val &= 0xe3;
+        }
+        return val;
+      } else {
+        // Dots 257-340: sprite tile loading and background prefetch.
+        // $2004 reads return $FF during this entire phase. The PPU's
+        // internal OAM read bus is not driven by the evaluation logic.
+        // See AccuracyCoin "$2004 behavior" test.
+        return 0xff;
+      }
+    }
+
+    // Normal read during VBlank or rendering disabled.
+    // Bits 2-4 of attribute byte are unimplemented, always read as 0.
+    let value = this.spriteMem[this.sramAddress];
+    if ((this.sramAddress & 3) === 2) {
+      value &= 0xe3;
+    }
+    return value;
   }
 
   // CPU Register $2004 (W):
@@ -780,7 +922,7 @@ class PPU {
       this.cntVT = this.regVT;
       this.cntHT = this.regHT;
 
-      this.checkSprite0(this.scanline - 20);
+      this.checkSprite0(this.scanline + 1 - 21);
     }
 
     this.firstWrite = !this.firstWrite;
@@ -1228,145 +1370,280 @@ class PPU {
     }
   }
 
-  renderSpritesPartially(startscan, scancount, bgPri) {
-    if (this.f_spVisibility === 1) {
-      let mmap = this.nes.mmap;
-      for (let i = 0; i < 64; i++) {
-        if (
-          this.bgPriority[i] === bgPri &&
-          this.sprX[i] >= 0 &&
-          this.sprX[i] < 256 &&
-          this.sprY[i] + 8 >= startscan &&
-          this.sprY[i] < startscan + scancount
-        ) {
-          // Show sprite.
-          if (this.f_spriteSize === 0) {
-            // 8x8 sprites
-            let sprBaseAddr = this.f_spPatternTable === 0 ? 0x0000 : 0x1000;
+  // OAM corruption (2C02G/H hardware bug): if OAMADDR is not zero at the
+  // beginning of the pre-render or any visible scanline (when rendering is
+  // enabled), the 8 bytes at (OAMADDR & $F8) are copied over the first 8
+  // bytes of OAM. This is a DRAM refresh glitch, separate from evaluation.
+  // See https://www.nesdev.org/wiki/PPU_OAM#Sprite_0_corruption
+  performOAMCorruption() {
+    let renderingEnabled =
+      this.f_spVisibility === 1 || this.f_bgVisibility === 1;
+    if (!renderingEnabled) return;
+    if (this.sramAddress === 0) return;
 
-            this.srcy1 = 0;
-            this.srcy2 = 8;
+    let srcBase = this.sramAddress & 0xf8;
+    for (let i = 0; i < 8; i++) {
+      this.spriteMem[i] = this.spriteMem[(srcBase + i) & 0xff];
+    }
+    // Update unpacked sprite data for the corrupted entries
+    for (let i = 0; i < 8; i++) {
+      this.spriteRamWriteUpdate(i, this.spriteMem[i]);
+    }
+  }
 
-            if (this.sprY[i] < startscan) {
-              this.srcy1 = startscan - this.sprY[i] - 1;
-            }
+  // Evaluate sprites for the given scanline, populating secondary OAM and
+  // storing results in per-scanline arrays for later batch rendering.
+  //
+  // On real hardware this runs during cycles 65-256 of each visible scanline,
+  // finding up to 8 sprites that are in range for the NEXT scanline. The
+  // algorithm is a state machine with counters n (sprite index, 0-63) and
+  // m (byte within sprite, 0-3). It includes the hardware sprite overflow
+  // bug where both n AND m are incremented when checking for a 9th sprite.
+  //
+  // targetScanline: the NES scanline (0-239) whose sprites we're evaluating.
+  //   Evaluation on visible scanline N finds sprites for scanline N+1.
+  //   Results are stored in scanlineSecondaryOAM[targetScanline].
+  //
+  // See https://www.nesdev.org/wiki/PPU_sprite_evaluation
+  evaluateSprites(targetScanline) {
+    let renderingEnabled =
+      this.f_spVisibility === 1 || this.f_bgVisibility === 1;
 
-            if (this.sprY[i] + 8 > startscan + scancount) {
-              this.srcy2 = startscan + scancount - this.sprY[i] + 1;
-            }
+    // On real hardware, secondary OAM clear and evaluation only happen when
+    // rendering is enabled. When disabled, the secondary OAM retains stale
+    // data from the last evaluation, and OAMADDR is not reset. We skip
+    // clearing the per-scanline data too, so stale sprites persist.
+    if (!renderingEnabled) return;
 
-            if (this.f_spPatternTable === 0) {
-              this.ptTile[this.sprTile[i]].render(
-                this.buffer,
-                0,
-                this.srcy1,
-                8,
-                this.srcy2,
-                this.sprX[i],
-                this.sprY[i] + 1,
-                this.sprCol[i],
-                this.sprPalette,
-                this.horiFlip[i],
-                this.vertFlip[i],
-                i,
-                this.pixrendered,
-              );
-            } else {
-              this.ptTile[this.sprTile[i] + 256].render(
-                this.buffer,
-                0,
-                this.srcy1,
-                8,
-                this.srcy2,
-                this.sprX[i],
-                this.sprY[i] + 1,
-                this.sprCol[i],
-                this.sprPalette,
-                this.horiFlip[i],
-                this.vertFlip[i],
-                i,
-                this.pixrendered,
-              );
-            }
+    // Phase 1: Clear secondary OAM to $FF (cycles 1-64)
+    let oamBase = targetScanline * 32;
+    for (let i = 0; i < 32; i++) {
+      this.scanlineSecondaryOAM[oamBase + i] = 0xff;
+    }
+    this.scanlineSpriteCount[targetScanline] = 0;
+    this.scanlineSprite0[targetScanline] = 0;
 
-            // Mapper latch: simulate PPU's sprite pattern table fetch.
-            // Use fineY=0 (high byte at +8), matching the first scanline row.
-            mmap.latchAccess(sprBaseAddr + this.sprTile[i] * 16 + 8);
-          } else {
-            // 8x16 sprites
-            let top = this.sprTile[i];
-            // 8x16 sprites select their pattern table via bit 0 of the tile
-            // index: odd tile numbers use $1000, even use $0000.
-            let sprBaseAddr = (top & 1) !== 0 ? 0x1000 : 0x0000;
-            let topTileNum = top & 0xfe;
-            if ((top & 1) !== 0) {
-              top = this.sprTile[i] - 1 + 256;
-            }
+    let spriteHeight = this.f_spriteSize === 0 ? 8 : 16;
+    let spritesFound = 0;
+    let secondaryIndex = 0; // Write pointer into secondary OAM (0-31)
 
-            let srcy1 = 0;
-            let srcy2 = 8;
+    // Phase 2: Sprite evaluation (cycles 65-256)
+    // Start scanning from sprite n = OAMADDR / 4.
+    // The starting OAMADDR determines which sprite is treated as "sprite 0"
+    // for hit detection and priority. A misaligned OAMADDR (not divisible
+    // by 4) causes m to start at a non-zero value, reading the wrong byte
+    // types as Y coordinates.
+    let startN = (this.sramAddress >> 2) & 0x3f;
+    let startM = this.sramAddress & 0x03;
+    let overflowM = 0; // m counter for overflow bug (separate from startM)
 
-            if (this.sprY[i] < startscan) {
-              srcy1 = startscan - this.sprY[i] - 1;
-            }
+    let n = startN;
+    let firstSprite = true; // First sprite may have misaligned m
 
-            if (this.sprY[i] + 8 > startscan + scancount) {
-              srcy2 = startscan + scancount - this.sprY[i];
-            }
+    // Evaluation checks sprites from startN through 63, then stops when n
+    // wraps back to 0. Sprites 0 through startN-1 are never checked, making
+    // them invisible. This is documented behavior:
+    // "No more sprites will be found once the end of OAM is reached,
+    //  effectively hiding any sprites before the starting OAMADDR."
+    // See https://www.nesdev.org/wiki/PPU_sprite_evaluation
+    let evaluated = 0;
+    do {
+      let m;
+      if (spritesFound >= 8) {
+        // In overflow detection mode: use the buggy m counter
+        m = overflowM;
+      } else if (firstSprite) {
+        // First sprite: m may be non-zero (misaligned OAMADDR)
+        m = startM;
+      } else {
+        m = 0;
+      }
+      firstSprite = false;
 
-            this.ptTile[top + (this.vertFlip[i] ? 1 : 0)].render(
-              this.buffer,
-              0,
-              srcy1,
-              8,
-              srcy2,
-              this.sprX[i],
-              this.sprY[i] + 1,
-              this.sprCol[i],
-              this.sprPalette,
-              this.horiFlip[i],
-              this.vertFlip[i],
-              i,
-              this.pixrendered,
-            );
+      let yByte = this.spriteMem[(n * 4 + m) & 0xff];
 
-            srcy1 = 0;
-            srcy2 = 8;
-
-            if (this.sprY[i] + 8 < startscan) {
-              srcy1 = startscan - (this.sprY[i] + 8 + 1);
-            }
-
-            if (this.sprY[i] + 16 > startscan + scancount) {
-              srcy2 = startscan + scancount - (this.sprY[i] + 8);
-            }
-
-            this.ptTile[top + (this.vertFlip[i] ? 0 : 1)].render(
-              this.buffer,
-              0,
-              srcy1,
-              8,
-              srcy2,
-              this.sprX[i],
-              this.sprY[i] + 1 + 8,
-              this.sprCol[i],
-              this.sprPalette,
-              this.horiFlip[i],
-              this.vertFlip[i],
-              i,
-              this.pixrendered,
-            );
-
-            // Mapper latch: simulate fetches for both halves of 8x16 sprite.
-            mmap.latchAccess(sprBaseAddr + topTileNum * 16 + 8);
-            mmap.latchAccess(sprBaseAddr + (topTileNum + 1) * 16 + 8);
+      // Check if sprite is in range for the target buffer row.
+      // On real hardware the comparison is NES_scanline >= Y && < Y + height.
+      // Since targetScanline is in buffer coordinates (NES scanline + 1),
+      // this becomes targetScanline > Y && targetScanline <= Y + height.
+      // The comparison uses whatever byte we read (even if it's not Y).
+      if (targetScanline > yByte && targetScanline <= yByte + spriteHeight) {
+        if (spritesFound < 8) {
+          // Copy 4 bytes to secondary OAM, starting from the actual read
+          // address (n*4+m). When OAMADDR is misaligned (m != 0), this
+          // copies garbled data: the bytes after m in this entry followed
+          // by bytes from the next entry, matching hardware behavior.
+          for (let b = 0; b < 4; b++) {
+            this.scanlineSecondaryOAM[oamBase + secondaryIndex + b] =
+              this.spriteMem[(n * 4 + m + b) & 0xff];
           }
+          // The first sprite in evaluation order (at OAMADDR/4) is the one
+          // that triggers sprite 0 hit, regardless of its OAM index.
+          // On real hardware, setting OAMADDR to a non-zero value causes
+          // the sprite at that address to act as "sprite 0" for hit detection.
+          // See https://www.nesdev.org/wiki/PPU_OAM#Sprite_zero_hits
+          if (evaluated === 0) {
+            this.scanlineSprite0[targetScanline] = 1;
+          }
+          spritesFound++;
+          secondaryIndex += 4;
+        } else {
+          // 9th in-range sprite found: set sprite overflow flag.
+          // On real hardware this is STATUS_SLSPRITECOUNT (bit 5 of $2002).
+          this.setStatusFlag(this.STATUS_SLSPRITECOUNT, true);
+          break; // After overflow is found, evaluation enters idle
+        }
+      } else if (spritesFound >= 8) {
+        // Sprite overflow bug: when 8 sprites have been found and we're
+        // checking for a 9th, a hardware bug causes BOTH n and m to be
+        // incremented when the sprite is not in range. This makes the
+        // evaluation read diagonally through OAM — checking tile indices,
+        // attributes, and X coordinates as if they were Y coordinates.
+        // This produces both false positives and false negatives for overflow.
+        // See https://www.nesdev.org/wiki/PPU_sprite_evaluation
+        overflowM = (overflowM + 1) & 0x03;
+      }
+
+      n = (n + 1) & 0x3f;
+      evaluated++;
+    } while (n !== 0);
+
+    this.scanlineSpriteCount[targetScanline] = spritesFound;
+
+    // Also save to the hardware secondary OAM buffer. On real hardware,
+    // secondary OAM is a physical 32-byte register that persists across
+    // scanlines. It is NOT cleared on the pre-render scanline, so stale
+    // data from the last visible scanline's evaluation can affect sprite
+    // tile loading on the pre-render scanline, potentially causing sprites
+    // to appear on NES scanline 0.
+    // See https://www.nesdev.org/wiki/PPU_sprite_evaluation
+    for (let i = 0; i < 32; i++) {
+      this.secondaryOAM[i] = this.scanlineSecondaryOAM[oamBase + i];
+    }
+    this.spritesFound = spritesFound;
+    this.sprite0InSecondary = this.scanlineSprite0[targetScanline] === 1;
+
+    // OAMADDR is set to 0 during sprite tile loading (cycles 257-320).
+    // On real hardware this happens at the start of HBlank.
+    this.sramAddress = 0;
+  }
+
+  // Render sprites for a range of scanlines using per-scanline secondary OAM
+  // data from sprite evaluation. Only the 8 (or fewer) sprites selected by
+  // evaluation are rendered, enforcing the hardware's per-scanline sprite limit.
+  //
+  // bgPri: 0 = render sprites with bg priority 0 (in front of background),
+  //         1 = render sprites with bg priority 1 (behind background).
+  //
+  // Each scanline's sprites come from scanlineSecondaryOAM[], populated by
+  // evaluateSprites() during endScanline(). Sprite data is read from secondary
+  // OAM format: [Y, tile, attributes, X] × 8 sprites.
+  renderSpritesPartially(startscan, scancount, bgPri) {
+    if (this.f_spVisibility !== 1) return;
+
+    let mmap = this.nes.mmap;
+    let ptTile = this.ptTile;
+    let buffer = this.buffer;
+    let sprPalette = this.sprPalette;
+    let pixrendered = this.pixrendered;
+
+    for (let scan = startscan; scan < startscan + scancount; scan++) {
+      if (scan < 0 || scan >= 240) continue;
+
+      let count = this.scanlineSpriteCount[scan];
+      let oamBase = scan * 32;
+
+      for (let i = 0; i < count; i++) {
+        let sprY = this.scanlineSecondaryOAM[oamBase + i * 4 + 0];
+        let sprTile = this.scanlineSecondaryOAM[oamBase + i * 4 + 1];
+        let sprAttr = this.scanlineSecondaryOAM[oamBase + i * 4 + 2];
+        let sprX = this.scanlineSecondaryOAM[oamBase + i * 4 + 3];
+
+        let vertFlip = (sprAttr >> 7) & 1;
+        let horiFlip = (sprAttr >> 6) & 1;
+        let priority = (sprAttr >> 5) & 1;
+        let palAdd = (sprAttr & 3) << 2;
+
+        if (priority !== bgPri) continue;
+        if (sprX >= 256 && sprX < 256) continue; // always false, X is u8
+
+        if (this.f_spriteSize === 0) {
+          // 8x8 sprites
+          let tileIndex = this.f_spPatternTable === 0 ? sprTile : sprTile + 256;
+          let sprBaseAddr = this.f_spPatternTable === 0 ? 0x0000 : 0x1000;
+
+          // Render only the one scanline row that falls on 'scan'
+          let dy = sprY + 1; // +1 because sprite Y in OAM is display line - 1
+          let fineY = scan - dy;
+          if (fineY < 0 || fineY >= 8) continue;
+
+          ptTile[tileIndex].render(
+            buffer,
+            0,
+            fineY,
+            8,
+            fineY + 1,
+            sprX,
+            dy,
+            palAdd,
+            sprPalette,
+            horiFlip,
+            vertFlip,
+            i, // priority: lower index in secondary OAM = higher priority
+            pixrendered,
+          );
+
+          // Mapper latch: simulate PPU's sprite pattern table fetch.
+          mmap.latchAccess(sprBaseAddr + sprTile * 16 + 8);
+        } else {
+          // 8x16 sprites: tile index bit 0 selects pattern table ($0000/$1000),
+          // top tile is (index & $FE), bottom tile is (index & $FE) + 1.
+          let sprBaseAddr = (sprTile & 1) !== 0 ? 0x1000 : 0x0000;
+          let topTileNum = sprTile & 0xfe;
+          let top = (sprTile & 1) !== 0 ? topTileNum - 1 + 256 : topTileNum;
+
+          let dy = sprY + 1;
+          let fineY = scan - dy;
+          if (fineY < 0 || fineY >= 16) continue;
+
+          // Determine which half (top/bottom) this scanline falls in
+          let tileOffset, tileFineY;
+          if (fineY < 8) {
+            tileOffset = vertFlip ? 1 : 0;
+            tileFineY = fineY;
+          } else {
+            tileOffset = vertFlip ? 0 : 1;
+            tileFineY = fineY - 8;
+          }
+
+          ptTile[top + tileOffset].render(
+            buffer,
+            0,
+            tileFineY,
+            8,
+            tileFineY + 1,
+            sprX,
+            dy + (fineY < 8 ? 0 : 8),
+            palAdd,
+            sprPalette,
+            horiFlip,
+            vertFlip,
+            i,
+            pixrendered,
+          );
+
+          // Mapper latch: simulate fetches for both halves of 8x16 sprite.
+          mmap.latchAccess(sprBaseAddr + topTileNum * 16 + 8);
+          mmap.latchAccess(sprBaseAddr + (topTileNum + 1) * 16 + 8);
         }
       }
     }
   }
 
   // Check if sprite 0 overlaps with a background tile pixel on this scanline.
+  // "Sprite 0" is the first sprite in evaluation order — normally OAM entry 0,
+  // but a non-zero OAMADDR can make a different entry act as sprite 0.
+  //
   // On real hardware, sprite 0 hit only fires when a non-transparent sprite
   // pixel overlaps with a non-transparent background tile pixel. We check
   // pixrendered[bufferIndex] > 0xff because bit 8 (256) is set by
@@ -1376,13 +1653,32 @@ class PPU {
     this.spr0HitX = -1;
     this.spr0HitY = -1;
 
-    let toffset;
-    let tIndexAdd = this.f_spPatternTable === 0 ? 0 : 256;
-    let x, y, t, i;
-    let bufferIndex;
+    if (scan < 0 || scan >= 240) return false;
+    if (!this.scanlineSprite0[scan]) return false;
+    if (this.scanlineSpriteCount[scan] === 0) return false;
 
-    x = this.sprX[0];
-    y = this.sprY[0] + 1;
+    // Read sprite 0's data from secondary OAM (first entry, slot 0).
+    let oamBase = scan * 32;
+    let sprY = this.scanlineSecondaryOAM[oamBase + 0];
+    let sprTile = this.scanlineSecondaryOAM[oamBase + 1];
+    let sprAttr = this.scanlineSecondaryOAM[oamBase + 2];
+    let x = this.scanlineSecondaryOAM[oamBase + 3];
+    let y = sprY + 1; // +1 because sprite Y in OAM is display line - 1
+
+    let vertFlip = (sprAttr >> 7) & 1;
+    let horiFlip = (sprAttr >> 6) & 1;
+
+    // Sprite 0 hit has additional conditions beyond pixel overlap:
+    // - No hit at x=255 (hardware doesn't check the last pixel)
+    // - No hit at x=0..7 when left-side clipping is enabled for either
+    //   sprites (f_spClipping===0) or background (f_bgClipping===0)
+    // See https://www.nesdev.org/wiki/PPU_OAM#Sprite_zero_hits
+    let leftClip = this.f_spClipping === 0 || this.f_bgClipping === 0;
+
+    // Check each pixel of the sprite for overlap with background.
+    // Returns the first x position where hit occurs, or -1 if no hit.
+    let toffset;
+    let t;
 
     // Use the mapper's getSpritePatternTile() instead of ptTile directly.
     // On MMC5 in 8x16 mode, ptTile may have BG data (Set B) after
@@ -1391,136 +1687,66 @@ class PPU {
 
     if (this.f_spriteSize === 0) {
       // 8x8 sprites.
-
-      // Check range:
-      if (y <= scan && y + 8 > scan && x >= -7 && x < 256) {
-        // Sprite is in range.
-        // Draw scanline:
-        t = mmap.getSpritePatternTile(this.sprTile[0] + tIndexAdd);
-
-        if (this.vertFlip[0]) {
-          toffset = 7 - (scan - y);
-        } else {
-          toffset = scan - y;
-        }
+      let tIndexAdd = this.f_spPatternTable === 0 ? 0 : 256;
+      if (y <= scan && y + 8 > scan && x < 256) {
+        t = mmap.getSpritePatternTile(sprTile + tIndexAdd);
+        toffset = vertFlip ? 7 - (scan - y) : scan - y;
         toffset *= 8;
-
-        bufferIndex = scan * 256 + x;
-        if (this.horiFlip[0]) {
-          for (i = 7; i >= 0; i--) {
-            if (x >= 0 && x < 256) {
-              if (
-                bufferIndex >= 0 &&
-                bufferIndex < 61440 &&
-                this.pixrendered[bufferIndex] > 0xff
-              ) {
-                if (t.pix[toffset + i] !== 0) {
-                  this.spr0HitX = bufferIndex & 255;
-                  this.spr0HitY = scan;
-                  return true;
-                }
-              }
-            }
-            x++;
-            bufferIndex++;
-          }
-        } else {
-          for (i = 0; i < 8; i++) {
-            if (x >= 0 && x < 256) {
-              if (
-                bufferIndex >= 0 &&
-                bufferIndex < 61440 &&
-                this.pixrendered[bufferIndex] > 0xff
-              ) {
-                if (t.pix[toffset + i] !== 0) {
-                  this.spr0HitX = bufferIndex & 255;
-                  this.spr0HitY = scan;
-                  return true;
-                }
-              }
-            }
-            x++;
-            bufferIndex++;
-          }
-        }
+        return this._checkSpr0Pixels(t, toffset, x, horiFlip, scan, leftClip);
       }
     } else {
-      // 8x16 sprites:
-
-      // Check range:
-      if (y <= scan && y + 16 > scan && x >= -7 && x < 256) {
-        // Sprite is in range.
-        // Draw scanline:
-
-        if (this.vertFlip[0]) {
-          toffset = 15 - (scan - y);
-        } else {
-          toffset = scan - y;
-        }
+      // 8x16 sprites: tile index bit 0 selects pattern table.
+      if (y <= scan && y + 16 > scan && x < 256) {
+        toffset = vertFlip ? 15 - (scan - y) : scan - y;
 
         if (toffset < 8) {
-          // first half of sprite.
           t = mmap.getSpritePatternTile(
-            this.sprTile[0] +
-              (this.vertFlip[0] ? 1 : 0) +
-              ((this.sprTile[0] & 1) !== 0 ? 255 : 0),
+            sprTile + (vertFlip ? 1 : 0) + ((sprTile & 1) !== 0 ? 255 : 0),
           );
         } else {
-          // second half of sprite.
           t = mmap.getSpritePatternTile(
-            this.sprTile[0] +
-              (this.vertFlip[0] ? 0 : 1) +
-              ((this.sprTile[0] & 1) !== 0 ? 255 : 0),
+            sprTile + (vertFlip ? 0 : 1) + ((sprTile & 1) !== 0 ? 255 : 0),
           );
-          if (this.vertFlip[0]) {
-            toffset = 15 - toffset;
-          } else {
-            toffset -= 8;
-          }
+          toffset = vertFlip ? 15 - toffset : toffset - 8;
         }
         toffset *= 8;
-
-        bufferIndex = scan * 256 + x;
-        if (this.horiFlip[0]) {
-          for (i = 7; i >= 0; i--) {
-            if (x >= 0 && x < 256) {
-              if (
-                bufferIndex >= 0 &&
-                bufferIndex < 61440 &&
-                this.pixrendered[bufferIndex] > 0xff
-              ) {
-                if (t.pix[toffset + i] !== 0) {
-                  this.spr0HitX = bufferIndex & 255;
-                  this.spr0HitY = scan;
-                  return true;
-                }
-              }
-            }
-            x++;
-            bufferIndex++;
-          }
-        } else {
-          for (i = 0; i < 8; i++) {
-            if (x >= 0 && x < 256) {
-              if (
-                bufferIndex >= 0 &&
-                bufferIndex < 61440 &&
-                this.pixrendered[bufferIndex] > 0xff
-              ) {
-                if (t.pix[toffset + i] !== 0) {
-                  this.spr0HitX = bufferIndex & 255;
-                  this.spr0HitY = scan;
-                  return true;
-                }
-              }
-            }
-            x++;
-            bufferIndex++;
-          }
-        }
+        return this._checkSpr0Pixels(t, toffset, x, horiFlip, scan, leftClip);
       }
     }
 
+    return false;
+  }
+
+  // Helper: scan 8 pixels of sprite 0's tile row for overlap with background.
+  // Checks for non-transparent sprite pixel overlapping non-transparent BG pixel,
+  // excluding x=255 and left-clipped pixels (x=0..7 when leftClip is true).
+  _checkSpr0Pixels(tile, toffset, startX, horiFlip, scan, leftClip) {
+    let bufferIndex = scan * 256 + startX;
+
+    for (let px = 0; px < 8; px++) {
+      let tileIdx = horiFlip ? 7 - px : px;
+      let pixelX = startX + px;
+
+      if (pixelX >= 0 && pixelX < 255) {
+        // Skip left 8 pixels when clipping is enabled
+        if (leftClip && pixelX < 8) {
+          bufferIndex++;
+          continue;
+        }
+
+        if (
+          bufferIndex >= 0 &&
+          bufferIndex < 61440 &&
+          this.pixrendered[bufferIndex] > 0xff &&
+          tile.pix[toffset + tileIdx] !== 0
+        ) {
+          this.spr0HitX = pixelX;
+          this.spr0HitY = scan;
+          return true;
+        }
+      }
+      bufferIndex++;
+    }
     return false;
   }
 
@@ -1611,8 +1837,8 @@ class PPU {
     this.nameTable[index].tile[address] = value;
 
     // Update Sprite #0 hit:
-    //updateSpr0Hit();
-    this.checkSprite0(this.scanline - 20);
+    let bufferScan = this.scanline + 1 - 21;
+    this.checkSprite0(bufferScan);
   }
 
   // Updates the internal pattern
@@ -1628,8 +1854,8 @@ class PPU {
     let tIndex = address >> 2;
 
     if (tIndex === 0) {
-      //updateSpr0Hit();
-      this.checkSprite0(this.scanline - 20);
+      let bufferScan = this.scanline + 1 - 21;
+      this.checkSprite0(bufferScan);
     }
 
     switch (address & 3) {
@@ -1743,6 +1969,10 @@ class PPU {
     "sramAddress",
     // Sprites. Most sprite data is rebuilt from spriteMem
     "hitSpr0",
+    // Secondary OAM / per-scanline sprite evaluation data
+    "scanlineSpriteCount",
+    "scanlineSecondaryOAM",
+    "scanlineSprite0",
     // Palettes
     "sprPalette",
     "imgPalette",
