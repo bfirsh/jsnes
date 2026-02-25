@@ -510,19 +510,12 @@ class PPU {
       }
     }
 
-    let buffer = this.buffer;
-    let i;
-    for (i = 0; i < 256 * 240; i++) {
-      buffer[i] = bgColor;
-    }
-    let pixrendered = this.pixrendered;
-    for (i = 0; i < pixrendered.length; i++) {
-      pixrendered[i] = 65;
-    }
+    this.buffer.fill(bgColor);
+    this.pixrendered.fill(65);
   }
 
   endFrame() {
-    let i, x, y;
+    let i, y;
     let buffer = this.buffer;
 
     // Draw spr#0 hit coordinates:
@@ -567,29 +560,19 @@ class PPU {
     ) {
       // Clip left 8-pixels column:
       for (y = 0; y < 240; y++) {
-        for (x = 0; x < 8; x++) {
-          buffer[(y << 8) + x] = 0;
-        }
+        buffer.fill(0, y << 8, (y << 8) + 8);
       }
     }
 
     if (this.clipToTvSize) {
       // Clip right 8-pixels column too:
       for (y = 0; y < 240; y++) {
-        for (x = 0; x < 8; x++) {
-          buffer[(y << 8) + 255 - x] = 0;
-        }
+        buffer.fill(0, (y << 8) + 248, (y << 8) + 256);
       }
-    }
 
-    // Clip top and bottom 8 pixels:
-    if (this.clipToTvSize) {
-      for (y = 0; y < 8; y++) {
-        for (x = 0; x < 256; x++) {
-          buffer[(y << 8) + x] = 0;
-          buffer[((239 - y) << 8) + x] = 0;
-        }
-      }
+      // Clip top and bottom 8 pixels:
+      buffer.fill(0, 0, 8 << 8);
+      buffer.fill(0, 232 << 8, 240 << 8);
     }
 
     this.nes.ui.writeFrame(buffer);
