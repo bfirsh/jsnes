@@ -427,15 +427,8 @@ class PPU {
         }
 
         if (this.f_bgVisibility === 1 && this.f_spVisibility === 1) {
-          // Check sprite 0 hit for first scanline.
-          // Switch to sprite CHR banks first — renderBgScanline() left the
-          // BG set loaded, but sprite 0 needs the sprite CHR data (set A
-          // on MMC5). Restore BG banks and tile cache state afterward.
-          let savedValid = this.validTileData;
-          this.nes.mmap.onSpriteRender();
+          // Check sprite 0 hit for first scanline:
           this.checkSprite0(0);
-          this.nes.mmap.onBgRender();
-          this.validTileData = savedValid;
         }
 
         if (this.f_bgVisibility === 1 || this.f_spVisibility === 1) {
@@ -476,16 +469,9 @@ class PPU {
                 this.sprY[0] + 1 + (this.f_spriteSize === 0 ? 8 : 16) >=
                   this.scanline - 20
               ) {
-                // Switch to sprite CHR banks — renderBgScanline() left BG
-                // banks loaded, but sprite 0 hit detection needs sprite
-                // CHR data (set A on MMC5). Restore afterward.
-                let savedValid = this.validTileData;
-                this.nes.mmap.onSpriteRender();
                 if (this.checkSprite0(this.scanline - 20)) {
                   this.hitSpr0 = true;
                 }
-                this.nes.mmap.onBgRender();
-                this.validTileData = savedValid;
               }
             }
           }
@@ -1432,6 +1418,11 @@ class PPU {
     x = this.sprX[0];
     y = this.sprY[0] + 1;
 
+    // Use the mapper's getSpritePatternTile() instead of ptTile directly.
+    // On MMC5 in 8x16 mode, ptTile may have BG data (Set B) after
+    // renderBgScanline, but sprite 0 needs sprite data (Set A).
+    let mmap = this.nes.mmap;
+
     if (this.f_spriteSize === 0) {
       // 8x8 sprites.
 
@@ -1439,7 +1430,7 @@ class PPU {
       if (y <= scan && y + 8 > scan && x >= -7 && x < 256) {
         // Sprite is in range.
         // Draw scanline:
-        t = this.ptTile[this.sprTile[0] + tIndexAdd];
+        t = mmap.getSpritePatternTile(this.sprTile[0] + tIndexAdd);
 
         if (this.vertFlip[0]) {
           toffset = 7 - (scan - y);
@@ -1503,20 +1494,18 @@ class PPU {
 
         if (toffset < 8) {
           // first half of sprite.
-          t =
-            this.ptTile[
-              this.sprTile[0] +
-                (this.vertFlip[0] ? 1 : 0) +
-                ((this.sprTile[0] & 1) !== 0 ? 255 : 0)
-            ];
+          t = mmap.getSpritePatternTile(
+            this.sprTile[0] +
+              (this.vertFlip[0] ? 1 : 0) +
+              ((this.sprTile[0] & 1) !== 0 ? 255 : 0),
+          );
         } else {
           // second half of sprite.
-          t =
-            this.ptTile[
-              this.sprTile[0] +
-                (this.vertFlip[0] ? 0 : 1) +
-                ((this.sprTile[0] & 1) !== 0 ? 255 : 0)
-            ];
+          t = mmap.getSpritePatternTile(
+            this.sprTile[0] +
+              (this.vertFlip[0] ? 0 : 1) +
+              ((this.sprTile[0] & 1) !== 0 ? 255 : 0),
+          );
           if (this.vertFlip[0]) {
             toffset = 15 - toffset;
           } else {

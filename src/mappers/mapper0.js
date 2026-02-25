@@ -517,6 +517,15 @@ class Mapper0 {
     return null;
   }
 
+  // Look up a sprite pattern tile by ptTile index (0-511).
+  // Default: return from the PPU's current ptTile cache.
+  // MMC5 overrides this to look up from Set A's VROM banks directly,
+  // since ptTile may have BG data (Set B) loaded during BG rendering.
+  // This avoids calling load*VromBank (which triggers triggerRendering).
+  getSpritePatternTile(index) {
+    return this.nes.ppu.ptTile[index];
+  }
+
   toJSON() {
     return {
       joy1StrobeState: this.joy1StrobeState,

@@ -715,18 +715,12 @@ class Mapper5 extends Mapper0 {
       // This was confirmed by hardware tests — see FCEUX bug #787.
       this._applyChrSetA();
       this._chrBankTarget = 0;
-    } else {
-      // 8x16 sprite mode: apply the last-written set immediately so that
-      // $2007 reads during VBlank see the correct CHR data. During
-      // rendering, the onBgRender/onSpriteRender hooks will override this
-      // with the phase-appropriate set (B for BG, A for sprites).
-      // _chrBankTarget stays -1 so the hooks always re-apply.
-      if (this.lastChrWrite === 1) {
-        this._applyChrSetB();
-      } else {
-        this._applyChrSetA();
-      }
     }
+    // In 8x16 sprite mode, the onBgRender/onSpriteRender hooks handle
+    // switching between set A (sprites) and set B (backgrounds) during
+    // rendering. Outside rendering (VBlank), $2007 reads use whichever
+    // set was last loaded by the hooks — this is an acceptable simplification
+    // since we can't call load*VromBank here (it triggers triggerRendering).
   }
 
   // Apply CHR bank set A ($5120-$5127) based on chrMode.
@@ -935,6 +929,66 @@ class Mapper5 extends Mapper0 {
     if (this.nes.ppu.f_spriteSize === 1 && this._chrBankTarget !== 0) {
       this._applyChrSetA();
       this._chrBankTarget = 0;
+    }
+  }
+
+  // Look up a sprite pattern tile from Set A's VROM banks directly.
+  // In 8x16 mode, ptTile may have BG data (Set B) during BG rendering,
+  // but sprite 0 hit detection needs Set A data. This method reads from
+  // the pre-decoded VROM tile cache without modifying ptTile or calling
+  // load*VromBank (which would trigger triggerRendering).
+  // In 8x8 mode, ptTile already has Set A data from _syncChr(), so we
+  // just return from ptTile directly.
+  // See FCEUX's mmc5_PPURead() which uses separate MMC5SPRVPage/MMC5BGVPage
+  // arrays instead of copying banks back and forth.
+  getSpritePatternTile(index) {
+    // In 8x8 mode, ptTile has the correct Set A data already
+    if (this.nes.ppu.f_spriteSize !== 1 || this.nes.rom.vromCount === 0) {
+      return this.nes.ppu.ptTile[index];
+    }
+
+    // In 8x16 mode, look up the tile from Set A's VROM banks.
+    // The index maps to a slot in the 8KB pattern table space:
+    //   index 0-255 → $0000-$0FFF, index 256-511 → $1000-$1FFF
+    let vromCount = this.nes.rom.vromCount;
+    let vromTile = this.nes.rom.vromTile;
+
+    switch (this.chrMode) {
+      case 0: {
+        // 8K mode: chrBankA[7] selects an 8K page (two 4K banks)
+        let bank4kStart = (this.chrBankA[7] & 0xff) * 2;
+        let half = index >= 256 ? 1 : 0;
+        let bank4k = (bank4kStart + half) % vromCount;
+        return vromTile[bank4k][index - half * 256];
+      }
+      case 1: {
+        // 4K mode: chrBankA[3] → $0000, chrBankA[7] → $1000
+        let bank4k;
+        if (index < 256) {
+          bank4k = (this.chrBankA[3] & 0xff) % vromCount;
+        } else {
+          bank4k = (this.chrBankA[7] & 0xff) % vromCount;
+        }
+        return vromTile[bank4k][index % 256];
+      }
+      case 2: {
+        // 2K mode: chrBankA[1]/[3]/[5]/[7] select four 2K chunks (128 tiles each)
+        let regIndex = [1, 3, 5, 7];
+        let slot = index >> 7; // 0-3
+        let tileInSlot = index & 127;
+        let bank2k = this.chrBankA[regIndex[slot]] & 0x1ff;
+        let bank4k = Math.floor(bank2k / 2) % vromCount;
+        return vromTile[bank4k][((bank2k % 2) << 7) + tileInSlot];
+      }
+      case 3:
+      default: {
+        // 1K mode: chrBankA[0-7] each select a 1K chunk (64 tiles each)
+        let slot = index >> 6; // 0-7
+        let tileInSlot = index & 63;
+        let bank1k = this.chrBankA[slot] & 0x3ff;
+        let bank4k = Math.floor(bank1k / 4) % vromCount;
+        return vromTile[bank4k][((bank1k % 4) << 6) + tileInSlot];
+      }
     }
   }
 
