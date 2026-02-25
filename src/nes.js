@@ -68,7 +68,7 @@ class NES {
     this.controllers[1].clock();
     this.controllers[2].clock();
     this.ppu.startFrame();
-    let cycles = 0;
+    let cycles;
     const cpu = this.cpu;
     const ppu = this.ppu;
     const papu = this.papu;

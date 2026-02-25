@@ -473,7 +473,7 @@ class PPU {
 
   startFrame() {
     // Set background color:
-    let bgColor = 0;
+    let bgColor;
 
     if (this.f_dispType === 0) {
       // Color display.

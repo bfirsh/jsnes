@@ -158,7 +158,6 @@ class Mapper1 extends Mapper0 {
       default: {
         // Select ROM bank:
         // -------------------------
-        tmp = value & 0xf;
         let bank;
         let baseBank = 0;
 
