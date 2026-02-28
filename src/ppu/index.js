@@ -118,6 +118,13 @@ class PPU {
     this.spr0HitY = 0; // Sprite #0 hit Y coordinate
     this.hitSpr0 = false;
 
+    // Per-scanline sprite evaluation buffers. On real hardware, the PPU
+    // evaluates sprites during dots 65-256 of each visible scanline and
+    // can only select up to 8 sprites per scanline for rendering.
+    // See https://www.nesdev.org/wiki/PPU_sprite_evaluation
+    this.spriteCountOnLine = new Uint8Array(240);
+    this.spritesOnLine = new Uint8Array(240 * 8);
+
     // Palette data:
     this.sprPalette = new Uint32Array(16);
     this.imgPalette = new Uint32Array(16);
@@ -331,6 +338,7 @@ class PPU {
         }
         this.setStatusFlag(this.STATUS_VBLANK, false);
         this.setStatusFlag(this.STATUS_SPRITE0HIT, false);
+        this.setStatusFlag(this.STATUS_SLSPRITECOUNT, false);
         this.hitSpr0 = false;
         this.spr0HitX = -1;
         this.spr0HitY = -1;
@@ -387,6 +395,7 @@ class PPU {
       }
       this.setStatusFlag(this.STATUS_VBLANK, false);
       this.setStatusFlag(this.STATUS_SPRITE0HIT, false);
+      this.setStatusFlag(this.STATUS_SLSPRITECOUNT, false);
       this.hitSpr0 = false;
       this.spr0HitX = -1;
       this.spr0HitY = -1;
@@ -1059,6 +1068,7 @@ class PPU {
   renderFramePartially(startScan, scanCount) {
     this._inRendering = true;
     if (this.f_spVisibility === 1) {
+      this.evaluateSpritesForScanlines(startScan, scanCount);
       this.renderSpritesPartially(startScan, scanCount, 1);
     }
 
@@ -1231,98 +1241,122 @@ class PPU {
     }
   }
 
+  // Evaluate which sprites appear on each scanline, enforcing the hardware
+  // limit of 8 sprites per scanline. On real NES hardware, the PPU performs
+  // sprite evaluation during dots 65-256 of each visible scanline, scanning
+  // OAM in order (sprite 0 first) and selecting up to 8 sprites whose Y
+  // coordinates place them on the current scanline. If a 9th sprite is found,
+  // the sprite overflow flag ($2002 bit 5) is set and no more sprites are
+  // selected for that scanline.
+  //
+  // Results are stored in spriteCountOnLine[] and spritesOnLine[] for use
+  // by renderSpritesPartially().
+  // See https://www.nesdev.org/wiki/PPU_sprite_evaluation
+  evaluateSpritesForScanlines(startscan, scancount) {
+    let spriteHeight = this.f_spriteSize === 0 ? 8 : 16;
+    let endScan = startscan + scancount;
+    if (endScan > 240) endScan = 240;
+
+    let counts = this.spriteCountOnLine;
+    let sprites = this.spritesOnLine;
+    for (let s = startscan; s < endScan; s++) {
+      counts[s] = 0;
+    }
+
+    for (let i = 0; i < 64; i++) {
+      // Sprite screen Y: OAM Y + 1 (sprites display one scanline below OAM Y)
+      let sprTop = this.sprY[i] + 1;
+      let sprBot = sprTop + spriteHeight;
+
+      // Intersect sprite's scanline range with the render range
+      let scanStart = sprTop < startscan ? startscan : sprTop;
+      let scanEnd = sprBot > endScan ? endScan : sprBot;
+      if (scanStart >= scanEnd) continue;
+
+      for (let s = scanStart; s < scanEnd; s++) {
+        let count = counts[s];
+        if (count < 8) {
+          sprites[s * 8 + count] = i;
+          counts[s] = count + 1;
+        } else if (count === 8) {
+          // 9th sprite found on this scanline — set overflow flag
+          this.setStatusFlag(this.STATUS_SLSPRITECOUNT, true);
+          counts[s] = 9; // prevent re-triggering for subsequent sprites
+        }
+      }
+    }
+  }
+
+  // Render sprite pixels for the given scanline range, filtered by background
+  // priority. Uses the per-scanline sprite lists built by
+  // evaluateSpritesForScanlines() to enforce the 8-sprite-per-scanline limit.
+  //
+  // Called twice per renderFramePartially: once with bgPri=1 (sprites behind
+  // background) and once with bgPri=0 (sprites in front of background).
   renderSpritesPartially(startscan, scancount, bgPri) {
-    if (this.f_spVisibility === 1) {
-      let mmap = this.nes.mmap;
-      for (let i = 0; i < 64; i++) {
-        if (
-          this.bgPriority[i] === bgPri &&
-          this.sprX[i] >= 0 &&
-          this.sprX[i] < 256 &&
-          this.sprY[i] + 8 >= startscan &&
-          this.sprY[i] < startscan + scancount
-        ) {
-          // Show sprite.
-          if (this.f_spriteSize === 0) {
-            // 8x8 sprites
-            let sprBaseAddr = this.f_spPatternTable === 0 ? 0x0000 : 0x1000;
+    if (this.f_spVisibility !== 1) return;
 
-            this.srcy1 = 0;
-            this.srcy2 = 8;
+    let endScan = startscan + scancount;
+    if (endScan > 240) endScan = 240;
+    let mmap = this.nes.mmap;
+    let counts = this.spriteCountOnLine;
+    let sprites = this.spritesOnLine;
 
-            if (this.sprY[i] < startscan) {
-              this.srcy1 = startscan - this.sprY[i] - 1;
-            }
+    for (let scan = startscan; scan < endScan; scan++) {
+      let count = counts[scan] > 8 ? 8 : counts[scan];
+      for (let n = 0; n < count; n++) {
+        let i = sprites[scan * 8 + n];
 
-            if (this.sprY[i] + 8 > startscan + scancount) {
-              this.srcy2 = startscan + scancount - this.sprY[i] + 1;
-            }
+        if (this.bgPriority[i] !== bgPri) continue;
 
-            if (this.f_spPatternTable === 0) {
-              this.ptTile[this.sprTile[i]].render(
-                this.buffer,
-                0,
-                this.srcy1,
-                8,
-                this.srcy2,
-                this.sprX[i],
-                this.sprY[i] + 1,
-                this.sprCol[i],
-                this.sprPalette,
-                this.horiFlip[i],
-                this.vertFlip[i],
-                i,
-                this.pixrendered,
-              );
-            } else {
-              this.ptTile[this.sprTile[i] + 256].render(
-                this.buffer,
-                0,
-                this.srcy1,
-                8,
-                this.srcy2,
-                this.sprX[i],
-                this.sprY[i] + 1,
-                this.sprCol[i],
-                this.sprPalette,
-                this.horiFlip[i],
-                this.vertFlip[i],
-                i,
-                this.pixrendered,
-              );
-            }
+        // Row within sprite (0-7 for 8x8, 0-15 for 8x16)
+        let sprRow = scan - this.sprY[i] - 1;
 
-            // Mapper latch: simulate PPU's sprite pattern table fetch.
-            // Use fineY=0 (high byte at +8), matching the first scanline row.
-            mmap.latchAccess(sprBaseAddr + this.sprTile[i] * 16 + 8);
-          } else {
-            // 8x16 sprites
-            let top = this.sprTile[i];
-            // 8x16 sprites select their pattern table via bit 0 of the tile
-            // index: odd tile numbers use $1000, even use $0000.
-            let sprBaseAddr = (top & 1) !== 0 ? 0x1000 : 0x0000;
-            let topTileNum = top & 0xfe;
-            if ((top & 1) !== 0) {
-              top = this.sprTile[i] - 1 + 256;
-            }
+        if (this.f_spriteSize === 0) {
+          // 8x8 sprites
+          let tileIndex =
+            this.f_spPatternTable === 0
+              ? this.sprTile[i]
+              : this.sprTile[i] + 256;
+          let sprBaseAddr = this.f_spPatternTable === 0 ? 0x0000 : 0x1000;
 
-            let srcy1 = 0;
-            let srcy2 = 8;
+          this.ptTile[tileIndex].render(
+            this.buffer,
+            0,
+            sprRow,
+            8,
+            sprRow + 1,
+            this.sprX[i],
+            this.sprY[i] + 1,
+            this.sprCol[i],
+            this.sprPalette,
+            this.horiFlip[i],
+            this.vertFlip[i],
+            i,
+            this.pixrendered,
+          );
 
-            if (this.sprY[i] < startscan) {
-              srcy1 = startscan - this.sprY[i] - 1;
-            }
+          // Mapper latch: simulate PPU's sprite pattern table fetch.
+          mmap.latchAccess(sprBaseAddr + this.sprTile[i] * 16 + 8);
+        } else {
+          // 8x16 sprites
+          let top = this.sprTile[i];
+          // 8x16 sprites select their pattern table via bit 0 of the tile
+          // index: odd tile numbers use $1000, even use $0000.
+          let sprBaseAddr = (top & 1) !== 0 ? 0x1000 : 0x0000;
+          let topTileNum = top & 0xfe;
+          if ((top & 1) !== 0) {
+            top = this.sprTile[i] - 1 + 256;
+          }
 
-            if (this.sprY[i] + 8 > startscan + scancount) {
-              srcy2 = startscan + scancount - this.sprY[i];
-            }
-
+          if (sprRow < 8) {
+            // Top half of 8x16 sprite
             this.ptTile[top + (this.vertFlip[i] ? 1 : 0)].render(
               this.buffer,
               0,
-              srcy1,
+              sprRow,
               8,
-              srcy2,
+              sprRow + 1,
               this.sprX[i],
               this.sprY[i] + 1,
               this.sprCol[i],
@@ -1332,24 +1366,14 @@ class PPU {
               i,
               this.pixrendered,
             );
-
-            srcy1 = 0;
-            srcy2 = 8;
-
-            if (this.sprY[i] + 8 < startscan) {
-              srcy1 = startscan - (this.sprY[i] + 8 + 1);
-            }
-
-            if (this.sprY[i] + 16 > startscan + scancount) {
-              srcy2 = startscan + scancount - (this.sprY[i] + 8);
-            }
-
+          } else {
+            // Bottom half of 8x16 sprite
             this.ptTile[top + (this.vertFlip[i] ? 0 : 1)].render(
               this.buffer,
               0,
-              srcy1,
+              sprRow - 8,
               8,
-              srcy2,
+              sprRow - 8 + 1,
               this.sprX[i],
               this.sprY[i] + 1 + 8,
               this.sprCol[i],
@@ -1359,11 +1383,11 @@ class PPU {
               i,
               this.pixrendered,
             );
-
-            // Mapper latch: simulate fetches for both halves of 8x16 sprite.
-            mmap.latchAccess(sprBaseAddr + topTileNum * 16 + 8);
-            mmap.latchAccess(sprBaseAddr + (topTileNum + 1) * 16 + 8);
           }
+
+          // Mapper latch: simulate fetches for both halves of 8x16 sprite.
+          mmap.latchAccess(sprBaseAddr + topTileNum * 16 + 8);
+          mmap.latchAccess(sprBaseAddr + (topTileNum + 1) * 16 + 8);
         }
       }
     }
