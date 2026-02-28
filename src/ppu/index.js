@@ -928,7 +928,16 @@ class PPU {
       this.spriteRamWriteUpdate(oamAddr, data);
     }
 
-    this.nes.cpu.haltCycles(513);
+    // OAM DMA takes 513 CPU cycles (1 wait + 256 read/write pairs), plus
+    // an extra alignment cycle if the CPU is on an odd cycle (a "put" cycle).
+    // This ensures the DMA always begins on an even cycle, synchronizing the
+    // CPU to a known cycle parity. The AccuracyCoin controller strobe test
+    // relies on this alignment to verify APU-clock-gated OUT0 behavior.
+    // See https://www.nesdev.org/wiki/DMA#OAM_DMA
+    let cpu = this.nes.cpu;
+    let currentCycle = cpu._cpuCycleBase + cpu.instrBusCycles;
+    let cycles = currentCycle % 2 === 0 ? 514 : 513;
+    cpu.haltCycles(cycles);
   }
 
   // Updates the scroll registers from a new VRAM address.

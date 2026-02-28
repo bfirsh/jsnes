@@ -276,9 +276,6 @@ const KNOWN_FAILURES = {
   0x0479: "Explicit DMA abort not emulated",
   0x0478: "Implicit DMA abort not emulated",
 
-  // Controller: partial fix, subtest 4 still fails
-  0x045f: "Controller strobing not fully accurate",
-
   // APU: timing/behavior not accurate enough
   0x0467: "APU frame counter IRQ not accurate",
   0x046a: "DMC not accurate",

@@ -13,6 +13,18 @@ class Mapper0 {
     this.joy1StrobeState = 0;
     this.joy2StrobeState = 0;
     this.joypadLastWrite = 0;
+    // The effective OUT0 value visible to the controller shift register.
+    // On the 2A03, OUT0-OUT2 are output latches that only update on APU
+    // clock edges (every 2 CPU cycles). Writes to $4016 on "get" cycles
+    // (odd CPU cycle count) update the internal register but NOT the output
+    // latch until the next APU clock. This distinction matters for RMW
+    // instructions like DEC $4016 that produce a 1-cycle strobe pulse:
+    // the dummy write and final write land on consecutive CPU cycles, and
+    // whether the pulse is visible depends on APU clock alignment.
+    // See https://www.nesdev.org/wiki/CPU_pin_out_and_signal_timing
+    this.joypadOutputBit0 = 0;
+    // CPU cycle at which the last $4016 write occurred (-2 = never)
+    this.joypadLastWriteCycle = -2;
 
     this.zapperFired = false;
     this.zapperX = null;
@@ -240,14 +252,54 @@ class Mapper0 {
         this.nes.papu.writeReg(address, value);
         break;
 
-      case 0x4016:
+      case 0x4016: {
         // Joystick 1 + Strobe
-        if ((value & 1) === 0 && (this.joypadLastWrite & 1) === 1) {
-          this.joy1StrobeState = 0;
-          this.joy2StrobeState = 0;
+        // The 2A03 output ports (OUT0-OUT2) only update on APU clock edges,
+        // which happen every 2 CPU cycles. A write to $4016 always updates
+        // the internal register immediately, but the effective output
+        // (joypadOutputBit0) only changes on odd-parity CPU cycles.
+        // This matters for RMW instructions like DEC $4016: the dummy
+        // write (original value) and real write (modified value) happen on
+        // consecutive cycles. If the dummy write lands on an APU tick
+        // (even) but the real write lands on a non-tick (odd), only the
+        // dummy write's value reaches OUT0. The AccuracyCoin controller
+        // strobe test verifies this behavior.
+        let cpu = this.nes.cpu;
+        let currentCycle = cpu._cpuCycleBase + cpu.instrBusCycles;
+
+        // If previous write(s) haven't been applied to the output yet
+        // (because they landed on odd cycles), sync them now if at least
+        // one APU tick has passed since then.
+        if (currentCycle - this.joypadLastWriteCycle > 1) {
+          let prevBit = this.joypadLastWrite & 1;
+          if (prevBit !== this.joypadOutputBit0) {
+            if (this.joypadOutputBit0 === 1 && prevBit === 0) {
+              this.joy1StrobeState = 0;
+              this.joy2StrobeState = 0;
+            }
+            this.joypadOutputBit0 = prevBit;
+          }
         }
+
         this.joypadLastWrite = value;
+        this.joypadLastWriteCycle = currentCycle;
+
+        // Apply to effective output only on APU tick ("put") cycles.
+        // After OAM DMA sync, _cpuCycleBase is always odd, so the first
+        // instruction cycle (_cpuCycleBase + 1) is even = "get". The 5th
+        // cycle of a 6-cycle RMW (dummy write) is _cpuCycleBase + 4 = odd
+        // = "put" = APU tick. This matches real hardware where OUT0 updates
+        // on "put" cycles.
+        if (currentCycle % 2 === 1) {
+          let newBit = value & 1;
+          if (this.joypadOutputBit0 === 1 && newBit === 0) {
+            this.joy1StrobeState = 0;
+            this.joy2StrobeState = 0;
+          }
+          this.joypadOutputBit0 = newBit;
+        }
         break;
+      }
 
       case 0x4017:
         // Sound channel frame sequencer:
@@ -263,11 +315,28 @@ class Mapper0 {
     }
   }
 
+  // Sync any pending $4016 output that was deferred from odd-cycle writes.
+  // Called before reads from $4016/$4017, since reads happen on a later
+  // cycle and the APU clock will have ticked by then.
+  _syncJoypadOutput() {
+    let newBit = this.joypadLastWrite & 1;
+    if (newBit !== this.joypadOutputBit0) {
+      if (this.joypadOutputBit0 === 1 && newBit === 0) {
+        this.joy1StrobeState = 0;
+        this.joy2StrobeState = 0;
+      }
+      this.joypadOutputBit0 = newBit;
+    }
+  }
+
   joy1Read() {
+    // Sync deferred output before checking strobe state
+    this._syncJoypadOutput();
+
     // While strobe is active ($4016 bit 0 = 1), the shift register is
     // continuously reloaded, so reads always return button A's state.
     // See https://www.nesdev.org/wiki/Standard_controller
-    if (this.joypadLastWrite & 1) {
+    if (this.joypadOutputBit0) {
       return this.nes.controllers[1].state[0];
     }
 
@@ -289,8 +358,11 @@ class Mapper0 {
   }
 
   joy2Read() {
+    // Sync deferred output before checking strobe state
+    this._syncJoypadOutput();
+
     // While strobe is active, always return button A's state.
-    if (this.joypadLastWrite & 1) {
+    if (this.joypadOutputBit0) {
       return this.nes.controllers[2].state[0];
     }
 
@@ -500,6 +572,8 @@ class Mapper0 {
       joy1StrobeState: this.joy1StrobeState,
       joy2StrobeState: this.joy2StrobeState,
       joypadLastWrite: this.joypadLastWrite,
+      joypadOutputBit0: this.joypadOutputBit0,
+      joypadLastWriteCycle: this.joypadLastWriteCycle,
     };
   }
 
@@ -507,6 +581,8 @@ class Mapper0 {
     this.joy1StrobeState = s.joy1StrobeState;
     this.joy2StrobeState = s.joy2StrobeState;
     this.joypadLastWrite = s.joypadLastWrite;
+    this.joypadOutputBit0 = s.joypadOutputBit0 || 0;
+    this.joypadLastWriteCycle = s.joypadLastWriteCycle ?? -2;
   }
 }
 
