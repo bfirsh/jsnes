@@ -705,6 +705,12 @@ class Mapper5 extends Mapper0 {
   // Apply the current CHR bank registers to PPU pattern table memory.
   // See https://www.nesdev.org/wiki/MMC5#CHR_banking
   _syncChr() {
+    // Trigger rendering before changing banks, so any accumulated scanlines
+    // are drawn with the OLD CHR bank values. This is important for mid-frame
+    // bank switches (e.g. via scanline IRQ handlers that change CHR registers
+    // before writing to PPU scroll registers).
+    this.nes.ppu.triggerRendering();
+
     // Invalidate cached CHR bank target so the render hooks re-apply
     // when rendering starts.
     this._chrBankTarget = -1;
@@ -788,12 +794,18 @@ class Mapper5 extends Mapper0 {
   }
 
   // --- Nametable Synchronization ---
-  // Configure the PPU's vramMirrorTable to reflect the MMC5's nametable mapping.
-  // Each of the 4 nametable slots ($2000/$2400/$2800/$2C00) can be mapped to:
+  // Configure the PPU's vramMirrorTable AND internal NameTable objects to
+  // reflect the MMC5's nametable mapping. Each of the 4 nametable slots
+  // ($2000/$2400/$2800/$2C00) can be mapped to:
   //   0: NES CIRAM page A ($2000)
   //   1: NES CIRAM page B ($2400)
   //   2: ExRAM (internal 1KB, stored at $2800 in VRAM)
   //   3: Fill mode (stored at $2C00 in VRAM)
+  //
+  // IMPORTANT: The PPU uses TWO parallel data structures for nametables:
+  //   1. vramMem[] + vramMirrorTable[] — raw bytes, for $2007 VRAM reads
+  //   2. nameTable[0-3] + ntable1[0-3] — parsed tile/attrib, for rendering
+  // We must update BOTH so the renderer sees the correct nametable data.
   // See https://www.nesdev.org/wiki/MMC5#Nametable_mapping
   _syncNametables() {
     let ppu = this.nes.ppu;
@@ -838,13 +850,59 @@ class Mapper5 extends Mapper0 {
 
     // Also mirror $3000-$3EFF → $2000-$2EFF as per normal NES behavior
     ppu.defineMirrorRegion(0x3000, 0x2000, 0xf00);
+
+    // Update ntable1 so the renderer reads from the correct NameTable objects.
+    // ntMapping values 0-3 map directly to NameTable indices 0-3:
+    //   0 → NameTable 0 (CIRAM A, VRAM $2000)
+    //   1 → NameTable 1 (CIRAM B, VRAM $2400)
+    //   2 → NameTable 2 (ExRAM, VRAM $2800)
+    //   3 → NameTable 3 (Fill, VRAM $2C00)
+    for (let nt = 0; nt < 4; nt++) {
+      ppu.ntable1[nt] = this.ntMapping[nt];
+    }
+
+    // Populate NameTable 2 with ExRAM data so the renderer can see it.
+    // The PPU renderer reads from nameTable[].tile[] and nameTable[].attrib[],
+    // NOT from vramMem directly, so we must sync both.
+    this._populateNameTable(2, 0x2800);
+
+    // Populate NameTable 3 with fill-mode data.
+    this._populateNameTable(3, 0x2c00);
   }
 
-  // Sync a single ExRAM byte to the VRAM copy at $2800 if ExRAM is used
-  // as a nametable (modes 0/1).
+  // Populate a NameTable object from a 1KB region of vramMem.
+  // The first 960 bytes are tile indices, the next 64 are attribute table bytes.
+  _populateNameTable(ntIndex, vramBase) {
+    let ppu = this.nes.ppu;
+    let nt = ppu.nameTable[ntIndex];
+
+    // Copy tile indices (960 bytes = 30 rows × 32 columns)
+    for (let i = 0; i < 960; i++) {
+      nt.tile[i] = ppu.vramMem[vramBase + i];
+    }
+
+    // Decode attribute table (64 bytes) into per-tile attributes.
+    // Each attribute byte controls a 4×4 tile area (32×32 pixels).
+    for (let i = 0; i < 64; i++) {
+      nt.writeAttrib(i, ppu.vramMem[vramBase + 960 + i]);
+    }
+  }
+
+  // Sync a single ExRAM byte to both the VRAM copy at $2800 and NameTable 2.
+  // Called when ExRAM is written via $5C00-$5FFF in modes 0/1.
   _syncExramToVram(exAddr) {
     if (this.exramMode < 2) {
-      this.nes.ppu.vramMem[0x2800 + exAddr] = this.exram[exAddr];
+      let ppu = this.nes.ppu;
+      ppu.vramMem[0x2800 + exAddr] = this.exram[exAddr];
+
+      // Also update NameTable 2 so the renderer sees the change.
+      if (exAddr < 960) {
+        // Tile index update
+        ppu.nameTable[2].tile[exAddr] = this.exram[exAddr];
+      } else if (exAddr < 1024) {
+        // Attribute table update — decode into per-tile attributes
+        ppu.nameTable[2].writeAttrib(exAddr - 960, this.exram[exAddr]);
+      }
     }
   }
 

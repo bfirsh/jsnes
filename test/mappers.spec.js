@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it, beforeEach } from "node:test";
 import Mappers from "../src/mappers/index.js";
+import NameTable from "../src/ppu/nametable.js";
 import Tile from "../src/tile.js";
 
 // Create a minimal mock NES sufficient for Mapper 0
@@ -21,6 +22,13 @@ function createMockNes() {
       f_bgVisibility: 0,
       f_spVisibility: 0,
       f_spriteSize: 0,
+      nameTable: [
+        new NameTable(32, 32, "Nt0"),
+        new NameTable(32, 32, "Nt1"),
+        new NameTable(32, 32, "Nt2"),
+        new NameTable(32, 32, "Nt3"),
+      ],
+      ntable1: [0, 1, 2, 3],
       triggerRendering: function () {},
       setMirroring: function () {},
       defineMirrorRegion: function (fromStart, toStart, size) {
