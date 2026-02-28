@@ -69,7 +69,12 @@ class ChannelTriangle {
       // Programmable timer, length counter
       this.progTimerMax &= 0xff;
       this.progTimerMax |= (value & 0x07) << 8;
-      this.lengthCounter = this.papu.getLengthMax(value & 0xf8);
+      // Length counter is only loaded when the channel is enabled via $4015.
+      // Writing this register while disabled has no effect on the length counter.
+      // See https://www.nesdev.org/wiki/APU#Status_($4015)
+      if (this.isEnabled) {
+        this.lengthCounter = this.papu.getLengthMax(value & 0xf8);
+      }
       this.lcHalt = true;
     }
 

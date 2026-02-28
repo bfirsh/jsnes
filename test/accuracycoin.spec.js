@@ -282,7 +282,7 @@ const KNOWN_FAILURES = {
   // APU: timing/behavior not accurate enough
   0x0467: "APU frame counter IRQ not accurate",
   0x046a: "DMC DMA timing tests need cycle-accurate bus interleaving",
-  0x045c: "APU register activation not accurate",
+  0x045c: "APU register activation blocked by DMA + $2007 Read prerequisite",
 
   // PPU behavior: rendering-related tests need dot-accurate PPU
   0x0486: "Rendering flag behavior not accurate",

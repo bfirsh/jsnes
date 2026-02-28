@@ -81,8 +81,12 @@ class ChannelNoise {
       this.progTimerMax = this.papu.getNoiseWaveLength(value & 0xf);
       this.randomMode = value >> 7;
     } else if (address === 0x400f) {
-      // Length counter
-      this.lengthCounter = this.papu.getLengthMax(value & 248);
+      // Length counter — only loaded when the channel is enabled via $4015.
+      // Writing this register while disabled has no effect on the length counter.
+      // See https://www.nesdev.org/wiki/APU#Status_($4015)
+      if (this.isEnabled) {
+        this.lengthCounter = this.papu.getLengthMax(value & 248);
+      }
       this.envReset = true;
     }
     // Update:
