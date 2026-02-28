@@ -300,7 +300,6 @@ const KNOWN_FAILURES = {
 
   // PPU misc: need dot-accurate PPU rendering pipeline
   0x0481: "Attributes as tiles not accurate",
-  0x0482: "t register quirks not accurate",
   0x0483: "Stale BG shift registers not accurate",
   0x0487: "BG serial in not accurate",
   0x0484: "Sprites on scanline 0 not accurate",
