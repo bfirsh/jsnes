@@ -10,7 +10,7 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version: '24.x'
       - run: npm ci
       - run: npm run build
       - run: npm test
@@ -22,10 +22,31 @@ jobs:
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version: '24.x'
       - run: npm ci
         working-directory: web
       - run: npm run build
         working-directory: web
       - run: npm test
         working-directory: web
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, web]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.x'
+      - run: npm ci
+      # Trusted publishing via OIDC — no NPM_TOKEN needed.
+      # Configure the trusted publisher on npmjs.com to allow this repo/workflow.
+      # See https://docs.npmjs.com/trusted-publishers
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ""
