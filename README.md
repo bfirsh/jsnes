@@ -133,7 +133,6 @@ var nes = new jsnes.NES(options);
 | `onBatteryRamWrite` | `function(address, value)` | Called when battery-backed SRAM is written. Use this to persist save data. |
 | `emulateSound` | `boolean` | Enable/disable audio emulation. Default: `true`. |
 | `sampleRate` | `number` | Audio sample rate in Hz. Default: `48000`. |
-| `preferredFrameRate` | `number` | Target frame rate. Default: `60`. |
 
 **Methods:**
 
