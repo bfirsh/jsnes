@@ -1,6 +1,6 @@
 {
   "name": "jsnes",
-  "version": "1.2.1",
+  "version": "2.0.0",
   "description": "A JavaScript NES emulator",
   "homepage": "https://github.com/bfirsh/jsnes",
   "author": "Ben Firshman <ben@firshman.com>",
