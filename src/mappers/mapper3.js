@@ -21,9 +21,6 @@ class Mapper3 extends Mapper0 {
       // Swap in the given ROM bank at 0x8000:
       // This is a VROM bank select command.
       // Swap in the given VROM bank at 0x0000:
-      let bank = (value % (this.nes.rom.vromCount / 2)) * 2;
-      this.loadVromBank(bank, 0x0000);
-      this.loadVromBank(bank + 1, 0x1000);
       this.load8kVromBank(value * 2, 0x0000);
     }
   }
