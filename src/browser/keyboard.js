@@ -69,6 +69,8 @@ export default class KeyboardController {
   };
 
   handleKeyPress = (e) => {
-    e.preventDefault();
+    if (this.keys[e.keyCode]) {
+      e.preventDefault();
+    }
   };
 }
