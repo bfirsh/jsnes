@@ -30,16 +30,16 @@ class PaletteTable {
       bFactor = 1.0;
 
       if ((emph & 1) !== 0) {
-        rFactor = 0.75;
+        gFactor = 0.75;
         bFactor = 0.75;
       }
       if ((emph & 2) !== 0) {
         rFactor = 0.75;
-        gFactor = 0.75;
+        bFactor = 0.75;
       }
       if ((emph & 4) !== 0) {
+        rFactor = 0.75;
         gFactor = 0.75;
-        bFactor = 0.75;
       }
 
       this.emphTable[emph] = new Uint32Array(64);
