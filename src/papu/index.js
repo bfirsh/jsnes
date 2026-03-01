@@ -10,10 +10,12 @@ const CPU_FREQ_NTSC = 1789772.5; //1789772.72727272d;
 // Frame counter step timing tables (in CPU cycles).
 // The APU frame counter fires at these specific cycle positions within each
 // sequence. On real hardware, the APU clock is half the CPU clock, so
-// these correspond to APU cycles 3728.5, 7456.5, 11185.5, 14914.5 etc.
+// these correspond to APU cycles 3728.5, 7456.5, 11185.5, 14914, 14914.5 etc.
+// In 4-step mode, the IRQ flag is set 1 CPU cycle before the clock event
+// (at 29828 vs 29829), so step 3 is split into two sub-steps.
 // See https://www.nesdev.org/wiki/APU_Frame_Counter
-const FRAME_STEPS_4 = [7457, 14913, 22371, 29829];
-const FRAME_STEPS_5 = [7457, 14913, 22371, 29829, 37281];
+const FRAME_STEPS_4 = [7457, 14913, 22371, 29828, 29829];
+const FRAME_STEPS_5 = [7457, 14913, 22371, 29828, 37281];
 const FRAME_PERIOD_4 = 29830; // Total CPU cycles for 4-step sequence
 const FRAME_PERIOD_5 = 37282; // Total CPU cycles for 5-step sequence
 
@@ -75,6 +77,19 @@ class PAPU {
     this.sampleCount = 0;
     this.frameIrqEnabled = false;
     this.frameIrqActive = false;
+    // Deferred clearing of the frame IRQ flag: on real hardware, reading
+    // $4015 doesn't clear bit 6 immediately. The clear takes effect at the
+    // next APU "get" cycle (the APU clock runs at half the CPU rate, so
+    // get/put phases alternate every CPU cycle). This matters when $4015 is
+    // read twice in quick succession (e.g., by the SLO RMW instruction's
+    // dummy read + actual read, which are 1 CPU cycle apart). Depending on
+    // the APU phase alignment, the second read may or may not still see
+    // the flag. See AccuracyCoin test 0x0467 subtests 6 and 7.
+    // https://www.nesdev.org/wiki/APU_Frame_Counter
+    this.frameIrqClearPending = false;
+    // APU cycle parity tracks the CPU cycle count modulo 2, determining
+    // which APU half-cycle phase we're on (get or put).
+    this.apuCycleParity = 0;
     this.accCount = 0;
     this.smpSquare1 = 0;
     this.smpSquare2 = 0;
@@ -104,11 +119,17 @@ class PAPU {
     tmp |= (this.frameIrqActive ? 1 : 0) << 6;
     tmp |= this.dmc.getIrqStatus() << 7;
 
-    // Reading $4015 clears the frame interrupt flag but NOT the DMC
-    // interrupt flag. The DMC flag is only cleared by writing $4015 or
-    // writing $4010 with bit 7 clear.
+    // Reading $4015 schedules the frame interrupt flag for clearing, but
+    // the actual clear is deferred to the next APU "get" cycle. This means
+    // if two reads happen 1 CPU cycle apart (e.g., dummy + actual read in
+    // an RMW instruction), the second read may still see the flag depending
+    // on APU clock phase alignment. The DMC interrupt flag is NOT cleared.
+    // Only schedule a clear when the flag is actually set; otherwise a stale
+    // pending clear could race with a future fireFrameStep that sets the flag.
     // See https://www.nesdev.org/wiki/APU#Status_($4015)
-    this.frameIrqActive = false;
+    if (this.frameIrqActive) {
+      this.frameIrqClearPending = true;
+    }
 
     return tmp & 0xff;
   }
@@ -153,13 +174,19 @@ class PAPU {
       this.countSequence = (value >> 7) & 1;
       // Writing $4017 resets the frame counter's internal divider, but on
       // real hardware the reset is delayed after the write cycle. The delay
-      // depends on whether the CPU is on an odd or even cycle (3 or 4 cycles
-      // respectively). Since the emulator clocks the full STA instruction's
-      // cycles (4 for STA absolute) after writeReg, we compensate by starting
-      // the counter negative so it reaches 0 at the true reset point.
-      // Offset -6: after STA $4017 (4 cycles) → -2, after 2-cycle stall → 0.
+      // depends on the APU clock phase at the write:
+      //   "get" phase (odd parity): reset after 3 CPU cycles
+      //   "put" phase (even parity): reset after 4 CPU cycles
+      // Since the emulator clocks the full STA instruction's cycles (4 for
+      // STA absolute) after writeReg, we compensate by starting the counter
+      // negative so it reaches 0 at the true reset point.
       // See https://www.nesdev.org/wiki/APU_Frame_Counter
-      this.frameCycleCounter = -6;
+      let cpu = this.nes.cpu;
+      let pendingCycles = cpu.instrBusCycles + 1 - cpu.apuCatchupCycles;
+      let writeParity = (this.apuCycleParity + pendingCycles) & 1;
+      // "get" phase (odd): -6 → after STA (4 cycles) → -2, after 2 cycles → 0
+      // "put" phase (even): -7 → after STA (4 cycles) → -3, after 3 cycles → 0
+      this.frameCycleCounter = -7 + writeParity;
       this.frameStep = 0;
 
       if (value & 0x40) {
@@ -167,6 +194,7 @@ class PAPU {
         // future frame IRQs from firing
         this.frameIrqEnabled = false;
         this.frameIrqActive = false;
+        this.frameIrqClearPending = false;
       } else {
         // IRQ inhibit clear: enable frame IRQs (flag is not affected)
         this.frameIrqEnabled = true;
@@ -202,6 +230,11 @@ class PAPU {
   // subtracted from the frame counter portion only, not from channel timers.
   clockFrameCounter(nCycles, frameCounterAlreadyAdvanced) {
     let frameCounterCycles = nCycles - (frameCounterAlreadyAdvanced || 0);
+
+    // Process deferred frame IRQ clear and update APU cycle parity for
+    // the remaining cycles not yet advanced by advanceFrameCounter.
+    this.processFrameIrqClear(frameCounterCycles);
+    this.apuCycleParity = (this.apuCycleParity + frameCounterCycles) & 1;
 
     // Don't process channel ticks beyond next sampling:
     nCycles += this.extraCycles;
@@ -318,16 +351,42 @@ class PAPU {
 
     // Clock frame counter: fire steps at the correct CPU cycle positions.
     // Uses the uncapped cycle count to maintain accurate timing.
+    // The step loop and period wrap are separated: steps fire when the counter
+    // reaches each step's cycle position, and the period wrap only occurs when
+    // the counter reaches the full period length (not immediately after the
+    // last step). This matters because in 4-step mode, the last step fires at
+    // 29829 but the period wrap (and 3rd IRQ assertion) occurs at 29830.
     // See https://www.nesdev.org/wiki/APU_Frame_Counter
     this.frameCycleCounter += frameCounterCycles;
     let steps = this.countSequence === 0 ? FRAME_STEPS_4 : FRAME_STEPS_5;
     let period = this.countSequence === 0 ? FRAME_PERIOD_4 : FRAME_PERIOD_5;
-    while (this.frameCycleCounter >= steps[this.frameStep]) {
-      this.fireFrameStep(this.frameStep);
-      this.frameStep++;
-      if (this.frameStep >= steps.length) {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      if (
+        this.frameStep < steps.length &&
+        this.frameCycleCounter >= steps[this.frameStep]
+      ) {
+        this.fireFrameStep(this.frameStep);
+        this.frameStep++;
+      } else if (
+        this.frameStep >= steps.length &&
+        this.frameCycleCounter >= period
+      ) {
+        // Period wrap: reset the frame counter for the next sequence.
         this.frameStep = 0;
         this.frameCycleCounter -= period;
+        // In 4-step mode, the IRQ flag is asserted for 3 consecutive CPU
+        // cycles: at 29828 (step 3), 29829 (step 4), and 29830 (period wrap).
+        // On the 3rd cycle (period wrap), the flag is set only if the IRQ
+        // inhibit flag is clear. If inhibit is set, the flag is actively
+        // cleared (it was unconditionally set on cycles 29828-29829).
+        // See https://www.nesdev.org/wiki/APU_Frame_Counter
+        if (this.countSequence === 0) {
+          this.frameIrqActive = this.frameIrqEnabled;
+          this.frameIrqClearPending = false;
+        }
+      } else {
+        break;
       }
     }
 
@@ -343,20 +402,53 @@ class PAPU {
     }
   }
 
+  // Process the deferred frame IRQ flag clear. On real hardware, reading
+  // $4015 schedules the clear for the next APU "get" cycle (which happens
+  // every 2 CPU cycles). If the current APU phase is "put" (parity 1),
+  // the next "get" is 1 cycle away. If "get" (parity 0), it's 2 cycles
+  // away. This must be called BEFORE updating apuCycleParity for the
+  // current advance, so it sees the parity at the start of the period.
+  // See https://www.nesdev.org/wiki/APU_Frame_Counter
+  processFrameIrqClear(nCycles) {
+    if (!this.frameIrqClearPending || nCycles <= 0) return;
+    // Determine how many CPU cycles until the next APU "get" boundary.
+    let cyclesToNextGet = (this.apuCycleParity & 1) === 0 ? 1 : 2;
+    if (nCycles >= cyclesToNextGet) {
+      this.frameIrqActive = false;
+      this.frameIrqClearPending = false;
+    }
+  }
+
   // Advance only the frame counter steps without clocking channel timers,
   // DMC, or audio sampling. Used by CPU APU catch-up to update frame counter
   // state (length counters, envelopes) before $4015 reads, without disturbing
   // DMC DMA timing or audio generation.
   advanceFrameCounter(nCycles) {
+    this.processFrameIrqClear(nCycles);
+    this.apuCycleParity = (this.apuCycleParity + nCycles) & 1;
     this.frameCycleCounter += nCycles;
     let steps = this.countSequence === 0 ? FRAME_STEPS_4 : FRAME_STEPS_5;
     let period = this.countSequence === 0 ? FRAME_PERIOD_4 : FRAME_PERIOD_5;
-    while (this.frameCycleCounter >= steps[this.frameStep]) {
-      this.fireFrameStep(this.frameStep);
-      this.frameStep++;
-      if (this.frameStep >= steps.length) {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      if (
+        this.frameStep < steps.length &&
+        this.frameCycleCounter >= steps[this.frameStep]
+      ) {
+        this.fireFrameStep(this.frameStep);
+        this.frameStep++;
+      } else if (
+        this.frameStep >= steps.length &&
+        this.frameCycleCounter >= period
+      ) {
         this.frameStep = 0;
         this.frameCycleCounter -= period;
+        if (this.countSequence === 0) {
+          this.frameIrqActive = this.frameIrqEnabled;
+          this.frameIrqClearPending = false;
+        }
+      } else {
+        break;
       }
     }
   }
@@ -406,10 +498,15 @@ class PAPU {
   fireFrameStep(step) {
     if (this.countSequence === 0) {
       // Mode 0 (4-step):
-      //   Step 0: quarter frame (envelope + linear counter)
-      //   Step 1: half frame (quarter + length counter + sweep)
-      //   Step 2: quarter frame
-      //   Step 3: half frame + set frame IRQ flag
+      //   Step 0 (7457): quarter frame (envelope + linear counter)
+      //   Step 1 (14913): half frame (quarter + length counter + sweep)
+      //   Step 2 (22371): quarter frame
+      //   Step 3 (29828): set frame IRQ flag only (1 cycle before clock)
+      //   Step 4 (29829): half frame + set frame IRQ flag
+      // On real hardware, the IRQ flag is asserted 1 CPU cycle before the
+      // clock event at the end of the 4-step sequence. This is why step 3
+      // is split from step 4.
+      // See https://www.nesdev.org/wiki/APU_Frame_Counter
       switch (step) {
         case 0:
           this.clockQuarterFrame();
@@ -422,17 +519,22 @@ class PAPU {
           this.clockQuarterFrame();
           break;
         case 3:
+          // IRQ flag is UNCONDITIONALLY set 1 CPU cycle before the half-frame
+          // clock, regardless of the IRQ inhibit flag ($4017 bit 6). On real
+          // hardware, the flag is driven high by the frame counter output for
+          // cycles 29828-29829 even when inhibit is set; only the period wrap
+          // at 29830 respects the inhibit flag. Cancel any pending deferred
+          // clear since the flag is being re-asserted by hardware.
+          // See AccuracyCoin tests I-L.
+          this.frameIrqActive = true;
+          this.frameIrqClearPending = false;
+          break;
+        case 4:
           this.clockQuarterFrame();
           this.clockHalfFrame();
-          // Set the frame interrupt flag in step 4 of 4-step mode, but only
-          // when IRQ inhibit is clear ($4017 bit 6 = 0). The nesdev wiki says:
-          // "If the interrupt inhibit flag is clear, the frame interrupt flag
-          // is set." Writing $4017 with bit 6 set prevents the flag from ever
-          // being set, not just from firing the IRQ.
-          // See https://www.nesdev.org/wiki/APU_Frame_Counter
-          if (this.frameIrqEnabled) {
-            this.frameIrqActive = true;
-          }
+          // IRQ flag continues to be unconditionally asserted on this cycle.
+          this.frameIrqActive = true;
+          this.frameIrqClearPending = false;
           break;
       }
     } else {
@@ -766,6 +868,8 @@ class PAPU {
     "sampleRate",
     "frameIrqEnabled",
     "frameIrqActive",
+    "frameIrqClearPending",
+    "apuCycleParity",
     "startedPlaying",
     "recordOutput",
     "frameCycleCounter",

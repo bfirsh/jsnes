@@ -277,7 +277,6 @@ const KNOWN_FAILURES = {
   0x0478: "Implicit DMA abort not emulated",
 
   // APU: timing/behavior not accurate enough
-  0x0467: "APU frame counter IRQ not accurate",
   0x046a: "DMC DMA timing tests need cycle-accurate bus interleaving",
   0x045c: "APU register activation blocked by DMA + $2007 Read prerequisite",
 
