@@ -29,7 +29,11 @@ class GameGenie {
   }
 
   addCode(code) {
-    this.patches.push(this.decode(code));
+    const patch = this.decode(code);
+    if (!patch) {
+      throw new Error(`Invalid Game Genie code: ${code}`);
+    }
+    this.patches.push(patch);
     if (this.onChange) this.onChange();
   }
 
