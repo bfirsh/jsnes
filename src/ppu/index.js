@@ -1533,7 +1533,7 @@ class PPU {
         );
       } else {
         this.imgPalette[i] = this.palTable.getEntry(
-          this.vramMem[0x3f00 + i] & 32,
+          this.vramMem[0x3f00 + i] & 0x30,
         );
       }
     }
@@ -1544,7 +1544,7 @@ class PPU {
         );
       } else {
         this.sprPalette[i] = this.palTable.getEntry(
-          this.vramMem[0x3f10 + i] & 32,
+          this.vramMem[0x3f10 + i] & 0x30,
         );
       }
     }
