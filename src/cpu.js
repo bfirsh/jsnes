@@ -1900,7 +1900,7 @@ class CPU {
     this.REG_PC_NEW++;
     this.push((this.REG_PC_NEW >> 8) & 0xff);
     this.push(this.REG_PC_NEW & 0xff);
-    //this.F_INTERRUPT_NEW = 1;
+    this.F_INTERRUPT_NEW = 1;
     this.push(status);
 
     this.dataBus = this.loadFromCartridge(0xfffa);
