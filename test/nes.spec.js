@@ -50,6 +50,42 @@ describe("NES", function () {
     assert.strictEqual(onFrame.mock.calls[0].arguments[0].length, 256 * 240);
   });
 
+  it("uses 4 grayscale levels for background palette entries", function () {
+    let nes = new NES();
+    let ppu = nes.ppu;
+
+    ppu.f_dispType = 1;
+    ppu.vramMem[0x3f00] = 0x00;
+    ppu.vramMem[0x3f01] = 0x10;
+    ppu.vramMem[0x3f02] = 0x20;
+    ppu.vramMem[0x3f03] = 0x30;
+
+    ppu.updatePalettes();
+
+    assert.strictEqual(ppu.imgPalette[0], ppu.palTable.getEntry(0x00));
+    assert.strictEqual(ppu.imgPalette[1], ppu.palTable.getEntry(0x10));
+    assert.strictEqual(ppu.imgPalette[2], ppu.palTable.getEntry(0x20));
+    assert.strictEqual(ppu.imgPalette[3], ppu.palTable.getEntry(0x30));
+  });
+
+  it("uses 4 grayscale levels for sprite palette entries", function () {
+    let nes = new NES();
+    let ppu = nes.ppu;
+
+    ppu.f_dispType = 1;
+    ppu.vramMem[0x3f10] = 0x00;
+    ppu.vramMem[0x3f11] = 0x10;
+    ppu.vramMem[0x3f12] = 0x20;
+    ppu.vramMem[0x3f13] = 0x30;
+
+    ppu.updatePalettes();
+
+    assert.strictEqual(ppu.sprPalette[0], ppu.palTable.getEntry(0x00));
+    assert.strictEqual(ppu.sprPalette[1], ppu.palTable.getEntry(0x10));
+    assert.strictEqual(ppu.sprPalette[2], ppu.palTable.getEntry(0x20));
+    assert.strictEqual(ppu.sprPalette[3], ppu.palTable.getEntry(0x30));
+  });
+
   it("produces the same frame buffer from Uint8Array and string", function () {
     let stringFrames = [];
     let nes1 = new NES({ onFrame: (buf) => stringFrames.push(buf.slice()) });
