@@ -1992,6 +1992,7 @@ class CPU {
     "nmiRaised",
     "nmiPending",
     "nmiImmediate",
+    "dataBus",
     // Registers
     "REG_ACC",
     "REG_X",

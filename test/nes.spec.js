@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it, before, mock } from "node:test";
 import fs from "fs";
 import NES from "../src/nes.js";
+import Controller from "../src/controller.js";
 
 describe("NES", function () {
   it("can be initialized", function () {
@@ -48,6 +49,62 @@ describe("NES", function () {
     assert.strictEqual(onFrame.mock.callCount(), 1);
     assert.ok(onFrame.mock.calls[0].arguments[0] instanceof Uint32Array);
     assert.strictEqual(onFrame.mock.calls[0].arguments[0].length, 256 * 240);
+  });
+
+  it("preserves cpu dataBus across save/load state", function () {
+    let nes = new NES();
+    let data = fs.readFileSync("roms/croom/croom.nes");
+    nes.loadROM(data.toString("binary"));
+
+    nes.cpu.dataBus = 0xab;
+    let state = nes.toJSON();
+
+    let restored = new NES();
+    restored.loadROM(data.toString("binary"));
+    restored.fromJSON(state);
+
+    assert.strictEqual(state.cpu.dataBus, 0xab);
+    assert.strictEqual(restored.cpu.dataBus, 0xab);
+  });
+
+  it("preserves controller state across save/load state", function () {
+    let nes = new NES();
+    let data = fs.readFileSync("roms/croom/croom.nes");
+    nes.loadROM(data.toString("binary"));
+
+    nes.controllers[1].buttonDown(Controller.BUTTON_A);
+    nes.controllers[1].buttonDown(Controller.BUTTON_TURBO_B);
+    nes.controllers[1].clock();
+    nes.controllers[2].buttonDown(Controller.BUTTON_START);
+
+    let state = nes.toJSON();
+
+    let restored = new NES();
+    restored.loadROM(data.toString("binary"));
+    restored.fromJSON(state);
+
+    assert.deepStrictEqual(
+      restored.controllers[1].state,
+      nes.controllers[1].state,
+    );
+    assert.deepStrictEqual(
+      restored.controllers[2].state,
+      nes.controllers[2].state,
+    );
+    assert.strictEqual(restored.controllers[1].baseA, nes.controllers[1].baseA);
+    assert.strictEqual(restored.controllers[1].baseB, nes.controllers[1].baseB);
+    assert.strictEqual(
+      restored.controllers[1].turboA,
+      nes.controllers[1].turboA,
+    );
+    assert.strictEqual(
+      restored.controllers[1].turboB,
+      nes.controllers[1].turboB,
+    );
+    assert.strictEqual(
+      restored.controllers[1].turboToggle,
+      nes.controllers[1].turboToggle,
+    );
   });
 
   it("produces the same frame buffer from Uint8Array and string", function () {
