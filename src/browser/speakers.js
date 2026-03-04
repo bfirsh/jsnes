@@ -81,6 +81,8 @@ registerProcessor("nes-audio-processor", NESAudioProcessor);
 const BATCH_SIZE = 128;
 
 export default class Speakers {
+  static _detectedSampleRate = null;
+
   constructor({ onBufferUnderrun }) {
     this.onBufferUnderrun = onBufferUnderrun;
     this.audioCtx = null;
@@ -94,9 +96,19 @@ export default class Speakers {
     if (!window.AudioContext) {
       return 44100;
     }
+
+    if (this.audioCtx) {
+      return this.audioCtx.sampleRate;
+    }
+
+    if (Speakers._detectedSampleRate !== null) {
+      return Speakers._detectedSampleRate;
+    }
+
     let myCtx = new window.AudioContext();
     let sampleRate = myCtx.sampleRate;
     myCtx.close();
+    Speakers._detectedSampleRate = sampleRate;
     return sampleRate;
   }
 
