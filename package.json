@@ -4,10 +4,12 @@
   "description": "A JavaScript NES emulator",
   "homepage": "https://github.com/bfirsh/jsnes",
   "author": "Ben Firshman <ben@firshman.com>",
-  "main": "src/index.js",
+  "main": "dist/jsnes.js",
   "exports": {
     ".": {
       "types": "./index.d.ts",
+      "import": "./src/index.js",
+      "require": "./dist/jsnes.js",
       "default": "./src/index.js"
     }
   },
