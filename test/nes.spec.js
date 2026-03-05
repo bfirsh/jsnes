@@ -151,6 +151,22 @@ describe("NES", function () {
     });
   });
 
+  describe("PPU monochrome palette masking", function () {
+    it("preserves both high palette bits in monochrome mode", function () {
+      let nes = new NES();
+      let ppu = nes.ppu;
+
+      ppu.f_dispType = 1;
+
+      ppu.vramMem[0x3f00] = 0x1f; // -> 0x10 in monochrome mode
+      ppu.vramMem[0x3f10] = 0x2f; // -> 0x20 in monochrome mode
+      ppu.updatePalettes();
+
+      assert.strictEqual(ppu.imgPalette[0], ppu.palTable.getEntry(0x10));
+      assert.strictEqual(ppu.sprPalette[0], ppu.palTable.getEntry(0x20));
+    });
+  });
+
   describe("#getFPS()", function () {
     let nes = new NES();
     before(function () {
