@@ -74,4 +74,43 @@ describe("Mappers", function () {
       assert.strictEqual(mockNes.cpu.mem[romAddress], originalValue);
     });
   });
+
+  describe("Mapper 3 (CNROM)", function () {
+    it("writes a single 8k CHR bank switch", function () {
+      let mapper3 = new Mappers[3](mockNes);
+      let calls = [];
+      mapper3.load8kVromBank = (bank, address) => {
+        calls.push([bank, address]);
+      };
+
+      mapper3.write(0x8000, 3);
+
+      assert.deepStrictEqual(calls, [[6, 0x0000]]);
+    });
+  });
+
+  describe("Mapper 180", function () {
+    it("loads bank 0 at $8000 and $c000 on reset", function () {
+      mockNes.rom = {
+        valid: true,
+        romCount: 8,
+      };
+      mockNes.cpu.IRQ_RESET = 1;
+      mockNes.cpu.requestIrq = () => {};
+
+      let mapper180 = new Mappers[180](mockNes);
+      let calls = [];
+      mapper180.loadRomBank = (bank, address) => {
+        calls.push([bank, address]);
+      };
+      mapper180.loadCHRROM = () => {};
+
+      mapper180.loadROM();
+
+      assert.deepStrictEqual(calls, [
+        [0, 0x8000],
+        [0, 0xc000],
+      ]);
+    });
+  });
 });
