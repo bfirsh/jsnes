@@ -1,4 +1,5 @@
 import { ButtonKey } from "./controller";
+import { GameGenie } from "./gamegenie";
 
 export type ControllerId = 1 | 2;
 
@@ -20,6 +21,7 @@ export interface NESOptions {
 
 export class NES {
   constructor(opts: NESOptions);
+  gameGenie: GameGenie;
   reset: () => void;
   frame: () => void;
   buttonDown: (controller: ControllerId, button: ButtonKey) => void;
