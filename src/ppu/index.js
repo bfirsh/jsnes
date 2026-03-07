@@ -1688,8 +1688,6 @@ class PPU {
         let palAdd = (sprAttr & 3) << 2;
 
         if (priority !== bgPri) continue;
-        if (sprX >= 256 && sprX < 256) continue; // always false, X is u8
-
         if (this.f_spriteSize === 0) {
           // 8x8 sprites
           let tileIndex = this.f_spPatternTable === 0 ? sprTile : sprTile + 256;
@@ -2208,10 +2206,10 @@ class PPU {
     "sramAddress",
     // Sprites. Most sprite data is rebuilt from spriteMem
     "hitSpr0",
-    // Secondary OAM / per-scanline sprite evaluation data
-    "scanlineSpriteCount",
-    "scanlineSecondaryOAM",
-    "scanlineSprite0",
+    // Secondary OAM: persistent hardware state (not cleared on pre-render)
+    "secondaryOAM",
+    "spritesFound",
+    "sprite0InSecondary",
     // Palettes
     "sprPalette",
     "imgPalette",
