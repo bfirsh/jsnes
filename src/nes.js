@@ -182,6 +182,10 @@ class NES {
       mmap: this.mmap.toJSON(),
       ppu: this.ppu.toJSON(),
       papu: this.papu.toJSON(),
+      controllers: {
+        1: this.controllers[1].toJSON(),
+        2: this.controllers[2].toJSON(),
+      },
     };
   }
 
@@ -192,6 +196,11 @@ class NES {
     this.mmap.fromJSON(s.mmap);
     this.ppu.fromJSON(s.ppu);
     this.papu.fromJSON(s.papu);
+
+    if (s.controllers) {
+      this.controllers[1].fromJSON(s.controllers[1]);
+      this.controllers[2].fromJSON(s.controllers[2]);
+    }
   }
 }
 

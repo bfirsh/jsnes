@@ -2022,6 +2022,7 @@ class CPU {
     "F_BRK",
     "F_BRK_NEW",
     "_cpuCycleBase",
+    "dataBus",
   ];
 
   toJSON() {

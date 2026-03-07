@@ -1,3 +1,5 @@
+import { fromJSON, toJSON } from "./utils.js";
+
 class Controller {
   static BUTTON_A = 0;
   static BUTTON_B = 1;
@@ -64,6 +66,23 @@ class Controller {
     if (this.turboB) {
       this.state[Controller.BUTTON_B] = this.turboToggle ? 0x41 : 0x40;
     }
+  }
+
+  static JSON_PROPERTIES = [
+    "state",
+    "baseA",
+    "baseB",
+    "turboA",
+    "turboB",
+    "turboToggle",
+  ];
+
+  toJSON() {
+    return toJSON(this);
+  }
+
+  fromJSON(s) {
+    fromJSON(this, s);
   }
 }
 
