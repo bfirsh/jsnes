@@ -194,10 +194,10 @@ describe("MMC5 (Mapper 5)", function () {
       assert.strictEqual(mapper.load(0x5206), 0x00);
     });
 
-    it("defaults to 0xFF * 0xFF on power-up", function () {
-      // Power-on default: $5205=$FF, $5206=$FF → product = $FE01
-      assert.strictEqual(mapper.load(0x5205), 0x01);
-      assert.strictEqual(mapper.load(0x5206), 0xfe);
+    it("defaults to 0x00 * 0x00 on power-up", function () {
+      // Power-on default: $5205=$00, $5206=$00 → product = $0000
+      assert.strictEqual(mapper.load(0x5205), 0x00);
+      assert.strictEqual(mapper.load(0x5206), 0x00);
     });
   });
 

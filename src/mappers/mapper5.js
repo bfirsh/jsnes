@@ -28,8 +28,9 @@ class Mapper5 extends Mapper0 {
 
     // PRG RAM write protection: $5102 and $5103
     // Writes only enabled when $5102=%10 and $5103=%01
-    this.prgRamProtectA = 0; // $5102
-    this.prgRamProtectB = 0; // $5103
+    // Both reset to %11 ($03) per nesdev wiki, which keeps RAM write-protected.
+    this.prgRamProtectA = 0x03; // $5102
+    this.prgRamProtectB = 0x03; // $5103
 
     // CHR banking
     // $5101: CHR mode (0=8K, 1=4K, 2=2K, 3=1K)
@@ -67,8 +68,9 @@ class Mapper5 extends Mapper0 {
 
     // Hardware multiplier: $5205/$5206
     // Write two 8-bit unsigned values, read 16-bit product immediately.
-    this.multA = 0xff; // Power-on default 0xFF
-    this.multB = 0xff; // Power-on default 0xFF
+    // Wiki doesn't specify power-on default; FCEUX uses 0. Using 0 as safe default.
+    this.multA = 0;
+    this.multB = 0;
 
     // Split screen: $5200-$5202
     // Not commonly used. Basic support for register storage.
@@ -309,19 +311,13 @@ class Mapper5 extends Mapper0 {
     let bank16k =
       (bank32k * 2 + Math.floor(offset / 0x4000)) % this.nes.rom.romCount;
     let innerOffset = offset % 0x4000;
-    if (bank16k < this.nes.rom.romCount) {
-      return this.nes.rom.rom[bank16k][innerOffset];
-    }
-    return 0;
+    return this.nes.rom.rom[bank16k][innerOffset];
   }
 
   // Read a byte from PRG ROM given a 16K bank number and offset within it.
   _readPrgRom16k(bank16k, offset) {
     bank16k %= this.nes.rom.romCount;
-    if (bank16k < this.nes.rom.romCount) {
-      return this.nes.rom.rom[bank16k][offset];
-    }
-    return 0;
+    return this.nes.rom.rom[bank16k][offset];
   }
 
   // Read a byte from PRG ROM given an 8K bank number and offset within it.
@@ -963,6 +959,23 @@ class Mapper5 extends Mapper0 {
         this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NORMAL);
       }
     }
+
+    // Clock expansion audio length counters once per scanline.
+    // The MMC5 has no frame sequencer; length counters run at a fixed rate
+    // tied to scanline timing. We approximate by clocking every 4 scanlines
+    // (~240 Hz, matching the APU frame counter quarter-frame rate).
+    // See https://www.nesdev.org/wiki/MMC5_audio
+    if ((this.irqCounter & 3) === 0) {
+      this._clockPulseLengthCounter(this.pulse1);
+      this._clockPulseLengthCounter(this.pulse2);
+    }
+  }
+
+  // Decrement a pulse channel's length counter if it's active and not halted.
+  _clockPulseLengthCounter(pulse) {
+    if (pulse.enabled && !pulse.lengthHalt && pulse.lengthCounter > 0) {
+      pulse.lengthCounter--;
+    }
   }
 
   // --- CHR Bank Switching for Sprite/BG Phases ---
@@ -1137,7 +1150,10 @@ class Mapper5 extends Mapper0 {
     s.splitPage = this.splitPage;
     s.pcmValue = this.pcmValue;
     s.pcmReadMode = this.pcmReadMode;
+    s.pcmIrqEnabled = this.pcmIrqEnabled;
     s.audioEnabled = this.audioEnabled;
+    s.pulse1 = Object.assign({}, this.pulse1);
+    s.pulse2 = Object.assign({}, this.pulse2);
     return s;
   }
 
@@ -1172,7 +1188,10 @@ class Mapper5 extends Mapper0 {
     this.splitPage = s.splitPage;
     this.pcmValue = s.pcmValue;
     this.pcmReadMode = s.pcmReadMode;
+    this.pcmIrqEnabled = s.pcmIrqEnabled;
     this.audioEnabled = s.audioEnabled;
+    if (s.pulse1) this.pulse1 = Object.assign(this._initPulse(), s.pulse1);
+    if (s.pulse2) this.pulse2 = Object.assign(this._initPulse(), s.pulse2);
 
     // Re-sync banks after loading state
     this._syncPrg();
