@@ -92,14 +92,14 @@ class ChannelSquare {
         this.sweepCarry = false;
         if (this.sweepMode === 0) {
           this.progTimerMax += this.progTimerMax >> this.sweepShiftAmount;
-          if (this.progTimerMax > 4095) {
+          if (this.progTimerMax > 0x7ff) {
             this.progTimerMax = 4095;
             this.sweepCarry = true;
           }
         } else {
           this.progTimerMax =
             this.progTimerMax -
-            ((this.progTimerMax >> this.sweepShiftAmount) -
+            ((this.progTimerMax >> this.sweepShiftAmount) +
               (this.sqr1 ? 1 : 0));
         }
       }
@@ -115,7 +115,7 @@ class ChannelSquare {
     if (this.isEnabled && this.lengthCounter > 0 && this.progTimerMax > 7) {
       if (
         this.sweepMode === 0 &&
-        this.progTimerMax + (this.progTimerMax >> this.sweepShiftAmount) > 4095
+        this.progTimerMax + (this.progTimerMax >> this.sweepShiftAmount) > 0x7ff
       ) {
         //if (this.sweepCarry) {
         this.sampleValue = 0;
