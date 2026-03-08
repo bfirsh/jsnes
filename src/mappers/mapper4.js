@@ -36,7 +36,7 @@ class Mapper4 extends Mapper0 {
       return;
     }
 
-    switch (address) {
+    switch (address & 0xe001) {
       case 0x8000: {
         // Command/Address Select register
         this.command = value & 7;

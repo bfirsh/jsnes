@@ -154,6 +154,41 @@ describe("Mappers", function () {
   });
 });
 
+
+// --- MMC3 (Mapper 4) Tests ---
+describe("MMC3 (Mapper 4)", function () {
+  let mapper = null;
+  let mockNes = null;
+
+  beforeEach(function () {
+    mockNes = createMockNes();
+    populateMockRom(mockNes);
+    mapper = new Mappers[4](mockNes);
+    mockNes.mmap = mapper;
+  });
+
+  it("decodes bank select writes using masked MMC3 register addresses", function () {
+    mapper.write(0x8002, 0x86); // should decode as $8000
+
+    assert.strictEqual(mapper.command, 0x06);
+    assert.strictEqual(mapper.prgAddressSelect, 0);
+    assert.strictEqual(mapper.chrAddressSelect, 1);
+  });
+
+  it("decodes mirroring writes using masked MMC3 register addresses", function () {
+    let mirroring = null;
+    mockNes.ppu.setMirroring = function (mode) {
+      mirroring = mode;
+    };
+
+    mapper.write(0xa002, 0x01); // should decode as $A000
+    assert.strictEqual(mirroring, mockNes.rom.HORIZONTAL_MIRRORING);
+
+    mapper.write(0xbffe, 0x00); // should decode as $A000
+    assert.strictEqual(mirroring, mockNes.rom.VERTICAL_MIRRORING);
+  });
+});
+
 // --- MMC5 (Mapper 5) Tests ---
 describe("MMC5 (Mapper 5)", function () {
   let mapper = null;
