@@ -91,13 +91,10 @@ export default class Speakers {
   }
 
   getSampleRate() {
-    if (!window.AudioContext) {
-      return 44100;
+    if (this.audioCtx) {
+      return this.audioCtx.sampleRate;
     }
-    let myCtx = new window.AudioContext();
-    let sampleRate = myCtx.sampleRate;
-    myCtx.close();
-    return sampleRate;
+    return 44100;
   }
 
   // start() is async because audioWorklet.addModule() returns a promise.
