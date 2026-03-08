@@ -42,9 +42,23 @@ class NES {
 
   // Resets the system
   reset() {
-    this.cpu = new CPU(this);
-    this.ppu = new PPU(this);
-    this.papu = new PAPU(this);
+    if (this.cpu) {
+      Object.assign(this.cpu, new CPU(this));
+    } else {
+      this.cpu = new CPU(this);
+    }
+
+    if (this.ppu) {
+      Object.assign(this.ppu, new PPU(this));
+    } else {
+      this.ppu = new PPU(this);
+    }
+
+    if (this.papu) {
+      Object.assign(this.papu, new PAPU(this));
+    } else {
+      this.papu = new PAPU(this);
+    }
 
     if (this.mmap !== null) {
       this.mmap = this.rom.createMapper();

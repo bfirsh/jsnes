@@ -149,6 +149,26 @@ describe("NES", function () {
       nes.reset();
       assert.strictEqual(nes.crashed, false);
     });
+
+    it("preserves cpu/ppu/papu object references across reset", function () {
+      let nes = new NES();
+      let cpu = nes.cpu;
+      let ppu = nes.ppu;
+      let papu = nes.papu;
+
+      nes.cpu.REG_ACC = 0x42;
+      nes.ppu.scanline = 123;
+      nes.papu.sampleCount = 99;
+
+      nes.reset();
+
+      assert.strictEqual(nes.cpu, cpu);
+      assert.strictEqual(nes.ppu, ppu);
+      assert.strictEqual(nes.papu, papu);
+      assert.strictEqual(nes.cpu.REG_ACC, 0);
+      assert.strictEqual(nes.ppu.scanline, 0);
+      assert.strictEqual(nes.papu.sampleCount, 0);
+    });
   });
 
   describe("#getFPS()", function () {
