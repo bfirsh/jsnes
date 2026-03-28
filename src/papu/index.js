@@ -15,7 +15,9 @@ const CPU_FREQ_NTSC = 1789772.5; //1789772.72727272d;
 // (at 29828 vs 29829), so step 3 is split into two sub-steps.
 // See https://www.nesdev.org/wiki/APU_Frame_Counter
 const FRAME_STEPS_4 = [7457, 14913, 22371, 29828, 29829];
-const FRAME_STEPS_5 = [7457, 14913, 22371, 29828, 37281];
+// 5-step mode step 3 fires at 29829 per the nesdev wiki, not 29828. This is
+// fine because fireFrameStep step 3 in 5-step mode is a no-op (no clock or IRQ).
+const FRAME_STEPS_5 = [7457, 14913, 22371, 29829, 37281];
 const FRAME_PERIOD_4 = 29830; // Total CPU cycles for 4-step sequence
 const FRAME_PERIOD_5 = 37282; // Total CPU cycles for 5-step sequence
 
@@ -351,44 +353,7 @@ class PAPU {
 
     // Clock frame counter: fire steps at the correct CPU cycle positions.
     // Uses the uncapped cycle count to maintain accurate timing.
-    // The step loop and period wrap are separated: steps fire when the counter
-    // reaches each step's cycle position, and the period wrap only occurs when
-    // the counter reaches the full period length (not immediately after the
-    // last step). This matters because in 4-step mode, the last step fires at
-    // 29829 but the period wrap (and 3rd IRQ assertion) occurs at 29830.
-    // See https://www.nesdev.org/wiki/APU_Frame_Counter
-    this.frameCycleCounter += frameCounterCycles;
-    let steps = this.countSequence === 0 ? FRAME_STEPS_4 : FRAME_STEPS_5;
-    let period = this.countSequence === 0 ? FRAME_PERIOD_4 : FRAME_PERIOD_5;
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      if (
-        this.frameStep < steps.length &&
-        this.frameCycleCounter >= steps[this.frameStep]
-      ) {
-        this.fireFrameStep(this.frameStep);
-        this.frameStep++;
-      } else if (
-        this.frameStep >= steps.length &&
-        this.frameCycleCounter >= period
-      ) {
-        // Period wrap: reset the frame counter for the next sequence.
-        this.frameStep = 0;
-        this.frameCycleCounter -= period;
-        // In 4-step mode, the IRQ flag is asserted for 3 consecutive CPU
-        // cycles: at 29828 (step 3), 29829 (step 4), and 29830 (period wrap).
-        // On the 3rd cycle (period wrap), the flag is set only if the IRQ
-        // inhibit flag is clear. If inhibit is set, the flag is actively
-        // cleared (it was unconditionally set on cycles 29828-29829).
-        // See https://www.nesdev.org/wiki/APU_Frame_Counter
-        if (this.countSequence === 0) {
-          this.frameIrqActive = this.frameIrqEnabled;
-          this.frameIrqClearPending = false;
-        }
-      } else {
-        break;
-      }
-    }
+    this._advanceFrameSteps(frameCounterCycles);
 
     // Accumulate sample value:
     this.accSample(nCycles);
@@ -404,8 +369,8 @@ class PAPU {
 
   // Process the deferred frame IRQ flag clear. On real hardware, reading
   // $4015 schedules the clear for the next APU "get" cycle (which happens
-  // every 2 CPU cycles). If the current APU phase is "put" (parity 1),
-  // the next "get" is 1 cycle away. If "get" (parity 0), it's 2 cycles
+  // every 2 CPU cycles). If the current APU phase is "put" (parity 0),
+  // the next "get" is 1 cycle away. If "get" (parity 1), it's 2 cycles
   // away. This must be called BEFORE updating apuCycleParity for the
   // current advance, so it sees the parity at the start of the period.
   // See https://www.nesdev.org/wiki/APU_Frame_Counter
@@ -426,11 +391,22 @@ class PAPU {
   advanceFrameCounter(nCycles) {
     this.processFrameIrqClear(nCycles);
     this.apuCycleParity = (this.apuCycleParity + nCycles) & 1;
-    this.frameCycleCounter += nCycles;
+    this._advanceFrameSteps(nCycles);
+  }
+
+  // Advance frame counter steps and handle period wrap. Shared by both
+  // clockFrameCounter (full APU tick) and advanceFrameCounter (catch-up only).
+  // The step loop and period wrap are separated: steps fire when the counter
+  // reaches each step's cycle position, and the period wrap only occurs when
+  // the counter reaches the full period length (not immediately after the
+  // last step). This matters because in 4-step mode, the last step fires at
+  // 29829 but the period wrap (and 3rd IRQ assertion) occurs at 29830.
+  // See https://www.nesdev.org/wiki/APU_Frame_Counter
+  _advanceFrameSteps(frameCounterCycles) {
+    this.frameCycleCounter += frameCounterCycles;
     let steps = this.countSequence === 0 ? FRAME_STEPS_4 : FRAME_STEPS_5;
     let period = this.countSequence === 0 ? FRAME_PERIOD_4 : FRAME_PERIOD_5;
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
+    for (;;) {
       if (
         this.frameStep < steps.length &&
         this.frameCycleCounter >= steps[this.frameStep]
@@ -441,8 +417,15 @@ class PAPU {
         this.frameStep >= steps.length &&
         this.frameCycleCounter >= period
       ) {
+        // Period wrap: reset the frame counter for the next sequence.
         this.frameStep = 0;
         this.frameCycleCounter -= period;
+        // In 4-step mode, the IRQ flag is asserted for 3 consecutive CPU
+        // cycles: at 29828 (step 3), 29829 (step 4), and 29830 (period wrap).
+        // On the 3rd cycle (period wrap), the flag is set only if the IRQ
+        // inhibit flag is clear. If inhibit is set, the flag is actively
+        // cleared (it was unconditionally set on cycles 29828-29829).
+        // See https://www.nesdev.org/wiki/APU_Frame_Counter
         if (this.countSequence === 0) {
           this.frameIrqActive = this.frameIrqEnabled;
           this.frameIrqClearPending = false;
