@@ -154,7 +154,6 @@ describe("Mappers", function () {
   });
 });
 
-
 // --- MMC3 (Mapper 4) Tests ---
 describe("MMC3 (Mapper 4)", function () {
   let mapper = null;
