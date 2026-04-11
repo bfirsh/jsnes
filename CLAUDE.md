@@ -2,6 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Style
+- This codebase should be readable by somebody who's not familiar with the NES or emulation, so add more comments and documentation than you might otherwise do, and explain context.
+
 ## Essential Commands
 
 - `npm test` - Run code formatting check and tests (required before commits)
