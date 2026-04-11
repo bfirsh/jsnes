@@ -9,6 +9,9 @@ class Mapper71 extends Mapper0 {
 
   constructor(nes) {
     super(nes);
+    // Raw value last written to $C000-$FFFF. Bits 0-3 select the
+    // switchable 16 KB PRG bank at $8000-$BFFF.
+    this.prgBankReg = 0;
   }
 
   write(address, value) {
@@ -27,6 +30,7 @@ class Mapper71 extends Mapper0 {
       }
     } else if (address >= 0xc000) {
       // $C000-$FFFF: PRG bank select (bits 3-0 select 16 KiB bank at $8000)
+      this.prgBankReg = value;
       this.loadRomBank(value & 0x0f, 0x8000);
     }
   }
@@ -44,6 +48,20 @@ class Mapper71 extends Mapper0 {
     this.loadCHRROM();
 
     this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
+  }
+
+  toJSON() {
+    let s = super.toJSON();
+    s.prgBankReg = this.prgBankReg;
+    return s;
+  }
+
+  fromJSON(s) {
+    super.fromJSON(s);
+    this.prgBankReg = s.prgBankReg || 0;
+    // Re-apply switchable bank. 1-screen mirroring state is stored in
+    // the PPU and restored by ppu.fromJSON().
+    this.loadRomBank(this.prgBankReg & 0x0f, 0x8000);
   }
 }
 

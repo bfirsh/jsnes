@@ -10,6 +10,9 @@ class Mapper7 extends Mapper0 {
 
   constructor(nes) {
     super(nes);
+    // Raw value last written to $8000-$FFFF. Bits 0-2 select the 32 KB
+    // PRG bank; bit 4 chooses which single-screen nametable is used.
+    this.bankReg = 0;
   }
 
   write(address, value) {
@@ -17,6 +20,7 @@ class Mapper7 extends Mapper0 {
     if (address < 0x8000) {
       super.write(address, value);
     } else {
+      this.bankReg = value;
       this.load32kRomBank(value & 0x7, 0x8000);
       if (value & 0x10) {
         this.nes.ppu.setMirroring(this.nes.rom.SINGLESCREEN_MIRRORING2);
@@ -24,6 +28,20 @@ class Mapper7 extends Mapper0 {
         this.nes.ppu.setMirroring(this.nes.rom.SINGLESCREEN_MIRRORING);
       }
     }
+  }
+
+  toJSON() {
+    let s = super.toJSON();
+    s.bankReg = this.bankReg;
+    return s;
+  }
+
+  fromJSON(s) {
+    super.fromJSON(s);
+    this.bankReg = s.bankReg || 0;
+    // Re-apply the 32 KB PRG bank select. Nametable mirroring is part
+    // of the PPU state, which is restored separately by ppu.fromJSON().
+    this.load32kRomBank(this.bankReg & 0x7, 0x8000);
   }
 
   loadROM() {

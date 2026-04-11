@@ -10,6 +10,9 @@ class Mapper94 extends Mapper0 {
 
   constructor(nes) {
     super(nes);
+    // Raw value last written to $8000-$FFFF. Bits 2-4 select the
+    // switchable 16 KB PRG bank at $8000-$BFFF.
+    this.prgBankReg = 0;
   }
 
   write(address, value) {
@@ -20,6 +23,7 @@ class Mapper94 extends Mapper0 {
     } else {
       // This is a ROM bank select command.
       // Swap in the given ROM bank at 0x8000:
+      this.prgBankReg = value;
       this.loadRomBank(value >> 2, 0x8000);
     }
   }
@@ -38,6 +42,20 @@ class Mapper94 extends Mapper0 {
 
     // Do Reset-Interrupt:
     this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
+  }
+
+  toJSON() {
+    let s = super.toJSON();
+    s.prgBankReg = this.prgBankReg;
+    return s;
+  }
+
+  fromJSON(s) {
+    super.fromJSON(s);
+    this.prgBankReg = s.prgBankReg || 0;
+    // Re-apply the switchable bank. The fixed last bank at $C000-$FFFF
+    // never changes and is already present in cpu.mem from cpu.fromJSON().
+    this.loadRomBank(this.prgBankReg >> 2, 0x8000);
   }
 }
 

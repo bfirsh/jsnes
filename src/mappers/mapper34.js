@@ -11,6 +11,8 @@ class Mapper34 extends Mapper0 {
 
   constructor(nes) {
     super(nes);
+    // Raw value last written to $8000-$FFFF (32 KB PRG bank select).
+    this.prgBankReg = 0;
   }
 
   write(address, value) {
@@ -18,8 +20,21 @@ class Mapper34 extends Mapper0 {
       super.write(address, value);
       return;
     } else {
+      this.prgBankReg = value;
       this.load32kRomBank(value, 0x8000);
     }
+  }
+
+  toJSON() {
+    let s = super.toJSON();
+    s.prgBankReg = this.prgBankReg;
+    return s;
+  }
+
+  fromJSON(s) {
+    super.fromJSON(s);
+    this.prgBankReg = s.prgBankReg || 0;
+    this.load32kRomBank(this.prgBankReg, 0x8000);
   }
 }
 

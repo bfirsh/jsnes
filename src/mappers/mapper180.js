@@ -11,6 +11,10 @@ class Mapper180 extends Mapper0 {
 
   constructor(nes) {
     super(nes);
+    // Raw value last written to $8000-$FFFF, selecting the switchable
+    // 16 KB PRG bank at $C000-$FFFF. The first bank at $8000-$BFFF is
+    // fixed in this inverted UNROM variant.
+    this.prgBankReg = 0;
   }
 
   write(address, value) {
@@ -21,6 +25,7 @@ class Mapper180 extends Mapper0 {
     } else {
       // This is a ROM bank select command.
       // Swap in the given ROM bank at 0xc000:
+      this.prgBankReg = value;
       this.loadRomBank(value, 0xc000);
     }
   }
@@ -39,6 +44,18 @@ class Mapper180 extends Mapper0 {
 
     // Do Reset-Interrupt:
     this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
+  }
+
+  toJSON() {
+    let s = super.toJSON();
+    s.prgBankReg = this.prgBankReg;
+    return s;
+  }
+
+  fromJSON(s) {
+    super.fromJSON(s);
+    this.prgBankReg = s.prgBankReg || 0;
+    this.loadRomBank(this.prgBankReg, 0xc000);
   }
 }
 

@@ -10,6 +10,9 @@ class Mapper11 extends Mapper0 {
 
   constructor(nes) {
     super(nes);
+    // Raw value last written to $8000-$FFFF. Bits 0-3 select the 32 KB
+    // PRG bank; bits 4-7 select the 8 KB CHR bank.
+    this.bankReg = 0;
   }
 
   write(address, value) {
@@ -17,20 +20,41 @@ class Mapper11 extends Mapper0 {
       super.write(address, value);
       return;
     } else {
-      // Swap in the given PRG-ROM bank:
-      let prgbank1 = ((value & 0xf) * 2) % this.nes.rom.romCount;
-      let prgbank2 = ((value & 0xf) * 2 + 1) % this.nes.rom.romCount;
-
-      this.loadRomBank(prgbank1, 0x8000);
-      this.loadRomBank(prgbank2, 0xc000);
-
-      if (this.nes.rom.vromCount > 0) {
-        // Swap in the given VROM bank at 0x0000:
-        let bank = ((value >> 4) * 2) % this.nes.rom.vromCount;
-        this.loadVromBank(bank, 0x0000);
-        this.loadVromBank(bank + 1, 0x1000);
-      }
+      this.bankReg = value;
+      this._applyBanks();
     }
+  }
+
+  // Apply the current bankReg to PRG and CHR banks. Factored out so that
+  // fromJSON() can restore the bank state without duplicating logic.
+  _applyBanks() {
+    let value = this.bankReg;
+
+    // Swap in the given PRG-ROM bank:
+    let prgbank1 = ((value & 0xf) * 2) % this.nes.rom.romCount;
+    let prgbank2 = ((value & 0xf) * 2 + 1) % this.nes.rom.romCount;
+
+    this.loadRomBank(prgbank1, 0x8000);
+    this.loadRomBank(prgbank2, 0xc000);
+
+    if (this.nes.rom.vromCount > 0) {
+      // Swap in the given VROM bank at 0x0000:
+      let bank = ((value >> 4) * 2) % this.nes.rom.vromCount;
+      this.loadVromBank(bank, 0x0000);
+      this.loadVromBank(bank + 1, 0x1000);
+    }
+  }
+
+  toJSON() {
+    let s = super.toJSON();
+    s.bankReg = this.bankReg;
+    return s;
+  }
+
+  fromJSON(s) {
+    super.fromJSON(s);
+    this.bankReg = s.bankReg || 0;
+    this._applyBanks();
   }
 }
 

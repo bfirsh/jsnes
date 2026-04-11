@@ -10,6 +10,11 @@ class Mapper2 extends Mapper0 {
 
   constructor(nes) {
     super(nes);
+    // Raw value last written to $8000-$FFFF. Tracked so save states can
+    // restore the selected PRG bank without relying on cpu.mem being
+    // serialized. The last 16 KB bank at $C000-$FFFF is fixed, so only
+    // the $8000-$BFFF bank is switchable.
+    this.prgBankReg = 0;
   }
 
   write(address, value) {
@@ -20,6 +25,7 @@ class Mapper2 extends Mapper0 {
     } else {
       // This is a ROM bank select command.
       // Swap in the given ROM bank at 0x8000:
+      this.prgBankReg = value;
       this.loadRomBank(value, 0x8000);
     }
   }
@@ -38,6 +44,22 @@ class Mapper2 extends Mapper0 {
 
     // Do Reset-Interrupt:
     this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
+  }
+
+  toJSON() {
+    let s = super.toJSON();
+    s.prgBankReg = this.prgBankReg;
+    return s;
+  }
+
+  fromJSON(s) {
+    super.fromJSON(s);
+    this.prgBankReg = s.prgBankReg || 0;
+    // Re-apply the PRG bank select so $8000-$BFFF holds the correct bank
+    // regardless of cpu.mem serialization. The fixed last bank at
+    // $C000-$FFFF never changes after loadROM(), so it doesn't need to
+    // be re-installed here; cpu.fromJSON() will have restored it.
+    this.loadRomBank(this.prgBankReg, 0x8000);
   }
 }
 

@@ -13,20 +13,40 @@ class Mapper79 extends Mapper0 {
 
   constructor(nes) {
     super(nes);
+    // Raw value last written to the NINA register. Bit 3 selects the
+    // 32 KB PRG bank; bits 0-2 select the 8 KB CHR bank.
+    this.bankReg = 0;
   }
 
   write(address, value) {
     // The NINA register is active at addresses where (address & $E100) == $4100.
     // This covers $4100-$41FF, $4300-$43FF, $4500-$45FF, ... $5F00-$5FFF.
     if ((address & 0xe100) === 0x4100) {
-      // Swap 32 KB PRG bank based on bit 3
-      this.load32kRomBank((value >> 3) & 1, 0x8000);
-
-      // Swap 8 KB CHR bank based on bits 0-2
-      this.load8kVromBank((value & 7) * 2, 0x0000);
+      this.bankReg = value;
+      this._applyBanks();
     }
 
     super.write(address, value);
+  }
+
+  _applyBanks() {
+    let value = this.bankReg;
+    // Swap 32 KB PRG bank based on bit 3
+    this.load32kRomBank((value >> 3) & 1, 0x8000);
+    // Swap 8 KB CHR bank based on bits 0-2
+    this.load8kVromBank((value & 7) * 2, 0x0000);
+  }
+
+  toJSON() {
+    let s = super.toJSON();
+    s.bankReg = this.bankReg;
+    return s;
+  }
+
+  fromJSON(s) {
+    super.fromJSON(s);
+    this.bankReg = s.bankReg || 0;
+    this._applyBanks();
   }
 }
 

@@ -645,3 +645,176 @@ describe("MMC5 (Mapper 5)", function () {
     });
   });
 });
+
+// --- Bank state save/restore for simple discrete mappers ---
+//
+// These mappers implement straightforward bank switching via one or two
+// registers. Without explicit serialization of those registers, save
+// states silently depend on cpu.mem / ppu.vramMem being preserved — and
+// a fresh mapper created during reset() has no idea which bank was
+// active when the state was captured. These tests round-trip a mapper
+// through toJSON/fromJSON and verify that the bank register state is
+// restored and that the restored mapper can be used to perform further
+// bank switches without corruption.
+describe("bank register save/restore (simple mappers)", function () {
+  // id:          mapper number
+  // displayName: label for the test
+  // regAddress:  address to write to when setting the bank register
+  // testValue:   value to write (chosen so PRG/CHR bank indices stay in
+  //              range for the mock ROM: 8 x 16K PRG, 16 x 4K CHR)
+  // fieldName:   the serialized field holding the raw register value
+  const CASES = [
+    {
+      id: 2,
+      displayName: "Mapper 2 (UxROM)",
+      regAddress: 0x8000,
+      testValue: 0x05,
+      fieldName: "prgBankReg",
+    },
+    {
+      id: 3,
+      displayName: "Mapper 3 (CNROM)",
+      regAddress: 0x8000,
+      testValue: 0x03,
+      fieldName: "chrBankReg",
+    },
+    {
+      id: 7,
+      displayName: "Mapper 7 (AxROM)",
+      regAddress: 0x8000,
+      // bit 4 set exercises the single-screen mirroring path too
+      testValue: 0x14,
+      fieldName: "bankReg",
+    },
+    {
+      id: 11,
+      displayName: "Mapper 11 (Color Dreams)",
+      regAddress: 0x8000,
+      testValue: 0x35,
+      fieldName: "bankReg",
+    },
+    {
+      id: 34,
+      displayName: "Mapper 34 (BNROM)",
+      regAddress: 0x8000,
+      testValue: 0x02,
+      fieldName: "prgBankReg",
+    },
+    {
+      id: 38,
+      displayName: "Mapper 38 (PCI556)",
+      regAddress: 0x7400,
+      testValue: 0x07,
+      fieldName: "bankReg",
+    },
+    {
+      id: 66,
+      displayName: "Mapper 66 (GxROM)",
+      regAddress: 0x8000,
+      testValue: 0x23,
+      fieldName: "bankReg",
+    },
+    {
+      id: 71,
+      displayName: "Mapper 71 (Camerica)",
+      regAddress: 0xc000,
+      testValue: 0x04,
+      fieldName: "prgBankReg",
+    },
+    {
+      id: 79,
+      displayName: "Mapper 79 (NINA)",
+      regAddress: 0x4100,
+      testValue: 0x0a,
+      fieldName: "bankReg",
+    },
+    {
+      id: 94,
+      displayName: "Mapper 94 (UN1ROM)",
+      regAddress: 0x8000,
+      // bits 2-4 are the bank; 0x14 >> 2 = 5, valid for 8-bank mock ROM
+      testValue: 0x14,
+      fieldName: "prgBankReg",
+    },
+    {
+      id: 140,
+      displayName: "Mapper 140 (Jaleco JF-11)",
+      regAddress: 0x7000,
+      testValue: 0x15,
+      fieldName: "bankReg",
+    },
+    {
+      id: 180,
+      displayName: "Mapper 180 (UNROM variant)",
+      regAddress: 0x8000,
+      testValue: 0x03,
+      fieldName: "prgBankReg",
+    },
+    {
+      id: 240,
+      displayName: "Mapper 240",
+      regAddress: 0x5000,
+      testValue: 0x15,
+      fieldName: "bankReg",
+    },
+    {
+      id: 241,
+      displayName: "Mapper 241",
+      regAddress: 0x8000,
+      testValue: 0x02,
+      fieldName: "prgBankReg",
+    },
+  ];
+
+  for (const c of CASES) {
+    describe(c.displayName, function () {
+      let mockNes;
+
+      beforeEach(function () {
+        mockNes = createMockNes();
+        populateMockRom(mockNes);
+      });
+
+      it("saves and restores the bank register", function () {
+        let mapper = new Mappers[c.id](mockNes);
+
+        // Write the bank register and capture state.
+        mapper.write(c.regAddress, c.testValue);
+        assert.strictEqual(
+          mapper[c.fieldName],
+          c.testValue,
+          "register should be tracked on write",
+        );
+
+        let json = mapper.toJSON();
+
+        // Create a fresh mapper (simulating nes.reset() inside fromJSON)
+        // and restore the captured state.
+        let mapper2 = new Mappers[c.id](mockNes);
+        // A fresh mapper must not have the value yet.
+        assert.notStrictEqual(mapper2[c.fieldName], c.testValue);
+        mapper2.fromJSON(json);
+        assert.strictEqual(
+          mapper2[c.fieldName],
+          c.testValue,
+          "register should be restored from save state",
+        );
+      });
+
+      it("can bank-switch again after fromJSON without corruption", function () {
+        let mapper = new Mappers[c.id](mockNes);
+        mapper.write(c.regAddress, c.testValue);
+
+        let json = mapper.toJSON();
+
+        let mapper2 = new Mappers[c.id](mockNes);
+        mapper2.fromJSON(json);
+
+        // A subsequent write should still update the register and the
+        // underlying PRG/CHR mapping in the expected way.
+        mapper2.write(c.regAddress, 0x00);
+        assert.strictEqual(mapper2[c.fieldName], 0x00);
+      });
+    });
+  }
+});

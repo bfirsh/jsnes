@@ -9,6 +9,10 @@ class Mapper3 extends Mapper0 {
 
   constructor(nes) {
     super(nes);
+    // Raw value last written to $8000-$FFFF, selecting the 8 KB CHR
+    // bank. Tracked so save states can restore CHR banking without
+    // relying on ppu.vramMem/ptTile being serialized.
+    this.chrBankReg = 0;
   }
 
   write(address, value) {
@@ -17,12 +21,24 @@ class Mapper3 extends Mapper0 {
       super.write(address, value);
       return;
     } else {
-      // This is a ROM bank select command.
-      // Swap in the given ROM bank at 0x8000:
       // This is a VROM bank select command.
       // Swap in the given VROM bank at 0x0000:
+      this.chrBankReg = value;
       this.load8kVromBank(value * 2, 0x0000);
     }
+  }
+
+  toJSON() {
+    let s = super.toJSON();
+    s.chrBankReg = this.chrBankReg;
+    return s;
+  }
+
+  fromJSON(s) {
+    super.fromJSON(s);
+    this.chrBankReg = s.chrBankReg || 0;
+    // Re-apply the CHR bank select so pattern tables are correct.
+    this.load8kVromBank(this.chrBankReg * 2, 0x0000);
   }
 }
 
