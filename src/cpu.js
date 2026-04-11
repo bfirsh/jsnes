@@ -1,5 +1,632 @@
 import { fromJSON, toJSON } from "./utils.js";
 
+// ============================================================================
+// 6502 opcode table
+// ============================================================================
+//
+// The NES's CPU is a MOS 6502 variant (the Ricoh 2A03 on NTSC consoles,
+// 2A07 on PAL). Like any CPU, it runs machine code by repeatedly fetching
+// a byte from memory, decoding what that byte means, and executing the
+// corresponding operation — the classic fetch-decode-execute loop.
+//
+// On the 6502, every (operation, addressing mode) pair is assigned its own
+// unique 1-byte opcode. For example, "LDA" (Load Accumulator) has eight
+// different opcode bytes because it supports eight addressing modes — one
+// for "load from a fixed 2-byte address", one for "load from a zero-page
+// address + X", and so on. That gives a total of 256 possible opcode bytes,
+// of which the official 6502 defines 151; another ~80 are "unofficial"
+// opcodes (see below); the rest are unused and would hang a real CPU.
+//
+// This file's emulate() method implements the fetch-decode-execute loop for
+// a single CPU instruction. OPCODE_TABLE is the *decode* step: given the
+// opcode byte we just fetched, it tells emulate() everything it needs to
+// know before running the instruction:
+//
+//   ins    - which instruction to execute (INS_*). Used as the switch key
+//            in the execute phase of emulate().
+//   mode   - which addressing mode to use to find the operand (ADDR_*).
+//            Used as the switch key in the addressing phase of emulate().
+//   size   - how many bytes the instruction occupies in memory (1-3),
+//            so emulate() knows how far to advance the program counter.
+//   cycles - base cycle count. Some instructions pay an extra cycle when
+//            an indexed addressing mode crosses a 256-byte "page" boundary
+//            (since the 6502 has to do an extra bus cycle to correct the
+//            high byte of the address), and the execute switch adds that
+//            extra cycle where appropriate.
+//
+// OPCODE_TABLE is defined as a plain object literal below, keyed by the
+// raw opcode byte (0-255). Unassigned bytes are simply absent; at dispatch
+// time the lookup returns `undefined`, which is then replaced with a
+// shared INVALID_OPCODE sentinel so that invalid opcodes fall through to
+// the execute switch's default case and throw.
+//
+// The INS_* and ADDR_* numeric values here must match the `case N:` labels
+// in the two switches in emulate(). If you ever renumber these, update
+// both switches in lockstep.
+
+// ----------------------------------------------------------------------------
+// Addressing modes
+// ----------------------------------------------------------------------------
+//
+// The 6502 has 13 addressing modes — different ways of specifying where an
+// instruction's operand lives. Some modes take a literal value, some read
+// from a fixed memory address, some compute an address from a base plus an
+// index register (X or Y), and some dereference a pointer stored in memory.
+//
+// The numeric values here are used as `case` labels in the addressing-mode
+// switch at the top of emulate(), which computes the final effective
+// address (or loads the literal value) for each instruction before the
+// instruction itself runs. The code in that switch is the authoritative
+// source for what each mode actually does on the bus, including the
+// sometimes-tricky "dummy reads" the real 6502 performs on indexed modes.
+//
+// Notation below: $XX means a 1-byte value (0-$FF), $XXXX means a 2-byte
+// value (0-$FFFF). "Zero page" is the first 256 bytes of memory ($0000-
+// $00FF), which the 6502 can address with a single byte — giving faster
+// and smaller code than full 16-bit addresses.
+//
+// See https://www.nesdev.org/wiki/CPU_addressing_modes
+
+const ADDR_ZP = 0; //          Zero page         — operand at $00XX
+const ADDR_REL = 1; //         Relative          — PC + signed 8-bit offset (branches)
+const ADDR_IMP = 2; //         Implied           — no operand (e.g. CLC, RTS, TAX)
+const ADDR_ABS = 3; //         Absolute          — operand at $XXXX (any address)
+const ADDR_ACC = 4; //         Accumulator       — operand is the A register itself
+const ADDR_IMM = 5; //         Immediate         — operand is a literal byte (LDA #$42)
+const ADDR_ZPX = 6; //         Zero page,X       — operand at ($XX + X) & $FF
+const ADDR_ZPY = 7; //         Zero page,Y       — operand at ($XX + Y) & $FF
+const ADDR_ABSX = 8; //        Absolute,X        — operand at $XXXX + X
+const ADDR_ABSY = 9; //        Absolute,Y        — operand at $XXXX + Y
+const ADDR_PREIDXIND = 10; //  (Indirect,X)      — pointer at ($XX + X) in zero page
+const ADDR_POSTIDXIND = 11; // (Indirect),Y      — pointer at $XX in zero page, then + Y
+const ADDR_INDABS = 12; //     Indirect absolute — pointer at $XXXX (JMP indirect only)
+
+// ----------------------------------------------------------------------------
+// Instructions
+// ----------------------------------------------------------------------------
+//
+// The 6502 has 56 official instructions, each conventionally referred to
+// by a 3-letter mnemonic (LDA, STA, JMP, etc.). Most instructions support
+// several addressing modes, so one mnemonic usually maps to several opcode
+// bytes — which is why OPCODE_TABLE below has multiple entries per
+// mnemonic (e.g. LDA has eight, one for each addressing mode it supports).
+//
+// Each INS_* here is an internal identifier used as the `case` label in
+// the execute switch in emulate(). The ordering and numeric values are
+// arbitrary but must stay in sync with that switch.
+//
+// NOTE: the NES's 2A03/2A07 CPU omits the 6502's BCD (binary-coded decimal)
+// mode. The CLD / SED instructions still exist and toggle the D flag, but
+// the D flag has no effect on ADC/SBC. That's why the CLD/SED handlers in
+// emulate() look like no-ops aside from flipping the flag.
+//
+// See https://www.nesdev.org/wiki/CPU for a per-instruction reference.
+
+// Arithmetic & logic
+const INS_ADC = 0; //  ADC — Add memory to accumulator with carry
+const INS_AND = 1; //  AND — Bitwise AND memory with accumulator
+const INS_ASL = 2; //  ASL — Arithmetic shift left (top bit → carry)
+// Branches — each tests one status flag and jumps relative to PC if it matches
+const INS_BCC = 3; //  BCC — Branch if carry clear
+const INS_BCS = 4; //  BCS — Branch if carry set
+const INS_BEQ = 5; //  BEQ — Branch if equal (zero flag set)
+const INS_BIT = 6; //  BIT — Bit test: N ← M.7, V ← M.6, Z ← (A & M) == 0
+const INS_BMI = 7; //  BMI — Branch if minus (negative flag set)
+const INS_BNE = 8; //  BNE — Branch if not equal (zero flag clear)
+const INS_BPL = 9; //  BPL — Branch if plus (negative flag clear)
+const INS_BRK = 10; // BRK — Software interrupt (pushes PC+2 and status, jumps via $FFFE)
+const INS_BVC = 11; // BVC — Branch if overflow clear
+const INS_BVS = 12; // BVS — Branch if overflow set
+// Flag clears
+const INS_CLC = 13; // CLC — Clear carry flag
+const INS_CLD = 14; // CLD — Clear decimal flag (no effect on NES, see note above)
+const INS_CLI = 15; // CLI — Clear interrupt disable flag
+const INS_CLV = 16; // CLV — Clear overflow flag
+// Compares — like subtract, but only set flags (don't modify the register)
+const INS_CMP = 17; // CMP — Compare memory with accumulator
+const INS_CPX = 18; // CPX — Compare memory with X
+const INS_CPY = 19; // CPY — Compare memory with Y
+// Decrements
+const INS_DEC = 20; // DEC — Decrement memory by one
+const INS_DEX = 21; // DEX — Decrement X by one
+const INS_DEY = 22; // DEY — Decrement Y by one
+// XOR
+const INS_EOR = 23; // EOR — Bitwise exclusive-OR memory with accumulator
+// Increments
+const INS_INC = 24; // INC — Increment memory by one
+const INS_INX = 25; // INX — Increment X by one
+const INS_INY = 26; // INY — Increment Y by one
+// Jumps
+const INS_JMP = 27; // JMP — Unconditional jump
+const INS_JSR = 28; // JSR — Jump to subroutine (pushes return address first)
+// Loads
+const INS_LDA = 29; // LDA — Load accumulator from memory
+const INS_LDX = 30; // LDX — Load X from memory
+const INS_LDY = 31; // LDY — Load Y from memory
+// Shift
+const INS_LSR = 32; // LSR — Logical shift right (bottom bit → carry)
+// No-op
+const INS_NOP = 33; // NOP — No operation
+// OR
+const INS_ORA = 34; // ORA — Bitwise OR memory with accumulator
+// Stack pushes/pulls ("pull" is the 6502 term for "pop")
+const INS_PHA = 35; // PHA — Push accumulator onto stack
+const INS_PHP = 36; // PHP — Push processor status onto stack
+const INS_PLA = 37; // PLA — Pull accumulator from stack
+const INS_PLP = 38; // PLP — Pull processor status from stack
+// Rotates (through carry)
+const INS_ROL = 39; // ROL — Rotate left through carry (C → bit 0, bit 7 → C)
+const INS_ROR = 40; // ROR — Rotate right through carry (C → bit 7, bit 0 → C)
+// Returns
+const INS_RTI = 41; // RTI — Return from interrupt (pulls status and PC)
+const INS_RTS = 42; // RTS — Return from subroutine (pulls PC)
+// Subtract
+const INS_SBC = 43; // SBC — Subtract memory from accumulator with borrow
+// Flag sets
+const INS_SEC = 44; // SEC — Set carry flag
+const INS_SED = 45; // SED — Set decimal flag (no effect on NES, see note above)
+const INS_SEI = 46; // SEI — Set interrupt disable flag
+// Stores
+const INS_STA = 47; // STA — Store accumulator to memory
+const INS_STX = 48; // STX — Store X to memory
+const INS_STY = 49; // STY — Store Y to memory
+// Register transfers
+const INS_TAX = 50; // TAX — Transfer accumulator to X
+const INS_TAY = 51; // TAY — Transfer accumulator to Y
+const INS_TSX = 52; // TSX — Transfer stack pointer to X
+const INS_TXA = 53; // TXA — Transfer X to accumulator
+const INS_TXS = 54; // TXS — Transfer X to stack pointer
+const INS_TYA = 55; // TYA — Transfer Y to accumulator
+
+// ----------------------------------------------------------------------------
+// Unofficial opcodes
+// ----------------------------------------------------------------------------
+//
+// The 6502's instruction decoder is a combinational circuit rather than a
+// lookup table, and about 80 of the 256 possible opcode bytes decode to
+// instructions that weren't part of the official instruction set but still
+// do *something* — usually a combination of two official instructions that
+// happen to share hardware (e.g. SLO = "ASL then ORA"). Some shipped NES
+// games, and most CPU test ROMs (including nestest and AccuracyCoin), use
+// them deliberately, so a correct NES emulator has to implement them.
+//
+// See https://www.nesdev.org/wiki/Programming_with_unofficial_opcodes
+
+// Combined arithmetic/logic on the accumulator (immediate operand only)
+const INS_ALR = 56; // ALR (ASR) — AND then LSR:  A = (A & #imm) >> 1
+const INS_ANC = 57; // ANC        — AND, but also copy result's bit 7 into carry
+const INS_ARR = 58; // ARR        — AND then ROR, with peculiar N/V/C side effects
+const INS_AXS = 59; // AXS (SBX)  — X = (A & X) - #imm (like CMP, but stores result)
+// Combined load/store
+const INS_LAX = 60; // LAX — Load A and X from memory simultaneously
+const INS_SAX = 61; // SAX — Store (A & X) to memory
+// Read-modify-write combos: each does an RMW on memory then an A-side op
+const INS_DCP = 62; // DCP — DEC memory then CMP with A
+const INS_ISC = 63; // ISC (ISB) — INC memory then SBC from A
+const INS_RLA = 64; // RLA — ROL memory then AND with A
+const INS_RRA = 65; // RRA — ROR memory then ADC with A
+const INS_SLO = 66; // SLO — ASL memory then ORA with A
+const INS_SRE = 67; // SRE — LSR memory then EOR with A
+// Multi-byte NOPs. These consume extra bytes and (for IGN) still perform a
+// dummy memory read, but don't otherwise affect state. Games occasionally
+// use them for precise cycle-count padding.
+const INS_SKB = 68; // SKB — 2-byte NOP (skips an immediate byte)
+const INS_IGN = 69; // IGN — 3-byte NOP that still reads from memory
+
+// "Unstable" opcodes whose output depends on the internal bus arbitration
+// between CPU cycles. Most store (register & (high byte of target + 1)).
+// The DMC audio channel's DMA transfer can hijack the bus mid-instruction
+// and change the stored value — the emulator handles this interaction in
+// the execute switch. Essentially no shipped games use these, but the
+// AccuracyCoin test ROM does.
+const INS_SHA = 71; // SHA (AHX) — Store A & X & (H+1)
+const INS_SHS = 72; // SHS (TAS) — SP = A & X, then store SP & (H+1)
+const INS_SHY = 73; // SHY (SYA) — Store Y & (H+1)
+const INS_SHX = 74; // SHX (SXA) — Store X & (H+1)
+const INS_LAE = 75; // LAE (LAS) — A = X = SP = (memory & SP)
+
+// Opcodes whose behavior depends on a "magic" constant that varies between
+// CPU manufacturing runs (and even across die temperature). Tests only
+// exercise these with inputs (A = $FF, or immediate = $00) where the magic
+// value cancels out of the result, so we can pick any reasonable magic.
+const INS_ANE = 76; // ANE (XAA) — A = (A | magic) & X & #imm
+const INS_LXA = 77; // LXA (ATX) — A = X = (A | magic) & #imm
+
+// ----------------------------------------------------------------------------
+// The opcode table
+// ----------------------------------------------------------------------------
+//
+// OPCODE_TABLE is a plain object keyed by opcode byte. Every valid 6502
+// opcode has an entry here; unassigned bytes (including the KIL/STP/JAM
+// family that would hang a real CPU) are simply absent from the table.
+// The dispatch site in emulate() substitutes INVALID_OPCODE on lookup
+// miss, which has `ins: -1` — a value that matches no case in the
+// execute switch, so dispatch falls through to the default case and
+// throws a clear "invalid opcode" error.
+//
+// Using a shared INVALID_OPCODE object (rather than creating a fresh
+// one per lookup miss) means V8 sees a stable hidden class for both
+// valid and invalid lookups, which helps the JIT generate faster code
+// for the dispatch.
+//
+// Size and cycle counts come from the official 6502 datasheet and match
+// the nesdev wiki's tables at https://www.nesdev.org/wiki/CPU.
+//
+// The whole OPCODE_TABLE literal is marked `// prettier-ignore` so that
+// prettier doesn't collapse the manual column alignment below — being
+// able to scan straight down the "mode" column makes the table much
+// more readable than the default formatting would allow.
+
+const INVALID_OPCODE = { ins: -1, mode: 0, size: 1, cycles: 2 };
+
+// prettier-ignore
+const OPCODE_TABLE = {
+  // ADC — Add with carry
+  0x69: { ins: INS_ADC, mode: ADDR_IMM,        size: 2, cycles: 2 },
+  0x65: { ins: INS_ADC, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0x75: { ins: INS_ADC, mode: ADDR_ZPX,        size: 2, cycles: 4 },
+  0x6d: { ins: INS_ADC, mode: ADDR_ABS,        size: 3, cycles: 4 },
+  0x7d: { ins: INS_ADC, mode: ADDR_ABSX,       size: 3, cycles: 4 },
+  0x79: { ins: INS_ADC, mode: ADDR_ABSY,       size: 3, cycles: 4 },
+  0x61: { ins: INS_ADC, mode: ADDR_PREIDXIND,  size: 2, cycles: 6 },
+  0x71: { ins: INS_ADC, mode: ADDR_POSTIDXIND, size: 2, cycles: 5 },
+
+  // AND — Bitwise AND with accumulator
+  0x29: { ins: INS_AND, mode: ADDR_IMM,        size: 2, cycles: 2 },
+  0x25: { ins: INS_AND, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0x35: { ins: INS_AND, mode: ADDR_ZPX,        size: 2, cycles: 4 },
+  0x2d: { ins: INS_AND, mode: ADDR_ABS,        size: 3, cycles: 4 },
+  0x3d: { ins: INS_AND, mode: ADDR_ABSX,       size: 3, cycles: 4 },
+  0x39: { ins: INS_AND, mode: ADDR_ABSY,       size: 3, cycles: 4 },
+  0x21: { ins: INS_AND, mode: ADDR_PREIDXIND,  size: 2, cycles: 6 },
+  0x31: { ins: INS_AND, mode: ADDR_POSTIDXIND, size: 2, cycles: 5 },
+
+  // ASL — Arithmetic shift left
+  0x0a: { ins: INS_ASL, mode: ADDR_ACC,        size: 1, cycles: 2 },
+  0x06: { ins: INS_ASL, mode: ADDR_ZP,         size: 2, cycles: 5 },
+  0x16: { ins: INS_ASL, mode: ADDR_ZPX,        size: 2, cycles: 6 },
+  0x0e: { ins: INS_ASL, mode: ADDR_ABS,        size: 3, cycles: 6 },
+  0x1e: { ins: INS_ASL, mode: ADDR_ABSX,       size: 3, cycles: 7 },
+
+  // Branches — each tests a status flag and jumps relative to PC if it matches
+  0x90: { ins: INS_BCC, mode: ADDR_REL,        size: 2, cycles: 2 },
+  0xb0: { ins: INS_BCS, mode: ADDR_REL,        size: 2, cycles: 2 },
+  0xf0: { ins: INS_BEQ, mode: ADDR_REL,        size: 2, cycles: 2 },
+  0x30: { ins: INS_BMI, mode: ADDR_REL,        size: 2, cycles: 2 },
+  0xd0: { ins: INS_BNE, mode: ADDR_REL,        size: 2, cycles: 2 },
+  0x10: { ins: INS_BPL, mode: ADDR_REL,        size: 2, cycles: 2 },
+  0x50: { ins: INS_BVC, mode: ADDR_REL,        size: 2, cycles: 2 },
+  0x70: { ins: INS_BVS, mode: ADDR_REL,        size: 2, cycles: 2 },
+
+  // BIT — Test bits in memory against accumulator
+  0x24: { ins: INS_BIT, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0x2c: { ins: INS_BIT, mode: ADDR_ABS,        size: 3, cycles: 4 },
+
+  // BRK — Software interrupt
+  0x00: { ins: INS_BRK, mode: ADDR_IMP,        size: 1, cycles: 7 },
+
+  // Flag clears
+  0x18: { ins: INS_CLC, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0xd8: { ins: INS_CLD, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0x58: { ins: INS_CLI, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0xb8: { ins: INS_CLV, mode: ADDR_IMP,        size: 1, cycles: 2 },
+
+  // CMP — Compare memory with accumulator (sets flags only)
+  0xc9: { ins: INS_CMP, mode: ADDR_IMM,        size: 2, cycles: 2 },
+  0xc5: { ins: INS_CMP, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0xd5: { ins: INS_CMP, mode: ADDR_ZPX,        size: 2, cycles: 4 },
+  0xcd: { ins: INS_CMP, mode: ADDR_ABS,        size: 3, cycles: 4 },
+  0xdd: { ins: INS_CMP, mode: ADDR_ABSX,       size: 3, cycles: 4 },
+  0xd9: { ins: INS_CMP, mode: ADDR_ABSY,       size: 3, cycles: 4 },
+  0xc1: { ins: INS_CMP, mode: ADDR_PREIDXIND,  size: 2, cycles: 6 },
+  0xd1: { ins: INS_CMP, mode: ADDR_POSTIDXIND, size: 2, cycles: 5 },
+
+  // CPX — Compare memory with X
+  0xe0: { ins: INS_CPX, mode: ADDR_IMM,        size: 2, cycles: 2 },
+  0xe4: { ins: INS_CPX, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0xec: { ins: INS_CPX, mode: ADDR_ABS,        size: 3, cycles: 4 },
+
+  // CPY — Compare memory with Y
+  0xc0: { ins: INS_CPY, mode: ADDR_IMM,        size: 2, cycles: 2 },
+  0xc4: { ins: INS_CPY, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0xcc: { ins: INS_CPY, mode: ADDR_ABS,        size: 3, cycles: 4 },
+
+  // DEC — Decrement memory by one
+  0xc6: { ins: INS_DEC, mode: ADDR_ZP,         size: 2, cycles: 5 },
+  0xd6: { ins: INS_DEC, mode: ADDR_ZPX,        size: 2, cycles: 6 },
+  0xce: { ins: INS_DEC, mode: ADDR_ABS,        size: 3, cycles: 6 },
+  0xde: { ins: INS_DEC, mode: ADDR_ABSX,       size: 3, cycles: 7 },
+
+  // DEX / DEY — Decrement X / Y by one
+  0xca: { ins: INS_DEX, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0x88: { ins: INS_DEY, mode: ADDR_IMP,        size: 1, cycles: 2 },
+
+  // EOR — Bitwise exclusive-OR with accumulator
+  0x49: { ins: INS_EOR, mode: ADDR_IMM,        size: 2, cycles: 2 },
+  0x45: { ins: INS_EOR, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0x55: { ins: INS_EOR, mode: ADDR_ZPX,        size: 2, cycles: 4 },
+  0x4d: { ins: INS_EOR, mode: ADDR_ABS,        size: 3, cycles: 4 },
+  0x5d: { ins: INS_EOR, mode: ADDR_ABSX,       size: 3, cycles: 4 },
+  0x59: { ins: INS_EOR, mode: ADDR_ABSY,       size: 3, cycles: 4 },
+  0x41: { ins: INS_EOR, mode: ADDR_PREIDXIND,  size: 2, cycles: 6 },
+  0x51: { ins: INS_EOR, mode: ADDR_POSTIDXIND, size: 2, cycles: 5 },
+
+  // INC — Increment memory by one
+  0xe6: { ins: INS_INC, mode: ADDR_ZP,         size: 2, cycles: 5 },
+  0xf6: { ins: INS_INC, mode: ADDR_ZPX,        size: 2, cycles: 6 },
+  0xee: { ins: INS_INC, mode: ADDR_ABS,        size: 3, cycles: 6 },
+  0xfe: { ins: INS_INC, mode: ADDR_ABSX,       size: 3, cycles: 7 },
+
+  // INX / INY — Increment X / Y by one
+  0xe8: { ins: INS_INX, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0xc8: { ins: INS_INY, mode: ADDR_IMP,        size: 1, cycles: 2 },
+
+  // JMP — Unconditional jump (absolute or via indirect pointer)
+  0x4c: { ins: INS_JMP, mode: ADDR_ABS,        size: 3, cycles: 3 },
+  0x6c: { ins: INS_JMP, mode: ADDR_INDABS,     size: 3, cycles: 5 },
+
+  // JSR — Jump to subroutine (pushes return address first)
+  0x20: { ins: INS_JSR, mode: ADDR_ABS,        size: 3, cycles: 6 },
+
+  // LDA — Load accumulator from memory
+  0xa9: { ins: INS_LDA, mode: ADDR_IMM,        size: 2, cycles: 2 },
+  0xa5: { ins: INS_LDA, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0xb5: { ins: INS_LDA, mode: ADDR_ZPX,        size: 2, cycles: 4 },
+  0xad: { ins: INS_LDA, mode: ADDR_ABS,        size: 3, cycles: 4 },
+  0xbd: { ins: INS_LDA, mode: ADDR_ABSX,       size: 3, cycles: 4 },
+  0xb9: { ins: INS_LDA, mode: ADDR_ABSY,       size: 3, cycles: 4 },
+  0xa1: { ins: INS_LDA, mode: ADDR_PREIDXIND,  size: 2, cycles: 6 },
+  0xb1: { ins: INS_LDA, mode: ADDR_POSTIDXIND, size: 2, cycles: 5 },
+
+  // LDX — Load X from memory
+  0xa2: { ins: INS_LDX, mode: ADDR_IMM,        size: 2, cycles: 2 },
+  0xa6: { ins: INS_LDX, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0xb6: { ins: INS_LDX, mode: ADDR_ZPY,        size: 2, cycles: 4 },
+  0xae: { ins: INS_LDX, mode: ADDR_ABS,        size: 3, cycles: 4 },
+  0xbe: { ins: INS_LDX, mode: ADDR_ABSY,       size: 3, cycles: 4 },
+
+  // LDY — Load Y from memory
+  0xa0: { ins: INS_LDY, mode: ADDR_IMM,        size: 2, cycles: 2 },
+  0xa4: { ins: INS_LDY, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0xb4: { ins: INS_LDY, mode: ADDR_ZPX,        size: 2, cycles: 4 },
+  0xac: { ins: INS_LDY, mode: ADDR_ABS,        size: 3, cycles: 4 },
+  0xbc: { ins: INS_LDY, mode: ADDR_ABSX,       size: 3, cycles: 4 },
+
+  // LSR — Logical shift right
+  0x4a: { ins: INS_LSR, mode: ADDR_ACC,        size: 1, cycles: 2 },
+  0x46: { ins: INS_LSR, mode: ADDR_ZP,         size: 2, cycles: 5 },
+  0x56: { ins: INS_LSR, mode: ADDR_ZPX,        size: 2, cycles: 6 },
+  0x4e: { ins: INS_LSR, mode: ADDR_ABS,        size: 3, cycles: 6 },
+  0x5e: { ins: INS_LSR, mode: ADDR_ABSX,       size: 3, cycles: 7 },
+
+  // NOP — No operation. $EA is the official NOP; the other six bytes are
+  // unofficial single-byte NOPs that the 6502's decoder happens to treat
+  // identically, and we handle them the same way.
+  0x1a: { ins: INS_NOP, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0x3a: { ins: INS_NOP, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0x5a: { ins: INS_NOP, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0x7a: { ins: INS_NOP, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0xda: { ins: INS_NOP, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0xea: { ins: INS_NOP, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0xfa: { ins: INS_NOP, mode: ADDR_IMP,        size: 1, cycles: 2 },
+
+  // ORA — Bitwise OR with accumulator
+  0x09: { ins: INS_ORA, mode: ADDR_IMM,        size: 2, cycles: 2 },
+  0x05: { ins: INS_ORA, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0x15: { ins: INS_ORA, mode: ADDR_ZPX,        size: 2, cycles: 4 },
+  0x0d: { ins: INS_ORA, mode: ADDR_ABS,        size: 3, cycles: 4 },
+  0x1d: { ins: INS_ORA, mode: ADDR_ABSX,       size: 3, cycles: 4 },
+  0x19: { ins: INS_ORA, mode: ADDR_ABSY,       size: 3, cycles: 4 },
+  0x01: { ins: INS_ORA, mode: ADDR_PREIDXIND,  size: 2, cycles: 6 },
+  0x11: { ins: INS_ORA, mode: ADDR_POSTIDXIND, size: 2, cycles: 5 },
+
+  // Stack pushes/pulls — PHA/PLA move the accumulator, PHP/PLP the status
+  // register. The 6502 stack lives in page 1 ($0100-$01FF), with SP as an
+  // offset into that page.
+  0x48: { ins: INS_PHA, mode: ADDR_IMP,        size: 1, cycles: 3 },
+  0x08: { ins: INS_PHP, mode: ADDR_IMP,        size: 1, cycles: 3 },
+  0x68: { ins: INS_PLA, mode: ADDR_IMP,        size: 1, cycles: 4 },
+  0x28: { ins: INS_PLP, mode: ADDR_IMP,        size: 1, cycles: 4 },
+
+  // ROL — Rotate left through carry
+  0x2a: { ins: INS_ROL, mode: ADDR_ACC,        size: 1, cycles: 2 },
+  0x26: { ins: INS_ROL, mode: ADDR_ZP,         size: 2, cycles: 5 },
+  0x36: { ins: INS_ROL, mode: ADDR_ZPX,        size: 2, cycles: 6 },
+  0x2e: { ins: INS_ROL, mode: ADDR_ABS,        size: 3, cycles: 6 },
+  0x3e: { ins: INS_ROL, mode: ADDR_ABSX,       size: 3, cycles: 7 },
+
+  // ROR — Rotate right through carry
+  0x6a: { ins: INS_ROR, mode: ADDR_ACC,        size: 1, cycles: 2 },
+  0x66: { ins: INS_ROR, mode: ADDR_ZP,         size: 2, cycles: 5 },
+  0x76: { ins: INS_ROR, mode: ADDR_ZPX,        size: 2, cycles: 6 },
+  0x6e: { ins: INS_ROR, mode: ADDR_ABS,        size: 3, cycles: 6 },
+  0x7e: { ins: INS_ROR, mode: ADDR_ABSX,       size: 3, cycles: 7 },
+
+  // RTI / RTS — Return from interrupt handler / subroutine
+  0x40: { ins: INS_RTI, mode: ADDR_IMP,        size: 1, cycles: 6 },
+  0x60: { ins: INS_RTS, mode: ADDR_IMP,        size: 1, cycles: 6 },
+
+  // SBC — Subtract memory from accumulator with borrow.
+  // $EB is an unofficial alternate opcode that the 6502's decoder treats
+  // identically to the official $E9 (immediate SBC).
+  0xe9: { ins: INS_SBC, mode: ADDR_IMM,        size: 2, cycles: 2 },
+  0xeb: { ins: INS_SBC, mode: ADDR_IMM,        size: 2, cycles: 2 },
+  0xe5: { ins: INS_SBC, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0xf5: { ins: INS_SBC, mode: ADDR_ZPX,        size: 2, cycles: 4 },
+  0xed: { ins: INS_SBC, mode: ADDR_ABS,        size: 3, cycles: 4 },
+  0xfd: { ins: INS_SBC, mode: ADDR_ABSX,       size: 3, cycles: 4 },
+  0xf9: { ins: INS_SBC, mode: ADDR_ABSY,       size: 3, cycles: 4 },
+  0xe1: { ins: INS_SBC, mode: ADDR_PREIDXIND,  size: 2, cycles: 6 },
+  0xf1: { ins: INS_SBC, mode: ADDR_POSTIDXIND, size: 2, cycles: 5 },
+
+  // Flag sets
+  0x38: { ins: INS_SEC, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0xf8: { ins: INS_SED, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0x78: { ins: INS_SEI, mode: ADDR_IMP,        size: 1, cycles: 2 },
+
+  // STA — Store accumulator to memory
+  0x85: { ins: INS_STA, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0x95: { ins: INS_STA, mode: ADDR_ZPX,        size: 2, cycles: 4 },
+  0x8d: { ins: INS_STA, mode: ADDR_ABS,        size: 3, cycles: 4 },
+  0x9d: { ins: INS_STA, mode: ADDR_ABSX,       size: 3, cycles: 5 },
+  0x99: { ins: INS_STA, mode: ADDR_ABSY,       size: 3, cycles: 5 },
+  0x81: { ins: INS_STA, mode: ADDR_PREIDXIND,  size: 2, cycles: 6 },
+  0x91: { ins: INS_STA, mode: ADDR_POSTIDXIND, size: 2, cycles: 6 },
+
+  // STX — Store X to memory
+  0x86: { ins: INS_STX, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0x96: { ins: INS_STX, mode: ADDR_ZPY,        size: 2, cycles: 4 },
+  0x8e: { ins: INS_STX, mode: ADDR_ABS,        size: 3, cycles: 4 },
+
+  // STY — Store Y to memory
+  0x84: { ins: INS_STY, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0x94: { ins: INS_STY, mode: ADDR_ZPX,        size: 2, cycles: 4 },
+  0x8c: { ins: INS_STY, mode: ADDR_ABS,        size: 3, cycles: 4 },
+
+  // Register transfers — copy one register to another in a single cycle
+  0xaa: { ins: INS_TAX, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0xa8: { ins: INS_TAY, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0xba: { ins: INS_TSX, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0x8a: { ins: INS_TXA, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0x9a: { ins: INS_TXS, mode: ADDR_IMP,        size: 1, cycles: 2 },
+  0x98: { ins: INS_TYA, mode: ADDR_IMP,        size: 1, cycles: 2 },
+
+  // --- Unofficial opcodes ---
+  //
+  // These aren't part of the official 6502 spec but fall out of the chip's
+  // decoder logic. Nestest and AccuracyCoin exercise them, and a handful
+  // of shipped NES games rely on them. See the INS_* comments above for
+  // what each one actually computes.
+
+  // ALR (ASR) — AND then LSR
+  0x4b: { ins: INS_ALR, mode: ADDR_IMM,        size: 2, cycles: 2 },
+
+  // ANC — AND, with carry also set to bit 7 of the result
+  0x0b: { ins: INS_ANC, mode: ADDR_IMM,        size: 2, cycles: 2 },
+  0x2b: { ins: INS_ANC, mode: ADDR_IMM,        size: 2, cycles: 2 },
+
+  // ARR — AND then ROR (with quirky N/V/C flag behavior)
+  0x6b: { ins: INS_ARR, mode: ADDR_IMM,        size: 2, cycles: 2 },
+
+  // AXS (SBX) — X = (A & X) - immediate
+  0xcb: { ins: INS_AXS, mode: ADDR_IMM,        size: 2, cycles: 2 },
+
+  // LAX — Load A and X simultaneously from memory
+  0xa3: { ins: INS_LAX, mode: ADDR_PREIDXIND,  size: 2, cycles: 6 },
+  0xa7: { ins: INS_LAX, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0xaf: { ins: INS_LAX, mode: ADDR_ABS,        size: 3, cycles: 4 },
+  0xb3: { ins: INS_LAX, mode: ADDR_POSTIDXIND, size: 2, cycles: 5 },
+  0xb7: { ins: INS_LAX, mode: ADDR_ZPY,        size: 2, cycles: 4 },
+  0xbf: { ins: INS_LAX, mode: ADDR_ABSY,       size: 3, cycles: 4 },
+
+  // SAX — Store (A & X) to memory
+  0x83: { ins: INS_SAX, mode: ADDR_PREIDXIND,  size: 2, cycles: 6 },
+  0x87: { ins: INS_SAX, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0x8f: { ins: INS_SAX, mode: ADDR_ABS,        size: 3, cycles: 4 },
+  0x97: { ins: INS_SAX, mode: ADDR_ZPY,        size: 2, cycles: 4 },
+
+  // DCP — DEC memory then CMP with A
+  0xc3: { ins: INS_DCP, mode: ADDR_PREIDXIND,  size: 2, cycles: 8 },
+  0xc7: { ins: INS_DCP, mode: ADDR_ZP,         size: 2, cycles: 5 },
+  0xcf: { ins: INS_DCP, mode: ADDR_ABS,        size: 3, cycles: 6 },
+  0xd3: { ins: INS_DCP, mode: ADDR_POSTIDXIND, size: 2, cycles: 8 },
+  0xd7: { ins: INS_DCP, mode: ADDR_ZPX,        size: 2, cycles: 6 },
+  0xdb: { ins: INS_DCP, mode: ADDR_ABSY,       size: 3, cycles: 7 },
+  0xdf: { ins: INS_DCP, mode: ADDR_ABSX,       size: 3, cycles: 7 },
+
+  // ISC (ISB) — INC memory then SBC from A
+  0xe3: { ins: INS_ISC, mode: ADDR_PREIDXIND,  size: 2, cycles: 8 },
+  0xe7: { ins: INS_ISC, mode: ADDR_ZP,         size: 2, cycles: 5 },
+  0xef: { ins: INS_ISC, mode: ADDR_ABS,        size: 3, cycles: 6 },
+  0xf3: { ins: INS_ISC, mode: ADDR_POSTIDXIND, size: 2, cycles: 8 },
+  0xf7: { ins: INS_ISC, mode: ADDR_ZPX,        size: 2, cycles: 6 },
+  0xfb: { ins: INS_ISC, mode: ADDR_ABSY,       size: 3, cycles: 7 },
+  0xff: { ins: INS_ISC, mode: ADDR_ABSX,       size: 3, cycles: 7 },
+
+  // RLA — ROL memory then AND with A
+  0x23: { ins: INS_RLA, mode: ADDR_PREIDXIND,  size: 2, cycles: 8 },
+  0x27: { ins: INS_RLA, mode: ADDR_ZP,         size: 2, cycles: 5 },
+  0x2f: { ins: INS_RLA, mode: ADDR_ABS,        size: 3, cycles: 6 },
+  0x33: { ins: INS_RLA, mode: ADDR_POSTIDXIND, size: 2, cycles: 8 },
+  0x37: { ins: INS_RLA, mode: ADDR_ZPX,        size: 2, cycles: 6 },
+  0x3b: { ins: INS_RLA, mode: ADDR_ABSY,       size: 3, cycles: 7 },
+  0x3f: { ins: INS_RLA, mode: ADDR_ABSX,       size: 3, cycles: 7 },
+
+  // RRA — ROR memory then ADC with A
+  0x63: { ins: INS_RRA, mode: ADDR_PREIDXIND,  size: 2, cycles: 8 },
+  0x67: { ins: INS_RRA, mode: ADDR_ZP,         size: 2, cycles: 5 },
+  0x6f: { ins: INS_RRA, mode: ADDR_ABS,        size: 3, cycles: 6 },
+  0x73: { ins: INS_RRA, mode: ADDR_POSTIDXIND, size: 2, cycles: 8 },
+  0x77: { ins: INS_RRA, mode: ADDR_ZPX,        size: 2, cycles: 6 },
+  0x7b: { ins: INS_RRA, mode: ADDR_ABSY,       size: 3, cycles: 7 },
+  0x7f: { ins: INS_RRA, mode: ADDR_ABSX,       size: 3, cycles: 7 },
+
+  // SLO — ASL memory then ORA with A
+  0x03: { ins: INS_SLO, mode: ADDR_PREIDXIND,  size: 2, cycles: 8 },
+  0x07: { ins: INS_SLO, mode: ADDR_ZP,         size: 2, cycles: 5 },
+  0x0f: { ins: INS_SLO, mode: ADDR_ABS,        size: 3, cycles: 6 },
+  0x13: { ins: INS_SLO, mode: ADDR_POSTIDXIND, size: 2, cycles: 8 },
+  0x17: { ins: INS_SLO, mode: ADDR_ZPX,        size: 2, cycles: 6 },
+  0x1b: { ins: INS_SLO, mode: ADDR_ABSY,       size: 3, cycles: 7 },
+  0x1f: { ins: INS_SLO, mode: ADDR_ABSX,       size: 3, cycles: 7 },
+
+  // SRE — LSR memory then EOR with A
+  0x43: { ins: INS_SRE, mode: ADDR_PREIDXIND,  size: 2, cycles: 8 },
+  0x47: { ins: INS_SRE, mode: ADDR_ZP,         size: 2, cycles: 5 },
+  0x4f: { ins: INS_SRE, mode: ADDR_ABS,        size: 3, cycles: 6 },
+  0x53: { ins: INS_SRE, mode: ADDR_POSTIDXIND, size: 2, cycles: 8 },
+  0x57: { ins: INS_SRE, mode: ADDR_ZPX,        size: 2, cycles: 6 },
+  0x5b: { ins: INS_SRE, mode: ADDR_ABSY,       size: 3, cycles: 7 },
+  0x5f: { ins: INS_SRE, mode: ADDR_ABSX,       size: 3, cycles: 7 },
+
+  // SKB — 2-byte NOP that skips an immediate byte
+  0x80: { ins: INS_SKB, mode: ADDR_IMM,        size: 2, cycles: 2 },
+  0x82: { ins: INS_SKB, mode: ADDR_IMM,        size: 2, cycles: 2 },
+  0x89: { ins: INS_SKB, mode: ADDR_IMM,        size: 2, cycles: 2 },
+  0xc2: { ins: INS_SKB, mode: ADDR_IMM,        size: 2, cycles: 2 },
+  0xe2: { ins: INS_SKB, mode: ADDR_IMM,        size: 2, cycles: 2 },
+
+  // IGN — 3-byte NOP that still performs a memory read
+  0x0c: { ins: INS_IGN, mode: ADDR_ABS,        size: 3, cycles: 4 },
+  0x1c: { ins: INS_IGN, mode: ADDR_ABSX,       size: 3, cycles: 4 },
+  0x3c: { ins: INS_IGN, mode: ADDR_ABSX,       size: 3, cycles: 4 },
+  0x5c: { ins: INS_IGN, mode: ADDR_ABSX,       size: 3, cycles: 4 },
+  0x7c: { ins: INS_IGN, mode: ADDR_ABSX,       size: 3, cycles: 4 },
+  0xdc: { ins: INS_IGN, mode: ADDR_ABSX,       size: 3, cycles: 4 },
+  0xfc: { ins: INS_IGN, mode: ADDR_ABSX,       size: 3, cycles: 4 },
+  0x04: { ins: INS_IGN, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0x44: { ins: INS_IGN, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0x64: { ins: INS_IGN, mode: ADDR_ZP,         size: 2, cycles: 3 },
+  0x14: { ins: INS_IGN, mode: ADDR_ZPX,        size: 2, cycles: 4 },
+  0x34: { ins: INS_IGN, mode: ADDR_ZPX,        size: 2, cycles: 4 },
+  0x54: { ins: INS_IGN, mode: ADDR_ZPX,        size: 2, cycles: 4 },
+  0x74: { ins: INS_IGN, mode: ADDR_ZPX,        size: 2, cycles: 4 },
+  0xd4: { ins: INS_IGN, mode: ADDR_ZPX,        size: 2, cycles: 4 },
+  0xf4: { ins: INS_IGN, mode: ADDR_ZPX,        size: 2, cycles: 4 },
+
+  // SHA (AHX) — Store A & X & (H+1)
+  0x93: { ins: INS_SHA, mode: ADDR_POSTIDXIND, size: 2, cycles: 6 },
+  0x9f: { ins: INS_SHA, mode: ADDR_ABSY,       size: 3, cycles: 5 },
+
+  // SHS (TAS) — SP = A & X, then store SP & (H+1)
+  0x9b: { ins: INS_SHS, mode: ADDR_ABSY,       size: 3, cycles: 5 },
+
+  // SHY (SYA) — Store Y & (H+1)
+  0x9c: { ins: INS_SHY, mode: ADDR_ABSX,       size: 3, cycles: 5 },
+
+  // SHX (SXA) — Store X & (H+1)
+  0x9e: { ins: INS_SHX, mode: ADDR_ABSY,       size: 3, cycles: 5 },
+
+  // LAE (LAS) — A = X = SP = memory & SP
+  0xbb: { ins: INS_LAE, mode: ADDR_ABSY,       size: 3, cycles: 4 },
+
+  // ANE (XAA) — A = (A | magic) & X & immediate
+  0x8b: { ins: INS_ANE, mode: ADDR_IMM,        size: 2, cycles: 2 },
+
+  // LXA — A = X = (A | magic) & immediate
+  0xab: { ins: INS_LXA, mode: ADDR_IMM,        size: 2, cycles: 2 },
+};
+
 class CPU {
   // IRQ Types
   IRQ_NORMAL = 0;
@@ -53,7 +680,6 @@ class CPU {
     this.F_BRK = 1;
     this.F_BRK_NEW = 1;
 
-    this.opdata = new OpData().opdata;
     this.cyclesToHalt = 0;
 
     // Reset crash flag:
@@ -209,21 +835,38 @@ class CPU {
     // SHx instructions to detect bus hijacking mid-instruction.
     this._dmcFetchCycles = this._cyclesToNextDmcFetch();
 
+    // --- Fetch ---
+    // Read the opcode byte at PC. (REG_PC is one less than the actual
+    // instruction address — a convenience so that the post-increment in
+    // REG_PC += opinfo.size below lands on the next instruction.)
     let opcode = this.loadFromCartridge(this.REG_PC + 1);
     this.dataBus = opcode;
     this.instrBusCycles = 1;
     this.nes.ppu.advanceDots(3);
-    let opinf = this.opdata[opcode];
-    let cycleCount = opinf >> 24;
-    let cycleAdd = 0;
 
-    // Find address mode:
-    let addrMode = (opinf >> 8) & 0xff;
+    // --- Decode ---
+    // Look up the opcode in the table at the top of this file to find out
+    // which instruction this is, what addressing mode to use, how many
+    // bytes it consumes, and its base cycle count. See OPCODE_TABLE.
+    let opinfo = OPCODE_TABLE[opcode] ?? INVALID_OPCODE;
+    let cycleCount = opinfo.cycles;
+    let cycleAdd = 0; // extra cycles from page-crossing in indexed modes
+    let addrMode = opinfo.mode;
 
-    // Increment PC by number of op bytes:
+    // Advance PC past the instruction's operand bytes so it points at the
+    // next instruction. (opaddr keeps a copy of the pre-advance PC for
+    // relative branches and the operand-byte fetches below.)
     let opaddr = this.REG_PC;
-    this.REG_PC += (opinf >> 16) & 0xff;
+    this.REG_PC += opinfo.size;
 
+    // --- Address (decode continued) ---
+    // Each addressing mode has its own rules for turning the operand bytes
+    // into an effective address (or literal value) for the instruction to
+    // work with. The numeric `case N:` labels here match the ADDR_* values
+    // at the top of the file — e.g. `case 4:` is ADDR_ACC. This switch
+    // also performs any "dummy reads" the real 6502 does on certain modes;
+    // those are real bus cycles that can trigger I/O side effects, so
+    // skipping them would be a correctness bug, not an optimization.
     let addr = 0;
     switch (addrMode) {
       case 0: {
@@ -359,11 +1002,27 @@ class CPU {
     addr &= 0xffff;
 
     // ----------------------------------------------------------------------------------------------------
-    // Decode & execute instruction:
+    // Execute
     // ----------------------------------------------------------------------------------------------------
-
-    // This should be compiled to a jump table.
-    switch (opinf & 0xff) {
+    //
+    // Now that we know which instruction this is (opinfo.ins) and where
+    // its operand lives (addr), actually run the operation. Each `case`
+    // below handles one instruction; the numeric labels match the INS_*
+    // values at the top of the file (e.g. `case 0:` is INS_ADC).
+    //
+    // Several instructions read their operand's addressing mode again
+    // (via `addrMode`) to handle mode-specific quirks — e.g. ASL/LSR/ROL
+    // /ROR operate on the accumulator directly when addrMode == ADDR_ACC
+    // instead of reading and writing memory; stores and RMW instructions
+    // perform extra dummy reads/writes in indexed modes to match the
+    // real 6502's bus timing.
+    //
+    // The case labels are raw integers rather than INS_* constants so
+    // that V8 compiles this dispatch into a jump table — it only does
+    // that when every case expression is a literal integer at parse
+    // time. With ~78 cases on the hottest loop in the emulator, using
+    // constants would noticeably slow the dispatch.
+    switch (opinfo.ins) {
       case 0: {
         // *******
         // * ADC *
@@ -406,9 +1065,7 @@ class CPU {
         // *******
 
         // Shift left one bit
-        if (addrMode === 4) {
-          // ADDR_ACC = 4
-
+        if (addrMode === ADDR_ACC) {
           this.F_CARRY = (this.REG_ACC >> 7) & 1;
           this.REG_ACC = (this.REG_ACC << 1) & 255;
           this.F_SIGN = (this.REG_ACC >> 7) & 1;
@@ -425,7 +1082,9 @@ class CPU {
           // See https://www.nesdev.org/wiki/CPU_addressing_modes (RMW column)
           if (
             cycleAdd === 0 &&
-            (addrMode === 8 || addrMode === 9 || addrMode === 11)
+            (addrMode === ADDR_ABSX ||
+              addrMode === ADDR_ABSY ||
+              addrMode === ADDR_POSTIDXIND)
           ) {
             this.load(addr); // dummy read (indexed, no page crossing)
           }
@@ -637,7 +1296,9 @@ class CPU {
         // Decrement memory by one (RMW pattern, see ASL case 2):
         if (
           cycleAdd === 0 &&
-          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+          (addrMode === ADDR_ABSX ||
+            addrMode === ADDR_ABSY ||
+            addrMode === ADDR_POSTIDXIND)
         ) {
           this.load(addr); // dummy read (indexed, no page crossing)
         }
@@ -691,7 +1352,9 @@ class CPU {
         // Increment memory by one (RMW pattern, see ASL case 2):
         if (
           cycleAdd === 0 &&
-          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+          (addrMode === ADDR_ABSX ||
+            addrMode === ADDR_ABSY ||
+            addrMode === ADDR_POSTIDXIND)
         ) {
           this.load(addr); // dummy read (indexed, no page crossing)
         }
@@ -794,9 +1457,7 @@ class CPU {
         // *******
 
         // Shift right one bit (RMW pattern, see ASL case 2):
-        if (addrMode === 4) {
-          // ADDR_ACC
-
+        if (addrMode === ADDR_ACC) {
           temp = this.REG_ACC & 0xff;
           this.F_CARRY = temp & 1;
           temp >>= 1;
@@ -804,7 +1465,9 @@ class CPU {
         } else {
           if (
             cycleAdd === 0 &&
-            (addrMode === 8 || addrMode === 9 || addrMode === 11)
+            (addrMode === ADDR_ABSX ||
+              addrMode === ADDR_ABSY ||
+              addrMode === ADDR_POSTIDXIND)
           ) {
             this.load(addr); // dummy read (indexed, no page crossing)
           }
@@ -885,9 +1548,7 @@ class CPU {
         // *******
 
         // Rotate one bit left (RMW pattern, see ASL case 2)
-        if (addrMode === 4) {
-          // ADDR_ACC = 4
-
+        if (addrMode === ADDR_ACC) {
           temp = this.REG_ACC;
           add = this.F_CARRY;
           this.F_CARRY = (temp >> 7) & 1;
@@ -896,7 +1557,9 @@ class CPU {
         } else {
           if (
             cycleAdd === 0 &&
-            (addrMode === 8 || addrMode === 9 || addrMode === 11)
+            (addrMode === ADDR_ABSX ||
+              addrMode === ADDR_ABSY ||
+              addrMode === ADDR_POSTIDXIND)
           ) {
             this.load(addr); // dummy read (indexed, no page crossing)
           }
@@ -917,9 +1580,7 @@ class CPU {
         // *******
 
         // Rotate one bit right (RMW pattern, see ASL case 2)
-        if (addrMode === 4) {
-          // ADDR_ACC = 4
-
+        if (addrMode === ADDR_ACC) {
           add = this.F_CARRY << 7;
           this.F_CARRY = this.REG_ACC & 1;
           temp = (this.REG_ACC >> 1) + add;
@@ -927,7 +1588,9 @@ class CPU {
         } else {
           if (
             cycleAdd === 0 &&
-            (addrMode === 8 || addrMode === 9 || addrMode === 11)
+            (addrMode === ADDR_ABSX ||
+              addrMode === ADDR_ABSY ||
+              addrMode === ADDR_POSTIDXIND)
           ) {
             this.load(addr); // dummy read (indexed, no page crossing)
           }
@@ -1034,7 +1697,9 @@ class CPU {
         // this handles the non-crossing case.
         if (
           cycleAdd === 0 &&
-          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+          (addrMode === ADDR_ABSX ||
+            addrMode === ADDR_ABSY ||
+            addrMode === ADDR_POSTIDXIND)
         ) {
           this.load(addr);
         }
@@ -1201,7 +1866,9 @@ class CPU {
         // Decrement memory then compare (unofficial, RMW pattern see ASL case 2):
         if (
           cycleAdd === 0 &&
-          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+          (addrMode === ADDR_ABSX ||
+            addrMode === ADDR_ABSY ||
+            addrMode === ADDR_POSTIDXIND)
         ) {
           this.load(addr); // dummy read (indexed, no page crossing)
         }
@@ -1225,7 +1892,9 @@ class CPU {
         // Increment memory then subtract (unofficial, RMW pattern see ASL case 2):
         if (
           cycleAdd === 0 &&
-          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+          (addrMode === ADDR_ABSX ||
+            addrMode === ADDR_ABSY ||
+            addrMode === ADDR_POSTIDXIND)
         ) {
           this.load(addr); // dummy read (indexed, no page crossing)
         }
@@ -1259,7 +1928,9 @@ class CPU {
         // Rotate left then AND (unofficial, RMW pattern see ASL case 2)
         if (
           cycleAdd === 0 &&
-          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+          (addrMode === ADDR_ABSX ||
+            addrMode === ADDR_ABSY ||
+            addrMode === ADDR_POSTIDXIND)
         ) {
           this.load(addr); // dummy read (indexed, no page crossing)
         }
@@ -1284,7 +1955,9 @@ class CPU {
         // Rotate right then add (unofficial, RMW pattern see ASL case 2)
         if (
           cycleAdd === 0 &&
-          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+          (addrMode === ADDR_ABSX ||
+            addrMode === ADDR_ABSY ||
+            addrMode === ADDR_POSTIDXIND)
         ) {
           this.load(addr); // dummy read (indexed, no page crossing)
         }
@@ -1321,7 +1994,9 @@ class CPU {
         // Shift left then OR (unofficial, RMW pattern see ASL case 2)
         if (
           cycleAdd === 0 &&
-          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+          (addrMode === ADDR_ABSX ||
+            addrMode === ADDR_ABSY ||
+            addrMode === ADDR_POSTIDXIND)
         ) {
           this.load(addr); // dummy read (indexed, no page crossing)
         }
@@ -1345,7 +2020,9 @@ class CPU {
         // Shift right then XOR (unofficial, RMW pattern see ASL case 2)
         if (
           cycleAdd === 0 &&
-          (addrMode === 8 || addrMode === 9 || addrMode === 11)
+          (addrMode === ADDR_ABSX ||
+            addrMode === ADDR_ABSY ||
+            addrMode === ADDR_POSTIDXIND)
         ) {
           this.load(addr); // dummy read (indexed, no page crossing)
         }
@@ -2031,661 +2708,6 @@ class CPU {
 
   fromJSON(s) {
     fromJSON(this, s);
-  }
-}
-
-// Generates and provides an array of details about instructions
-class OpData {
-  constructor() {
-    this.opdata = new Array(256);
-
-    // Set all to invalid instruction (to detect crashes):
-    for (let i = 0; i < 256; i++) this.opdata[i] = 0xff;
-
-    // Now fill in all valid opcodes:
-
-    // ADC:
-    this.setOp(this.INS_ADC, 0x69, this.ADDR_IMM, 2, 2);
-    this.setOp(this.INS_ADC, 0x65, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_ADC, 0x75, this.ADDR_ZPX, 2, 4);
-    this.setOp(this.INS_ADC, 0x6d, this.ADDR_ABS, 3, 4);
-    this.setOp(this.INS_ADC, 0x7d, this.ADDR_ABSX, 3, 4);
-    this.setOp(this.INS_ADC, 0x79, this.ADDR_ABSY, 3, 4);
-    this.setOp(this.INS_ADC, 0x61, this.ADDR_PREIDXIND, 2, 6);
-    this.setOp(this.INS_ADC, 0x71, this.ADDR_POSTIDXIND, 2, 5);
-
-    // AND:
-    this.setOp(this.INS_AND, 0x29, this.ADDR_IMM, 2, 2);
-    this.setOp(this.INS_AND, 0x25, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_AND, 0x35, this.ADDR_ZPX, 2, 4);
-    this.setOp(this.INS_AND, 0x2d, this.ADDR_ABS, 3, 4);
-    this.setOp(this.INS_AND, 0x3d, this.ADDR_ABSX, 3, 4);
-    this.setOp(this.INS_AND, 0x39, this.ADDR_ABSY, 3, 4);
-    this.setOp(this.INS_AND, 0x21, this.ADDR_PREIDXIND, 2, 6);
-    this.setOp(this.INS_AND, 0x31, this.ADDR_POSTIDXIND, 2, 5);
-
-    // ASL:
-    this.setOp(this.INS_ASL, 0x0a, this.ADDR_ACC, 1, 2);
-    this.setOp(this.INS_ASL, 0x06, this.ADDR_ZP, 2, 5);
-    this.setOp(this.INS_ASL, 0x16, this.ADDR_ZPX, 2, 6);
-    this.setOp(this.INS_ASL, 0x0e, this.ADDR_ABS, 3, 6);
-    this.setOp(this.INS_ASL, 0x1e, this.ADDR_ABSX, 3, 7);
-
-    // BCC:
-    this.setOp(this.INS_BCC, 0x90, this.ADDR_REL, 2, 2);
-
-    // BCS:
-    this.setOp(this.INS_BCS, 0xb0, this.ADDR_REL, 2, 2);
-
-    // BEQ:
-    this.setOp(this.INS_BEQ, 0xf0, this.ADDR_REL, 2, 2);
-
-    // BIT:
-    this.setOp(this.INS_BIT, 0x24, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_BIT, 0x2c, this.ADDR_ABS, 3, 4);
-
-    // BMI:
-    this.setOp(this.INS_BMI, 0x30, this.ADDR_REL, 2, 2);
-
-    // BNE:
-    this.setOp(this.INS_BNE, 0xd0, this.ADDR_REL, 2, 2);
-
-    // BPL:
-    this.setOp(this.INS_BPL, 0x10, this.ADDR_REL, 2, 2);
-
-    // BRK:
-    this.setOp(this.INS_BRK, 0x00, this.ADDR_IMP, 1, 7);
-
-    // BVC:
-    this.setOp(this.INS_BVC, 0x50, this.ADDR_REL, 2, 2);
-
-    // BVS:
-    this.setOp(this.INS_BVS, 0x70, this.ADDR_REL, 2, 2);
-
-    // CLC:
-    this.setOp(this.INS_CLC, 0x18, this.ADDR_IMP, 1, 2);
-
-    // CLD:
-    this.setOp(this.INS_CLD, 0xd8, this.ADDR_IMP, 1, 2);
-
-    // CLI:
-    this.setOp(this.INS_CLI, 0x58, this.ADDR_IMP, 1, 2);
-
-    // CLV:
-    this.setOp(this.INS_CLV, 0xb8, this.ADDR_IMP, 1, 2);
-
-    // CMP:
-    this.setOp(this.INS_CMP, 0xc9, this.ADDR_IMM, 2, 2);
-    this.setOp(this.INS_CMP, 0xc5, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_CMP, 0xd5, this.ADDR_ZPX, 2, 4);
-    this.setOp(this.INS_CMP, 0xcd, this.ADDR_ABS, 3, 4);
-    this.setOp(this.INS_CMP, 0xdd, this.ADDR_ABSX, 3, 4);
-    this.setOp(this.INS_CMP, 0xd9, this.ADDR_ABSY, 3, 4);
-    this.setOp(this.INS_CMP, 0xc1, this.ADDR_PREIDXIND, 2, 6);
-    this.setOp(this.INS_CMP, 0xd1, this.ADDR_POSTIDXIND, 2, 5);
-
-    // CPX:
-    this.setOp(this.INS_CPX, 0xe0, this.ADDR_IMM, 2, 2);
-    this.setOp(this.INS_CPX, 0xe4, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_CPX, 0xec, this.ADDR_ABS, 3, 4);
-
-    // CPY:
-    this.setOp(this.INS_CPY, 0xc0, this.ADDR_IMM, 2, 2);
-    this.setOp(this.INS_CPY, 0xc4, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_CPY, 0xcc, this.ADDR_ABS, 3, 4);
-
-    // DEC:
-    this.setOp(this.INS_DEC, 0xc6, this.ADDR_ZP, 2, 5);
-    this.setOp(this.INS_DEC, 0xd6, this.ADDR_ZPX, 2, 6);
-    this.setOp(this.INS_DEC, 0xce, this.ADDR_ABS, 3, 6);
-    this.setOp(this.INS_DEC, 0xde, this.ADDR_ABSX, 3, 7);
-
-    // DEX:
-    this.setOp(this.INS_DEX, 0xca, this.ADDR_IMP, 1, 2);
-
-    // DEY:
-    this.setOp(this.INS_DEY, 0x88, this.ADDR_IMP, 1, 2);
-
-    // EOR:
-    this.setOp(this.INS_EOR, 0x49, this.ADDR_IMM, 2, 2);
-    this.setOp(this.INS_EOR, 0x45, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_EOR, 0x55, this.ADDR_ZPX, 2, 4);
-    this.setOp(this.INS_EOR, 0x4d, this.ADDR_ABS, 3, 4);
-    this.setOp(this.INS_EOR, 0x5d, this.ADDR_ABSX, 3, 4);
-    this.setOp(this.INS_EOR, 0x59, this.ADDR_ABSY, 3, 4);
-    this.setOp(this.INS_EOR, 0x41, this.ADDR_PREIDXIND, 2, 6);
-    this.setOp(this.INS_EOR, 0x51, this.ADDR_POSTIDXIND, 2, 5);
-
-    // INC:
-    this.setOp(this.INS_INC, 0xe6, this.ADDR_ZP, 2, 5);
-    this.setOp(this.INS_INC, 0xf6, this.ADDR_ZPX, 2, 6);
-    this.setOp(this.INS_INC, 0xee, this.ADDR_ABS, 3, 6);
-    this.setOp(this.INS_INC, 0xfe, this.ADDR_ABSX, 3, 7);
-
-    // INX:
-    this.setOp(this.INS_INX, 0xe8, this.ADDR_IMP, 1, 2);
-
-    // INY:
-    this.setOp(this.INS_INY, 0xc8, this.ADDR_IMP, 1, 2);
-
-    // JMP:
-    this.setOp(this.INS_JMP, 0x4c, this.ADDR_ABS, 3, 3);
-    this.setOp(this.INS_JMP, 0x6c, this.ADDR_INDABS, 3, 5);
-
-    // JSR:
-    this.setOp(this.INS_JSR, 0x20, this.ADDR_ABS, 3, 6);
-
-    // LDA:
-    this.setOp(this.INS_LDA, 0xa9, this.ADDR_IMM, 2, 2);
-    this.setOp(this.INS_LDA, 0xa5, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_LDA, 0xb5, this.ADDR_ZPX, 2, 4);
-    this.setOp(this.INS_LDA, 0xad, this.ADDR_ABS, 3, 4);
-    this.setOp(this.INS_LDA, 0xbd, this.ADDR_ABSX, 3, 4);
-    this.setOp(this.INS_LDA, 0xb9, this.ADDR_ABSY, 3, 4);
-    this.setOp(this.INS_LDA, 0xa1, this.ADDR_PREIDXIND, 2, 6);
-    this.setOp(this.INS_LDA, 0xb1, this.ADDR_POSTIDXIND, 2, 5);
-
-    // LDX:
-    this.setOp(this.INS_LDX, 0xa2, this.ADDR_IMM, 2, 2);
-    this.setOp(this.INS_LDX, 0xa6, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_LDX, 0xb6, this.ADDR_ZPY, 2, 4);
-    this.setOp(this.INS_LDX, 0xae, this.ADDR_ABS, 3, 4);
-    this.setOp(this.INS_LDX, 0xbe, this.ADDR_ABSY, 3, 4);
-
-    // LDY:
-    this.setOp(this.INS_LDY, 0xa0, this.ADDR_IMM, 2, 2);
-    this.setOp(this.INS_LDY, 0xa4, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_LDY, 0xb4, this.ADDR_ZPX, 2, 4);
-    this.setOp(this.INS_LDY, 0xac, this.ADDR_ABS, 3, 4);
-    this.setOp(this.INS_LDY, 0xbc, this.ADDR_ABSX, 3, 4);
-
-    // LSR:
-    this.setOp(this.INS_LSR, 0x4a, this.ADDR_ACC, 1, 2);
-    this.setOp(this.INS_LSR, 0x46, this.ADDR_ZP, 2, 5);
-    this.setOp(this.INS_LSR, 0x56, this.ADDR_ZPX, 2, 6);
-    this.setOp(this.INS_LSR, 0x4e, this.ADDR_ABS, 3, 6);
-    this.setOp(this.INS_LSR, 0x5e, this.ADDR_ABSX, 3, 7);
-
-    // NOP:
-    this.setOp(this.INS_NOP, 0x1a, this.ADDR_IMP, 1, 2);
-    this.setOp(this.INS_NOP, 0x3a, this.ADDR_IMP, 1, 2);
-    this.setOp(this.INS_NOP, 0x5a, this.ADDR_IMP, 1, 2);
-    this.setOp(this.INS_NOP, 0x7a, this.ADDR_IMP, 1, 2);
-    this.setOp(this.INS_NOP, 0xda, this.ADDR_IMP, 1, 2);
-    this.setOp(this.INS_NOP, 0xea, this.ADDR_IMP, 1, 2);
-    this.setOp(this.INS_NOP, 0xfa, this.ADDR_IMP, 1, 2);
-
-    // ORA:
-    this.setOp(this.INS_ORA, 0x09, this.ADDR_IMM, 2, 2);
-    this.setOp(this.INS_ORA, 0x05, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_ORA, 0x15, this.ADDR_ZPX, 2, 4);
-    this.setOp(this.INS_ORA, 0x0d, this.ADDR_ABS, 3, 4);
-    this.setOp(this.INS_ORA, 0x1d, this.ADDR_ABSX, 3, 4);
-    this.setOp(this.INS_ORA, 0x19, this.ADDR_ABSY, 3, 4);
-    this.setOp(this.INS_ORA, 0x01, this.ADDR_PREIDXIND, 2, 6);
-    this.setOp(this.INS_ORA, 0x11, this.ADDR_POSTIDXIND, 2, 5);
-
-    // PHA:
-    this.setOp(this.INS_PHA, 0x48, this.ADDR_IMP, 1, 3);
-
-    // PHP:
-    this.setOp(this.INS_PHP, 0x08, this.ADDR_IMP, 1, 3);
-
-    // PLA:
-    this.setOp(this.INS_PLA, 0x68, this.ADDR_IMP, 1, 4);
-
-    // PLP:
-    this.setOp(this.INS_PLP, 0x28, this.ADDR_IMP, 1, 4);
-
-    // ROL:
-    this.setOp(this.INS_ROL, 0x2a, this.ADDR_ACC, 1, 2);
-    this.setOp(this.INS_ROL, 0x26, this.ADDR_ZP, 2, 5);
-    this.setOp(this.INS_ROL, 0x36, this.ADDR_ZPX, 2, 6);
-    this.setOp(this.INS_ROL, 0x2e, this.ADDR_ABS, 3, 6);
-    this.setOp(this.INS_ROL, 0x3e, this.ADDR_ABSX, 3, 7);
-
-    // ROR:
-    this.setOp(this.INS_ROR, 0x6a, this.ADDR_ACC, 1, 2);
-    this.setOp(this.INS_ROR, 0x66, this.ADDR_ZP, 2, 5);
-    this.setOp(this.INS_ROR, 0x76, this.ADDR_ZPX, 2, 6);
-    this.setOp(this.INS_ROR, 0x6e, this.ADDR_ABS, 3, 6);
-    this.setOp(this.INS_ROR, 0x7e, this.ADDR_ABSX, 3, 7);
-
-    // RTI:
-    this.setOp(this.INS_RTI, 0x40, this.ADDR_IMP, 1, 6);
-
-    // RTS:
-    this.setOp(this.INS_RTS, 0x60, this.ADDR_IMP, 1, 6);
-
-    // SBC:
-    this.setOp(this.INS_SBC, 0xe9, this.ADDR_IMM, 2, 2);
-    this.setOp(this.INS_SBC, 0xeb, this.ADDR_IMM, 2, 2); // unofficial alternate
-    this.setOp(this.INS_SBC, 0xe5, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_SBC, 0xf5, this.ADDR_ZPX, 2, 4);
-    this.setOp(this.INS_SBC, 0xed, this.ADDR_ABS, 3, 4);
-    this.setOp(this.INS_SBC, 0xfd, this.ADDR_ABSX, 3, 4);
-    this.setOp(this.INS_SBC, 0xf9, this.ADDR_ABSY, 3, 4);
-    this.setOp(this.INS_SBC, 0xe1, this.ADDR_PREIDXIND, 2, 6);
-    this.setOp(this.INS_SBC, 0xf1, this.ADDR_POSTIDXIND, 2, 5);
-
-    // SEC:
-    this.setOp(this.INS_SEC, 0x38, this.ADDR_IMP, 1, 2);
-
-    // SED:
-    this.setOp(this.INS_SED, 0xf8, this.ADDR_IMP, 1, 2);
-
-    // SEI:
-    this.setOp(this.INS_SEI, 0x78, this.ADDR_IMP, 1, 2);
-
-    // STA:
-    this.setOp(this.INS_STA, 0x85, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_STA, 0x95, this.ADDR_ZPX, 2, 4);
-    this.setOp(this.INS_STA, 0x8d, this.ADDR_ABS, 3, 4);
-    this.setOp(this.INS_STA, 0x9d, this.ADDR_ABSX, 3, 5);
-    this.setOp(this.INS_STA, 0x99, this.ADDR_ABSY, 3, 5);
-    this.setOp(this.INS_STA, 0x81, this.ADDR_PREIDXIND, 2, 6);
-    this.setOp(this.INS_STA, 0x91, this.ADDR_POSTIDXIND, 2, 6);
-
-    // STX:
-    this.setOp(this.INS_STX, 0x86, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_STX, 0x96, this.ADDR_ZPY, 2, 4);
-    this.setOp(this.INS_STX, 0x8e, this.ADDR_ABS, 3, 4);
-
-    // STY:
-    this.setOp(this.INS_STY, 0x84, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_STY, 0x94, this.ADDR_ZPX, 2, 4);
-    this.setOp(this.INS_STY, 0x8c, this.ADDR_ABS, 3, 4);
-
-    // TAX:
-    this.setOp(this.INS_TAX, 0xaa, this.ADDR_IMP, 1, 2);
-
-    // TAY:
-    this.setOp(this.INS_TAY, 0xa8, this.ADDR_IMP, 1, 2);
-
-    // TSX:
-    this.setOp(this.INS_TSX, 0xba, this.ADDR_IMP, 1, 2);
-
-    // TXA:
-    this.setOp(this.INS_TXA, 0x8a, this.ADDR_IMP, 1, 2);
-
-    // TXS:
-    this.setOp(this.INS_TXS, 0x9a, this.ADDR_IMP, 1, 2);
-
-    // TYA:
-    this.setOp(this.INS_TYA, 0x98, this.ADDR_IMP, 1, 2);
-
-    // ALR:
-    this.setOp(this.INS_ALR, 0x4b, this.ADDR_IMM, 2, 2);
-
-    // ANC:
-    this.setOp(this.INS_ANC, 0x0b, this.ADDR_IMM, 2, 2);
-    this.setOp(this.INS_ANC, 0x2b, this.ADDR_IMM, 2, 2);
-
-    // ARR:
-    this.setOp(this.INS_ARR, 0x6b, this.ADDR_IMM, 2, 2);
-
-    // AXS:
-    this.setOp(this.INS_AXS, 0xcb, this.ADDR_IMM, 2, 2);
-
-    // LAX:
-    this.setOp(this.INS_LAX, 0xa3, this.ADDR_PREIDXIND, 2, 6);
-    this.setOp(this.INS_LAX, 0xa7, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_LAX, 0xaf, this.ADDR_ABS, 3, 4);
-    this.setOp(this.INS_LAX, 0xb3, this.ADDR_POSTIDXIND, 2, 5);
-    this.setOp(this.INS_LAX, 0xb7, this.ADDR_ZPY, 2, 4);
-    this.setOp(this.INS_LAX, 0xbf, this.ADDR_ABSY, 3, 4);
-
-    // SAX:
-    this.setOp(this.INS_SAX, 0x83, this.ADDR_PREIDXIND, 2, 6);
-    this.setOp(this.INS_SAX, 0x87, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_SAX, 0x8f, this.ADDR_ABS, 3, 4);
-    this.setOp(this.INS_SAX, 0x97, this.ADDR_ZPY, 2, 4);
-
-    // DCP:
-    this.setOp(this.INS_DCP, 0xc3, this.ADDR_PREIDXIND, 2, 8);
-    this.setOp(this.INS_DCP, 0xc7, this.ADDR_ZP, 2, 5);
-    this.setOp(this.INS_DCP, 0xcf, this.ADDR_ABS, 3, 6);
-    this.setOp(this.INS_DCP, 0xd3, this.ADDR_POSTIDXIND, 2, 8);
-    this.setOp(this.INS_DCP, 0xd7, this.ADDR_ZPX, 2, 6);
-    this.setOp(this.INS_DCP, 0xdb, this.ADDR_ABSY, 3, 7);
-    this.setOp(this.INS_DCP, 0xdf, this.ADDR_ABSX, 3, 7);
-
-    // ISC:
-    this.setOp(this.INS_ISC, 0xe3, this.ADDR_PREIDXIND, 2, 8);
-    this.setOp(this.INS_ISC, 0xe7, this.ADDR_ZP, 2, 5);
-    this.setOp(this.INS_ISC, 0xef, this.ADDR_ABS, 3, 6);
-    this.setOp(this.INS_ISC, 0xf3, this.ADDR_POSTIDXIND, 2, 8);
-    this.setOp(this.INS_ISC, 0xf7, this.ADDR_ZPX, 2, 6);
-    this.setOp(this.INS_ISC, 0xfb, this.ADDR_ABSY, 3, 7);
-    this.setOp(this.INS_ISC, 0xff, this.ADDR_ABSX, 3, 7);
-
-    // RLA:
-    this.setOp(this.INS_RLA, 0x23, this.ADDR_PREIDXIND, 2, 8);
-    this.setOp(this.INS_RLA, 0x27, this.ADDR_ZP, 2, 5);
-    this.setOp(this.INS_RLA, 0x2f, this.ADDR_ABS, 3, 6);
-    this.setOp(this.INS_RLA, 0x33, this.ADDR_POSTIDXIND, 2, 8);
-    this.setOp(this.INS_RLA, 0x37, this.ADDR_ZPX, 2, 6);
-    this.setOp(this.INS_RLA, 0x3b, this.ADDR_ABSY, 3, 7);
-    this.setOp(this.INS_RLA, 0x3f, this.ADDR_ABSX, 3, 7);
-
-    // RRA:
-    this.setOp(this.INS_RRA, 0x63, this.ADDR_PREIDXIND, 2, 8);
-    this.setOp(this.INS_RRA, 0x67, this.ADDR_ZP, 2, 5);
-    this.setOp(this.INS_RRA, 0x6f, this.ADDR_ABS, 3, 6);
-    this.setOp(this.INS_RRA, 0x73, this.ADDR_POSTIDXIND, 2, 8);
-    this.setOp(this.INS_RRA, 0x77, this.ADDR_ZPX, 2, 6);
-    this.setOp(this.INS_RRA, 0x7b, this.ADDR_ABSY, 3, 7);
-    this.setOp(this.INS_RRA, 0x7f, this.ADDR_ABSX, 3, 7);
-
-    // SLO:
-    this.setOp(this.INS_SLO, 0x03, this.ADDR_PREIDXIND, 2, 8);
-    this.setOp(this.INS_SLO, 0x07, this.ADDR_ZP, 2, 5);
-    this.setOp(this.INS_SLO, 0x0f, this.ADDR_ABS, 3, 6);
-    this.setOp(this.INS_SLO, 0x13, this.ADDR_POSTIDXIND, 2, 8);
-    this.setOp(this.INS_SLO, 0x17, this.ADDR_ZPX, 2, 6);
-    this.setOp(this.INS_SLO, 0x1b, this.ADDR_ABSY, 3, 7);
-    this.setOp(this.INS_SLO, 0x1f, this.ADDR_ABSX, 3, 7);
-
-    // SRE:
-    this.setOp(this.INS_SRE, 0x43, this.ADDR_PREIDXIND, 2, 8);
-    this.setOp(this.INS_SRE, 0x47, this.ADDR_ZP, 2, 5);
-    this.setOp(this.INS_SRE, 0x4f, this.ADDR_ABS, 3, 6);
-    this.setOp(this.INS_SRE, 0x53, this.ADDR_POSTIDXIND, 2, 8);
-    this.setOp(this.INS_SRE, 0x57, this.ADDR_ZPX, 2, 6);
-    this.setOp(this.INS_SRE, 0x5b, this.ADDR_ABSY, 3, 7);
-    this.setOp(this.INS_SRE, 0x5f, this.ADDR_ABSX, 3, 7);
-
-    // SKB:
-    this.setOp(this.INS_SKB, 0x80, this.ADDR_IMM, 2, 2);
-    this.setOp(this.INS_SKB, 0x82, this.ADDR_IMM, 2, 2);
-    this.setOp(this.INS_SKB, 0x89, this.ADDR_IMM, 2, 2);
-    this.setOp(this.INS_SKB, 0xc2, this.ADDR_IMM, 2, 2);
-    this.setOp(this.INS_SKB, 0xe2, this.ADDR_IMM, 2, 2);
-
-    // SKB:
-    this.setOp(this.INS_IGN, 0x0c, this.ADDR_ABS, 3, 4);
-    this.setOp(this.INS_IGN, 0x1c, this.ADDR_ABSX, 3, 4);
-    this.setOp(this.INS_IGN, 0x3c, this.ADDR_ABSX, 3, 4);
-    this.setOp(this.INS_IGN, 0x5c, this.ADDR_ABSX, 3, 4);
-    this.setOp(this.INS_IGN, 0x7c, this.ADDR_ABSX, 3, 4);
-    this.setOp(this.INS_IGN, 0xdc, this.ADDR_ABSX, 3, 4);
-    this.setOp(this.INS_IGN, 0xfc, this.ADDR_ABSX, 3, 4);
-    this.setOp(this.INS_IGN, 0x04, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_IGN, 0x44, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_IGN, 0x64, this.ADDR_ZP, 2, 3);
-    this.setOp(this.INS_IGN, 0x14, this.ADDR_ZPX, 2, 4);
-    this.setOp(this.INS_IGN, 0x34, this.ADDR_ZPX, 2, 4);
-    this.setOp(this.INS_IGN, 0x54, this.ADDR_ZPX, 2, 4);
-    this.setOp(this.INS_IGN, 0x74, this.ADDR_ZPX, 2, 4);
-    this.setOp(this.INS_IGN, 0xd4, this.ADDR_ZPX, 2, 4);
-    this.setOp(this.INS_IGN, 0xf4, this.ADDR_ZPX, 2, 4);
-
-    // SHA (AHX): Store A AND X AND (H+1)
-    this.setOp(this.INS_SHA, 0x93, this.ADDR_POSTIDXIND, 2, 6);
-    this.setOp(this.INS_SHA, 0x9f, this.ADDR_ABSY, 3, 5);
-
-    // SHS (TAS): SP = A AND X, store SP AND (H+1)
-    this.setOp(this.INS_SHS, 0x9b, this.ADDR_ABSY, 3, 5);
-
-    // SHY (SYA): Store Y AND (H+1)
-    this.setOp(this.INS_SHY, 0x9c, this.ADDR_ABSX, 3, 5);
-
-    // SHX (SXA): Store X AND (H+1)
-    this.setOp(this.INS_SHX, 0x9e, this.ADDR_ABSY, 3, 5);
-
-    // LAE (LAS): A = X = SP = M AND SP
-    this.setOp(this.INS_LAE, 0xbb, this.ADDR_ABSY, 3, 4);
-
-    // ANE (XAA): A = (A | MAGIC) & X & Immediate
-    this.setOp(this.INS_ANE, 0x8b, this.ADDR_IMM, 2, 2);
-
-    // LXA (LAX immediate): A = X = (A | MAGIC) & Immediate
-    this.setOp(this.INS_LXA, 0xab, this.ADDR_IMM, 2, 2);
-
-    // prettier-ignore
-    this.cycTable = new Array(
-    /*0x00*/ 7,6,2,8,3,3,5,5,3,2,2,2,4,4,6,6,
-    /*0x10*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
-    /*0x20*/ 6,6,2,8,3,3,5,5,4,2,2,2,4,4,6,6,
-    /*0x30*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
-    /*0x40*/ 6,6,2,8,3,3,5,5,3,2,2,2,3,4,6,6,
-    /*0x50*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
-    /*0x60*/ 6,6,2,8,3,3,5,5,4,2,2,2,5,4,6,6,
-    /*0x70*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
-    /*0x80*/ 2,6,2,6,3,3,3,3,2,2,2,2,4,4,4,4,
-    /*0x90*/ 2,6,2,6,4,4,4,4,2,5,2,5,5,5,5,5,
-    /*0xA0*/ 2,6,2,6,3,3,3,3,2,2,2,2,4,4,4,4,
-    /*0xB0*/ 2,5,2,5,4,4,4,4,2,4,2,4,4,4,4,4,
-    /*0xC0*/ 2,6,2,8,3,3,5,5,2,2,2,2,4,4,6,6,
-    /*0xD0*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7,
-    /*0xE0*/ 2,6,3,8,3,3,5,5,2,2,2,2,4,4,6,6,
-    /*0xF0*/ 2,5,2,8,4,4,6,6,2,4,2,7,4,4,7,7
-  );
-
-    this.instname = new Array(78);
-
-    // Instruction Names:
-    this.instname[0] = "ADC";
-    this.instname[1] = "AND";
-    this.instname[2] = "ASL";
-    this.instname[3] = "BCC";
-    this.instname[4] = "BCS";
-    this.instname[5] = "BEQ";
-    this.instname[6] = "BIT";
-    this.instname[7] = "BMI";
-    this.instname[8] = "BNE";
-    this.instname[9] = "BPL";
-    this.instname[10] = "BRK";
-    this.instname[11] = "BVC";
-    this.instname[12] = "BVS";
-    this.instname[13] = "CLC";
-    this.instname[14] = "CLD";
-    this.instname[15] = "CLI";
-    this.instname[16] = "CLV";
-    this.instname[17] = "CMP";
-    this.instname[18] = "CPX";
-    this.instname[19] = "CPY";
-    this.instname[20] = "DEC";
-    this.instname[21] = "DEX";
-    this.instname[22] = "DEY";
-    this.instname[23] = "EOR";
-    this.instname[24] = "INC";
-    this.instname[25] = "INX";
-    this.instname[26] = "INY";
-    this.instname[27] = "JMP";
-    this.instname[28] = "JSR";
-    this.instname[29] = "LDA";
-    this.instname[30] = "LDX";
-    this.instname[31] = "LDY";
-    this.instname[32] = "LSR";
-    this.instname[33] = "NOP";
-    this.instname[34] = "ORA";
-    this.instname[35] = "PHA";
-    this.instname[36] = "PHP";
-    this.instname[37] = "PLA";
-    this.instname[38] = "PLP";
-    this.instname[39] = "ROL";
-    this.instname[40] = "ROR";
-    this.instname[41] = "RTI";
-    this.instname[42] = "RTS";
-    this.instname[43] = "SBC";
-    this.instname[44] = "SEC";
-    this.instname[45] = "SED";
-    this.instname[46] = "SEI";
-    this.instname[47] = "STA";
-    this.instname[48] = "STX";
-    this.instname[49] = "STY";
-    this.instname[50] = "TAX";
-    this.instname[51] = "TAY";
-    this.instname[52] = "TSX";
-    this.instname[53] = "TXA";
-    this.instname[54] = "TXS";
-    this.instname[55] = "TYA";
-    this.instname[56] = "ALR";
-    this.instname[57] = "ANC";
-    this.instname[58] = "ARR";
-    this.instname[59] = "AXS";
-    this.instname[60] = "LAX";
-    this.instname[61] = "SAX";
-    this.instname[62] = "DCP";
-    this.instname[63] = "ISC";
-    this.instname[64] = "RLA";
-    this.instname[65] = "RRA";
-    this.instname[66] = "SLO";
-    this.instname[67] = "SRE";
-    this.instname[68] = "SKB";
-    this.instname[69] = "IGN";
-    this.instname[71] = "SHA";
-    this.instname[72] = "SHS";
-    this.instname[73] = "SHY";
-    this.instname[74] = "SHX";
-    this.instname[75] = "LAE";
-    this.instname[76] = "ANE";
-    this.instname[77] = "LXA";
-
-    this.addrDesc = new Array(
-      "Zero Page           ",
-      "Relative            ",
-      "Implied             ",
-      "Absolute            ",
-      "Accumulator         ",
-      "Immediate           ",
-      "Zero Page,X         ",
-      "Zero Page,Y         ",
-      "Absolute,X          ",
-      "Absolute,Y          ",
-      "Preindexed Indirect ",
-      "Postindexed Indirect",
-      "Indirect Absolute   ",
-    );
-  }
-
-  INS_ADC = 0;
-  INS_AND = 1;
-  INS_ASL = 2;
-
-  INS_BCC = 3;
-  INS_BCS = 4;
-  INS_BEQ = 5;
-  INS_BIT = 6;
-  INS_BMI = 7;
-  INS_BNE = 8;
-  INS_BPL = 9;
-  INS_BRK = 10;
-  INS_BVC = 11;
-  INS_BVS = 12;
-
-  INS_CLC = 13;
-  INS_CLD = 14;
-  INS_CLI = 15;
-  INS_CLV = 16;
-  INS_CMP = 17;
-  INS_CPX = 18;
-  INS_CPY = 19;
-
-  INS_DEC = 20;
-  INS_DEX = 21;
-  INS_DEY = 22;
-
-  INS_EOR = 23;
-
-  INS_INC = 24;
-  INS_INX = 25;
-  INS_INY = 26;
-
-  INS_JMP = 27;
-  INS_JSR = 28;
-
-  INS_LDA = 29;
-  INS_LDX = 30;
-  INS_LDY = 31;
-  INS_LSR = 32;
-
-  INS_NOP = 33;
-
-  INS_ORA = 34;
-
-  INS_PHA = 35;
-  INS_PHP = 36;
-  INS_PLA = 37;
-  INS_PLP = 38;
-
-  INS_ROL = 39;
-  INS_ROR = 40;
-  INS_RTI = 41;
-  INS_RTS = 42;
-
-  INS_SBC = 43;
-  INS_SEC = 44;
-  INS_SED = 45;
-  INS_SEI = 46;
-  INS_STA = 47;
-  INS_STX = 48;
-  INS_STY = 49;
-
-  INS_TAX = 50;
-  INS_TAY = 51;
-  INS_TSX = 52;
-  INS_TXA = 53;
-  INS_TXS = 54;
-  INS_TYA = 55;
-
-  INS_ALR = 56;
-  INS_ANC = 57;
-  INS_ARR = 58;
-  INS_AXS = 59;
-  INS_LAX = 60;
-  INS_SAX = 61;
-  INS_DCP = 62;
-  INS_ISC = 63;
-  INS_RLA = 64;
-  INS_RRA = 65;
-  INS_SLO = 66;
-  INS_SRE = 67;
-  INS_SKB = 68;
-  INS_IGN = 69;
-
-  INS_DUMMY = 70; // dummy instruction used for 'halting' the processor some cycles
-
-  // Unofficial "unstable" opcodes — behavior depends on 6502 bus arbitration
-  // during indexed addressing. The value stored is ANDed with (H+1) where H
-  // is the high byte of the base address before index addition.
-  // See https://www.nesdev.org/wiki/Programming_with_unofficial_opcodes
-  INS_SHA = 71;
-  INS_SHS = 72;
-  INS_SHY = 73;
-  INS_SHX = 74;
-  INS_LAE = 75;
-
-  // Unofficial opcodes with "magic" constant — the exact value varies between
-  // CPU revisions. Tests are designed to only check behavior where the magic
-  // value doesn't affect the outcome (A=$FF or Immediate=$00).
-  INS_ANE = 76;
-  INS_LXA = 77;
-
-  // -------------------------------- //
-
-  // Addressing modes:
-  ADDR_ZP = 0;
-  ADDR_REL = 1;
-  ADDR_IMP = 2;
-  ADDR_ABS = 3;
-  ADDR_ACC = 4;
-  ADDR_IMM = 5;
-  ADDR_ZPX = 6;
-  ADDR_ZPY = 7;
-  ADDR_ABSX = 8;
-  ADDR_ABSY = 9;
-  ADDR_PREIDXIND = 10;
-  ADDR_POSTIDXIND = 11;
-  ADDR_INDABS = 12;
-
-  setOp(inst, op, addr, size, cycles) {
-    this.opdata[op] =
-      (inst & 0xff) |
-      ((addr & 0xff) << 8) |
-      ((size & 0xff) << 16) |
-      ((cycles & 0xff) << 24);
   }
 }
 
