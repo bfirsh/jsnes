@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it, before, after } from "node:test";
 import fs from "fs";
-import NES from "../src/nes.js";
+import NES from "../src/nes.ts";
 
 // Error code descriptions from nestest.txt, keyed by [byte, code].
 // Byte 0x02 errors:

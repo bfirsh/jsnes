@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it, beforeEach } from "node:test";
-import CPU from "../src/cpu.js";
+import CPU from "../src/cpu.ts";
 
 // Based on https://github.com/gutomaia/wedNESday/blob/0.0.x/wednesday/cpu_6502_spec.py
 // ... which was based on https://github.com/nwidger/nintengo/blob/master/m65go2/instructions_test.go
@@ -45,7 +45,7 @@ MMAP.prototype.write = function (addr, val) {
   this.mem[addr] = val;
 };
 
-import GameGenie from "../src/gamegenie.js";
+import GameGenie from "../src/gamegenie.ts";
 
 const NES = function (mmap) {
   this.mmap = mmap;

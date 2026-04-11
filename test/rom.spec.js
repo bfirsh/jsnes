@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import ROM from "../src/rom.js";
+import ROM from "../src/rom.ts";
 
 // Build a minimal iNES/NES 2.0 header as a Uint8Array.
 // The returned array includes enough PRG/CHR data bytes (filled with 0)

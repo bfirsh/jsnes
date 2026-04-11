@@ -11,32 +11,50 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run build` - Build distribution files (`dist/jsnes.js` and `dist/jsnes.min.js`)
 - `npm run format` - Auto-format all code (core and web) with Prettier
 - `npm run test:watch` - Run tests in watch mode for development
-- `npm run typecheck` - TypeScript type checking (verifies `.d.ts` files)
-- `node bench.js` - Run performance benchmark (~1800 fps baseline). Run this on major changes or when you suspect a performance regression/improvement.
+- `npm run typecheck` - TypeScript type checking
+- `node --experimental-strip-types bench.js` - Run performance benchmark (~1800 fps baseline). Run this on major changes or when you suspect a performance regression/improvement.
+
+## TypeScript
+
+The source code is written in TypeScript (`.ts` files in `src/`). The conversion
+was done in a "loose" style — most files currently have `// @ts-nocheck` at the
+top to allow the existing JavaScript patterns (dynamic property assignment,
+implicit `any`, etc.) to continue working unchanged. Types are intended to be
+added incrementally.
+
+- Source files: `src/**/*.ts`
+- Imports use `.ts` extensions (e.g. `import CPU from "./cpu.ts"`) so Node.js
+  can run them directly with `--experimental-strip-types`.
+- Test files remain as `.js` but import `.ts` source files directly.
+- Build: webpack + `ts-loader` (with `transpileOnly: true`) bundles the TS
+  source into `dist/jsnes.js` and `dist/jsnes.min.js`.
+- Tests: run with `node --experimental-strip-types --test test/*.spec.js`.
+- `tsc --noEmit` is used for type checking only.
 
 ## Code Architecture
 
-JSNES is a JavaScript NES emulator with component-based architecture mirroring actual NES hardware:
+JSNES is a NES emulator written in TypeScript, with a component-based
+architecture mirroring actual NES hardware:
 
 ### Core Components (all in `src/`)
 
-**Main Orchestrator**: `nes.js` - Central class that coordinates all emulation components. Accepts callback functions for frame rendering, audio output, and status updates.
+**Main Orchestrator**: `nes.ts` - Central class that coordinates all emulation components. Accepts callback functions for frame rendering, audio output, and status updates.
 
-**CPU**: `cpu.js` - Implements 6502 processor with 64KB address space, instruction execution, and interrupt handling (NMI, IRQ, reset).
+**CPU**: `cpu.ts` - Implements 6502 processor with 64KB address space, instruction execution, and interrupt handling (NMI, IRQ, reset).
 
-**PPU**: `ppu.js` - Picture Processing Unit handles 256x240 graphics rendering, VRAM management, background/sprite rendering, and scrolling.
+**PPU**: `ppu/index.ts` - Picture Processing Unit handles 256x240 graphics rendering, VRAM management, background/sprite rendering, and scrolling.
 
-**PAPU**: `papu.js` - Audio Processing Unit implements NES's 5 audio channels (2 square waves, triangle, noise, DMC) with 44.1kHz/48kHz sample generation.
+**PAPU**: `papu/index.ts` - Audio Processing Unit implements NES's 5 audio channels (2 square waves, triangle, noise, DMC) with 44.1kHz/48kHz sample generation.
 
-**Memory Mappers**: `mappers.js` - Implements cartridge memory mappers (0-180) using inheritance hierarchy. All mappers inherit from Mapper 0 and override specific banking/memory mapping behavior.
+**Memory Mappers**: `mappers/` - Implements cartridge memory mappers (0-180) using inheritance hierarchy. All mappers inherit from Mapper 0 and override specific banking/memory mapping behavior.
 
-**ROM Loader**: `rom.js` - Parses iNES format ROM files, extracts PRG-ROM/CHR-ROM, and determines appropriate mapper.
+**ROM Loader**: `rom.ts` - Parses iNES format ROM files, extracts PRG-ROM/CHR-ROM, and determines appropriate mapper.
 
-**Tile Renderer**: `tile.js` - Handles 8x8 pixel tile rendering with sprite flipping (horizontal/vertical), alpha-blending priority, and scanline-based rendering.
+**Tile Renderer**: `tile.ts` - Handles 8x8 pixel tile rendering with sprite flipping (horizontal/vertical), alpha-blending priority, and scanline-based rendering.
 
-**Controller**: `controller.js` - Button state management for 2 controllers with 8 buttons each (A, B, SELECT, START, UP, DOWN, LEFT, RIGHT) and serial strobe protocol.
+**Controller**: `controller.ts` - Button state management for 2 controllers with 8 buttons each (A, B, SELECT, START, UP, DOWN, LEFT, RIGHT) and serial strobe protocol.
 
-**Utilities**: `utils.js` - Helper functions for state serialization (`toJSON()`/`fromJSON()`) used across CPU, PPU, PAPU, and mappers for save state support.
+**Utilities**: `utils.ts` - Helper functions for state serialization (`toJSON()`/`fromJSON()`) used across CPU, PPU, PAPU, and mappers for save state support.
 
 ### Key Architectural Patterns
 
@@ -78,11 +96,10 @@ Remember that AccuracyCoin and nestest are DEFINITELY correct. They pass on a re
 ## Build Process
 
 Webpack configuration creates UMD modules compatible with browsers and Node.js:
-- Entry point: `src/index.js` (exports NES and Controller classes)
+- Entry point: `src/index.ts` (exports NES and Controller classes)
 - Output: `dist/jsnes.js` (regular) and `dist/jsnes.min.js` (minified)
-- Includes ESLint checking and source map generation
+- Uses `ts-loader` (in `transpileOnly` mode) to transpile TypeScript
 - Library name: `jsnes` (global variable in browsers)
-- TypeScript type definitions: `src/nes.d.ts` and `src/controller.d.ts` provide public API types
 - CI: GitHub Actions (`.github/workflows/ci.yaml`) runs build and tests on push/PR with Node.js 22.x
 
 ## Code Quality Requirements
@@ -122,13 +139,13 @@ Dummy reads occur in:
 - **Post-indexed indirect** (case 11): Same page-crossing behavior as absolute indexed
 - **Stores** (STA/STX/STY) and **RMW instructions**: Always perform the indexed dummy read, even without page crossing
 
-RMW instructions (ASL, LSR, ROL, ROR, INC, DEC, and unofficial SLO, SRE, RLA, RRA, DCP, ISC) also perform a "dummy write" — they write the original value back to the address before writing the modified value. This is documented in the ASL implementation (case 2) in `cpu.js`.
+RMW instructions (ASL, LSR, ROL, ROR, INC, DEC, and unofficial SLO, SRE, RLA, RRA, DCP, ISC) also perform a "dummy write" — they write the original value back to the address before writing the modified value. This is documented in the ASL implementation (case 2) in `cpu.ts`.
 
 ### PPU Catch-up
 
 On real hardware, the CPU and PPU advance in lockstep (3 PPU dots per CPU cycle). The emulator runs CPU instructions atomically for performance, then advances the PPU afterward. This means PPU register reads mid-instruction (e.g., reading VBlank status from `$2002`) would see stale PPU state.
 
-To fix this, `cpu.load()` and `cpu.write()` call `_ppuCatchUp()` before any PPU register access ($2000-$3FFF). This method advances the PPU by `instrBusCycles * 3` dots — the number of PPU dots that should have elapsed based on how many bus operations the instruction has completed so far. The frame loop in `nes.js` then subtracts the already-advanced dots from the total.
+To fix this, `cpu.load()` and `cpu.write()` call `_ppuCatchUp()` before any PPU register access ($2000-$3FFF). This method advances the PPU by `instrBusCycles * 3` dots — the number of PPU dots that should have elapsed based on how many bus operations the instruction has completed so far. The frame loop in `nes.ts` then subtracts the already-advanced dots from the total.
 
 See https://www.nesdev.org/wiki/Catch-up
 

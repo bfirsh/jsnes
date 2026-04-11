@@ -1,6 +1,6 @@
 # JSNES
 
-A JavaScript NES emulator.
+A NES emulator written in TypeScript.
 
 It's a library that works in both the browser and Node.js.
 
@@ -225,7 +225,8 @@ To build a distribution:
 
     $ npm run build
 
-This will create `dist/jsnes.min.js`.
+This will create `dist/jsnes.js` and `dist/jsnes.min.js` from the TypeScript
+sources under `src/`.
 
 ## Running tests
 
