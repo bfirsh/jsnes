@@ -1,13 +1,68 @@
-// @ts-nocheck
 import CPU from "./cpu.ts";
 import Controller from "./controller.ts";
+import type { ButtonKey, ControllerState } from "./controller.ts";
 import PPU from "./ppu/index.ts";
 import PAPU from "./papu/index.ts";
 import GameGenie from "./gamegenie.ts";
 import ROM from "./rom.ts";
 
+export type ControllerId = 1 | 2;
+
+export type RomData = string | Uint8Array | ArrayBuffer;
+
+export interface NESOptions {
+  /** Called at the end of each frame with a 256×240 pixel buffer (Uint32Array of ARGB values). */
+  onFrame?: (buffer: Uint32Array) => void;
+  /** Called for each audio sample with left/right channel values (-1.0 to 1.0). */
+  onAudioSample?: ((left: number, right: number) => void) | null;
+  /** Called with status messages (e.g. "Ready to load a ROM."). */
+  onStatusUpdate?: (status: string) => void;
+  /** Called when battery-backed SRAM is written. Use this to persist save data. */
+  onBatteryRamWrite?: (address: number, value: number) => void;
+  /** Enable/disable audio emulation. Default: true. */
+  emulateSound?: boolean;
+  /** Audio sample rate in Hz. Default: 48000. */
+  sampleRate?: number;
+}
+
+type ResolvedOptions = Required<Omit<NESOptions, "onAudioSample">> & {
+  onAudioSample: ((left: number, right: number) => void) | null;
+};
+
+export interface EmulatorData {
+  cpu: object;
+  mmap: object;
+  ppu: object;
+  papu: object;
+  controllers?: { 1: ControllerState; 2: ControllerState };
+}
+
+// The internal emulator components (CPU, PPU, PAPU, mappers) still have
+// @ts-nocheck for a loose conversion, so their public shapes are not yet
+// accurately typed. We use `any` for their field types here so consumers
+// of the NES class still get precise types on the public API surface.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Internal = any;
+
 class NES {
-  constructor(opts) {
+  opts: ResolvedOptions;
+  ui: {
+    writeFrame: (buffer: Uint32Array) => void;
+    updateStatus: (status: string) => void;
+  };
+  cpu: Internal;
+  ppu: Internal;
+  papu: Internal;
+  gameGenie: GameGenie;
+  mmap: Internal;
+  rom: Internal;
+  controllers: { 1: Controller; 2: Controller };
+  fpsFrameCount: number;
+  lastFpsTime: number | null;
+  romData: RomData | null;
+  crashed: boolean;
+
+  constructor(opts: NESOptions) {
     this.opts = {
       onFrame: function () {},
       onAudioSample: null,
@@ -36,13 +91,15 @@ class NES {
     };
 
     this.fpsFrameCount = 0;
+    this.lastFpsTime = null;
     this.romData = null;
+    this.crashed = false;
 
     this.ui.updateStatus("Ready to load a ROM.");
   }
 
   // Resets the system
-  reset() {
+  reset(): void {
     this.cpu = new CPU(this);
     this.ppu = new PPU(this);
     this.papu = new PAPU(this);
@@ -60,7 +117,7 @@ class NES {
   // The frame loop. PPU is advanced inline after every CPU bus operation
   // (in cpu.load/write/push/pull). APU is clocked in bulk after each
   // instruction for compatibility with its sample timing logic.
-  frame = () => {
+  frame = (): void => {
     if (this.crashed) {
       throw new Error(
         "Game has crashed. Call reset() or loadROM() to restart.",
@@ -113,33 +170,33 @@ class NES {
     this.fpsFrameCount++;
   };
 
-  buttonDown = (controller, button) => {
+  buttonDown = (controller: ControllerId, button: ButtonKey): void => {
     this.controllers[controller].buttonDown(button);
   };
 
-  buttonUp = (controller, button) => {
+  buttonUp = (controller: ControllerId, button: ButtonKey): void => {
     this.controllers[controller].buttonUp(button);
   };
 
-  zapperMove = (x, y) => {
+  zapperMove = (x: number, y: number): void => {
     if (!this.mmap) return;
     this.mmap.zapperX = x;
     this.mmap.zapperY = y;
   };
 
-  zapperFireDown = () => {
+  zapperFireDown = (): void => {
     if (!this.mmap) return;
     this.mmap.zapperFired = true;
   };
 
-  zapperFireUp = () => {
+  zapperFireUp = (): void => {
     if (!this.mmap) return;
     this.mmap.zapperFired = false;
   };
 
-  getFPS() {
+  getFPS(): number | null {
     const now = Date.now();
-    let fps = null;
+    let fps: number | null = null;
     if (this.lastFpsTime) {
       fps = this.fpsFrameCount / ((now - this.lastFpsTime) / 1000);
     }
@@ -148,7 +205,7 @@ class NES {
     return fps;
   }
 
-  reloadROM() {
+  reloadROM(): void {
     if (this.romData !== null) {
       this.loadROM(this.romData);
     }
@@ -156,7 +213,7 @@ class NES {
 
   // Loads a ROM file into the CPU and PPU.
   // The ROM file is validated first.
-  loadROM(data) {
+  loadROM(data: RomData): void {
     // Load ROM file:
     this.rom = new ROM(this);
     this.rom.load(data);
@@ -172,11 +229,11 @@ class NES {
   // default 60fps each frame() produces ~800 samples at 48kHz. If the host
   // calls frame() less often (e.g. 30fps), the sample timer must fire more
   // frequently per CPU cycle so each frame still fills the audio buffer.
-  setFramerate(rate) {
+  setFramerate(rate: number): void {
     this.papu.setFrameRate(rate);
   }
 
-  toJSON() {
+  toJSON(): EmulatorData {
     return {
       // romData: this.romData,
       cpu: this.cpu.toJSON(),
@@ -190,7 +247,7 @@ class NES {
     };
   }
 
-  fromJSON(s) {
+  fromJSON(s: EmulatorData): void {
     this.reset();
     // this.romData = s.romData;
     this.cpu.fromJSON(s.cpu);

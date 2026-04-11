@@ -1,10 +1,28 @@
-// @ts-nocheck
 import NES from "../nes.ts";
+import type { RomData } from "../nes.ts";
 import Screen from "./screen.ts";
 import Speakers from "./speakers.ts";
 import FrameTimer from "./frame-timer.ts";
 import KeyboardController from "./keyboard.ts";
 import GamepadController from "./gamepad.ts";
+
+export interface BrowserOptions {
+  /** The container element to render into. */
+  container: HTMLElement;
+  /** ROM data to load immediately. If omitted, call loadROM() then start(). */
+  romData?: RomData | null;
+  /** Called when the emulator encounters an error during frame execution. */
+  onError?: (error: unknown) => void;
+  /** Called when battery-backed SRAM is written. */
+  onBatteryRamWrite?: (address: number, value: number) => void;
+}
+
+// The browser helper classes (Screen, Speakers, FrameTimer, etc.) still
+// have @ts-nocheck for a loose conversion, so their public shapes are not
+// accurately typed. We use `any` for their field types here so consumers
+// of the Browser class still get precise types on the public API surface.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Internal = any;
 
 // Debug logging, enabled via localStorage.jsnes_debug = 1
 let debugEnabled = false;
@@ -13,7 +31,7 @@ try {
 } catch {
   // localStorage not available
 }
-function debug(...args) {
+function debug(...args: unknown[]): void {
   if (debugEnabled) console.log(...args);
 }
 
@@ -31,12 +49,23 @@ function debug(...args) {
  * If romData is omitted, call browser.loadROM(data) then browser.start().
  */
 export default class Browser {
-  constructor(options = {}) {
+  readonly nes: NES;
+  readonly keyboard: Internal;
+  readonly gamepad: Internal;
+
+  private _options: BrowserOptions;
+  private _screen: Internal;
+  private _speakers: Internal;
+  private _frameTimer: Internal;
+  private _gamepadPolling: Internal;
+  private _fpsInterval: ReturnType<typeof setInterval> | undefined;
+
+  constructor(options: BrowserOptions) {
     this._options = options;
 
     // Create screen (creates <canvas> inside container)
     this._screen = new Screen(options.container, {
-      onMouseDown: (x, y) => {
+      onMouseDown: (x: number, y: number) => {
         this.nes.zapperMove(x, y);
         this.nes.zapperFireDown();
       },
@@ -117,7 +146,8 @@ export default class Browser {
     }
   }
 
-  start() {
+  /** Start emulation. Called automatically if romData is provided to constructor. */
+  start(): void {
     this._frameTimer.start();
     this._speakers.start();
     this._fpsInterval = setInterval(() => {
@@ -125,13 +155,15 @@ export default class Browser {
     }, 1000);
   }
 
-  stop() {
+  /** Pause emulation. */
+  stop(): void {
     this._frameTimer.stop();
     this._speakers.stop();
     clearInterval(this._fpsInterval);
   }
 
-  loadROM(data) {
+  /** Load a new ROM and start emulation. */
+  loadROM(data: RomData): void {
     this.stop();
     this.nes.loadROM(data);
     this.start();
@@ -140,18 +172,19 @@ export default class Browser {
   /**
    * Fill parent element with screen. Call if parent element changes size.
    */
-  fitInParent() {
+  fitInParent(): void {
     this._screen.fitInParent();
   }
 
-  screenshot() {
+  /** Get a screenshot as an HTMLImageElement. */
+  screenshot(): HTMLImageElement {
     return this._screen.screenshot();
   }
 
   /**
    * Clean up all resources: stop emulation, remove event listeners, remove canvas.
    */
-  destroy() {
+  destroy(): void {
     this.stop();
     document.removeEventListener("keydown", this.keyboard.handleKeyDown);
     document.removeEventListener("keyup", this.keyboard.handleKeyUp);
@@ -163,7 +196,10 @@ export default class Browser {
   /**
    * Load ROM data from a URL via XHR.
    */
-  static loadROMFromURL(url, callback) {
+  static loadROMFromURL(
+    url: string,
+    callback: (error: Error | null, data?: string) => void,
+  ): XMLHttpRequest {
     var req = new XMLHttpRequest();
     req.open("GET", url);
     req.overrideMimeType("text/plain; charset=x-user-defined");
@@ -175,7 +211,7 @@ export default class Browser {
       } else if (this.status === 0) {
         // Aborted, ignore
       } else {
-        req.onerror();
+        req.onerror!(new ProgressEvent("error"));
       }
     };
     req.send();

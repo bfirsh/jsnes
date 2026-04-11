@@ -1,28 +1,45 @@
-// @ts-nocheck
 import { toJSON, fromJSON } from "./utils.ts";
 
+export type ButtonKey = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+
+export interface ControllerState {
+  state: number[];
+  baseA: number;
+  baseB: number;
+  turboA: boolean;
+  turboB: boolean;
+  turboToggle: boolean;
+}
+
 class Controller {
-  static BUTTON_A = 0;
-  static BUTTON_B = 1;
-  static BUTTON_SELECT = 2;
-  static BUTTON_START = 3;
-  static BUTTON_UP = 4;
-  static BUTTON_DOWN = 5;
-  static BUTTON_LEFT = 6;
-  static BUTTON_RIGHT = 7;
+  static readonly BUTTON_A = 0;
+  static readonly BUTTON_B = 1;
+  static readonly BUTTON_SELECT = 2;
+  static readonly BUTTON_START = 3;
+  static readonly BUTTON_UP = 4;
+  static readonly BUTTON_DOWN = 5;
+  static readonly BUTTON_LEFT = 6;
+  static readonly BUTTON_RIGHT = 7;
   // Turbo buttons rapidly toggle A/B each frame while held, simulating the
   // extra buttons on the NES Advantage and dogbone controllers.
-  static BUTTON_TURBO_A = 8;
-  static BUTTON_TURBO_B = 9;
+  static readonly BUTTON_TURBO_A = 8;
+  static readonly BUTTON_TURBO_B = 9;
 
-  static JSON_PROPERTIES = [
+  static readonly JSON_PROPERTIES = [
     "state",
     "baseA",
     "baseB",
     "turboA",
     "turboB",
     "turboToggle",
-  ];
+  ] as const;
+
+  state: number[];
+  baseA: number;
+  baseB: number;
+  turboA: boolean;
+  turboB: boolean;
+  turboToggle: boolean;
 
   constructor() {
     this.state = new Array(8);
@@ -38,7 +55,7 @@ class Controller {
     this.turboToggle = false;
   }
 
-  buttonDown(key) {
+  buttonDown(key: ButtonKey): void {
     if (key === Controller.BUTTON_TURBO_A) {
       this.turboA = true;
     } else if (key === Controller.BUTTON_TURBO_B) {
@@ -50,7 +67,7 @@ class Controller {
     }
   }
 
-  buttonUp(key) {
+  buttonUp(key: ButtonKey): void {
     if (key === Controller.BUTTON_TURBO_A) {
       this.turboA = false;
       this.state[Controller.BUTTON_A] = this.baseA;
@@ -67,7 +84,7 @@ class Controller {
   // Called once per frame to toggle turbo button states. Produces a ~30 Hz
   // press rate at 60 FPS, matching the fast end of the NES Advantage's
   // adjustable turbo range.
-  clock() {
+  clock(): void {
     if (!this.turboA && !this.turboB) return;
     this.turboToggle = !this.turboToggle;
     if (this.turboA) {
@@ -78,11 +95,11 @@ class Controller {
     }
   }
 
-  toJSON() {
-    return toJSON(this);
+  toJSON(): ControllerState {
+    return toJSON(this) as ControllerState;
   }
 
-  fromJSON(s) {
+  fromJSON(s: ControllerState): void {
     fromJSON(this, s);
   }
 }

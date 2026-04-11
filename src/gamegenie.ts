@@ -1,35 +1,45 @@
-// @ts-nocheck
 const LETTER_VALUES = "APZLGITYEOXUKSVN";
 
-function toDigit(letter) {
+function toDigit(letter: string): number {
   return LETTER_VALUES.indexOf(letter);
 }
 
-function toLetter(digit) {
+function toLetter(digit: number): string {
   return LETTER_VALUES[digit];
 }
 
-function toHex(n, width) {
+function toHex(n: number, width: number): string {
   const s = n.toString(16);
   return "0000".substring(0, width - s.length) + s;
 }
 
+export interface GameGeniePatch {
+  addr: number;
+  value: number;
+  wantskey?: boolean;
+  key?: number;
+}
+
 class GameGenie {
+  patches: GameGeniePatch[];
+  enabled: boolean;
+  // Callback invoked when patches or enabled state change, so the CPU
+  // can swap its loadFromCartridge function pointer. Set by NES after
+  // construction.
+  onChange: (() => void) | null;
+
   constructor() {
     this.patches = [];
     this.enabled = true;
-    // Callback invoked when patches or enabled state change, so the CPU
-    // can swap its loadFromCartridge function pointer. Set by NES after
-    // construction.
     this.onChange = null;
   }
 
-  setEnabled(enabled) {
+  setEnabled(enabled: boolean): void {
     this.enabled = enabled;
     if (this.onChange) this.onChange();
   }
 
-  addCode(code) {
+  addCode(code: string): void {
     const patch = this.decode(code);
     if (!patch) {
       throw new Error(`Invalid Game Genie code: ${code}`);
@@ -38,12 +48,12 @@ class GameGenie {
     if (this.onChange) this.onChange();
   }
 
-  addPatch(addr, value, key) {
+  addPatch(addr: number, value: number, key?: number): void {
     this.patches.push({ addr, value, key });
     if (this.onChange) this.onChange();
   }
 
-  removeAllCodes() {
+  removeAllCodes(): void {
     this.patches = [];
     if (this.onChange) this.onChange();
   }
@@ -52,7 +62,7 @@ class GameGenie {
   // Game Genie works by intercepting ROM reads and substituting values.
   // The address is masked to 15 bits because Game Genie ignores the
   // highest bit (ROM is mirrored in $8000-$FFFF).
-  applyCodes(addr, value) {
+  applyCodes(addr: number, value: number): number {
     if (!this.enabled) return value;
 
     for (let i = 0; i < this.patches.length; ++i) {
@@ -68,7 +78,7 @@ class GameGenie {
     return value;
   }
 
-  decode(code) {
+  decode(code: string): GameGeniePatch | null {
     if (code.includes(":")) return this.decodeHex(code);
 
     const digits = code.toUpperCase().split("").map(toDigit);
@@ -83,7 +93,7 @@ class GameGenie {
       ((digits[2] & 7) << 4) +
       (digits[3] & 8) +
       (digits[4] & 7);
-    let key;
+    let key: number | undefined;
 
     if (digits.length === 8) {
       value += digits[7] & 8;
@@ -101,7 +111,12 @@ class GameGenie {
     return { value, addr, wantskey, key };
   }
 
-  encodeHex(addr, value, key, wantskey) {
+  encodeHex(
+    addr: number,
+    value: number,
+    key?: number,
+    wantskey?: boolean,
+  ): string {
     let s = toHex(addr, 4) + ":" + toHex(value, 2);
 
     if (key !== undefined || wantskey) {
@@ -115,7 +130,7 @@ class GameGenie {
     return s;
   }
 
-  decodeHex(s) {
+  decodeHex(s: string): GameGeniePatch | null {
     const match = s.match(/([0-9a-fA-F]+):([0-9a-fA-F]+)(\?[0-9a-fA-F]*)?/);
     if (!match) return null;
 
@@ -130,8 +145,13 @@ class GameGenie {
     return { value, addr, wantskey, key };
   }
 
-  encode(addr, value, key, wantskey) {
-    const digits = Array(6);
+  encode(
+    addr: number,
+    value: number,
+    key?: number,
+    wantskey?: boolean,
+  ): string {
+    const digits: number[] = Array(6);
 
     digits[0] = (value & 7) + ((value >> 4) & 8);
     digits[1] = ((value >> 4) & 7) + ((addr >> 4) & 8);
