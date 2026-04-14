@@ -19,7 +19,7 @@
     "jsdom": "^29.0.2",
 "tailwindcss": "^4.2.2",
     "vite": "^8.0.5",
-    "vitest": "^4.1.2"
+    "vitest": "^4.1.4"
   },
   "scripts": {
     "start": "vite",
