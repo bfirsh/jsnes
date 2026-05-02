@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it, before, mock } from "node:test";
 import fs from "fs";
-import NES from "../src/nes.js";
+import NES from "../src/nes.ts";
 
 describe("NES", function () {
   it("can be initialized", function () {

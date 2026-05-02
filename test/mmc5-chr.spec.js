@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it, beforeEach } from "node:test";
-import Mappers from "../src/mappers/index.js";
-import NameTable from "../src/ppu/nametable.js";
-import Tile from "../src/tile.js";
+import Mappers from "../src/mappers/index.ts";
+import NameTable from "../src/ppu/nametable.ts";
+import Tile from "../src/tile.ts";
 
 // MMC5 CHR Bank Switching Test Harness
 //

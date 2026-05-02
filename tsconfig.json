@@ -1,15 +1,19 @@
 {
   "compilerOptions": {
-    "allowJs": true,
-    "checkJs": false,
+    "target": "es2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true,
     "noEmit": true,
-    "skipLibCheck": true,
-    "module": "node16",
-    "moduleResolution": "node16",
     "esModuleInterop": true,
-    "target": "es2015",
-    "lib": ["es2015", "dom"]
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "useDefineForClassFields": true,
+    "lib": ["es2022", "dom"]
   },
-  "include": ["src/**/*.d.ts", "index.d.ts"],
-  "exclude": ["node_modules", "dist", "test"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

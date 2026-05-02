@@ -1,11 +1,10 @@
 import path from "path";
 import TerserPlugin from "terser-webpack-plugin";
-import ESLintPlugin from "eslint-webpack-plugin";
 
 export default {
   entry: {
-    jsnes: "./src/index.js",
-    "jsnes.min": "./src/index.js",
+    jsnes: "./src/index.ts",
+    "jsnes.min": "./src/index.ts",
   },
   mode: "production",
   devtool: "source-map",
@@ -18,7 +17,26 @@ export default {
     umdNamedDefine: true,
     clean: true,
   },
-  module: {},
+  resolve: {
+    extensions: [".ts", ".js"],
+    extensionAlias: {
+      ".ts": [".ts", ".js"],
+    },
+  },
+  module: {
+    rules: [
+      {
+        test: /\.ts$/,
+        exclude: /node_modules/,
+        use: {
+          loader: "ts-loader",
+          options: {
+            transpileOnly: true,
+          },
+        },
+      },
+    ],
+  },
   optimization: {
     minimize: true,
     minimizer: [
@@ -28,10 +46,5 @@ export default {
       }),
     ],
   },
-  plugins: [
-    new ESLintPlugin({
-      extensions: ["js"],
-      exclude: "node_modules",
-    }),
-  ],
+  plugins: [],
 };

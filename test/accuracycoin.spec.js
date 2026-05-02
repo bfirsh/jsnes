@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it, before, after } from "node:test";
 import fs from "fs";
-import NES from "../src/nes.js";
-import Controller from "../src/controller.js";
+import NES from "../src/nes.ts";
+import Controller from "../src/controller.ts";
 
 // AccuracyCoin test result memory addresses and test names, organized by page.
 //

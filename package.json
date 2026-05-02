@@ -1,16 +1,15 @@
 {
   "name": "jsnes",
   "version": "2.1.0",
-  "description": "A JavaScript NES emulator",
+  "description": "A NES emulator written in TypeScript",
   "homepage": "https://github.com/bfirsh/jsnes",
   "author": "Ben Firshman <ben@firshman.com>",
   "main": "dist/jsnes.js",
   "exports": {
     ".": {
-      "types": "./index.d.ts",
-      "import": "./src/index.js",
+      "import": "./src/index.ts",
       "require": "./dist/jsnes.js",
-      "default": "./src/index.js"
+      "default": "./dist/jsnes.js"
     }
   },
   "repository": {
@@ -19,34 +18,29 @@
   },
   "files": [
     "dist",
-    "src",
-    "index.d.ts"
+    "src"
   ],
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "build": "webpack",
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck && prettier --check '**/*.{js,jsx,css}' && node --test ./test/*.spec.js",
-    "test:watch": "node --test --watch ./test/*.spec.js",
+    "test": "npm run typecheck && prettier --check '**/*.{ts,js,jsx,css}' && node --experimental-strip-types --disable-warning=ExperimentalWarning --test ./test/*.spec.js",
+    "test:watch": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test --watch ./test/*.spec.js",
     "prepublishOnly": "npm run build",
-    "format": "prettier --write '**/*.{js,jsx,css}'"
+    "format": "prettier --write '**/*.{ts,js,jsx,css}'"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.0.2",
     "eslint": "^10.0.2",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-webpack-plugin": "^6.0.0",
     "prettier": "^3.6.2",
     "terser-webpack-plugin": "^5.3.10",
+    "ts-loader": "^9.5.7",
     "typescript": "^6.0.2",
     "webpack": "^5.100.2",
     "webpack-cli": "^7.0.2"
   },
-  "overrides": {
-    "eslint-webpack-plugin": {
-      "eslint": "$eslint"
-    }
-  }
+  "overrides": {}
 }

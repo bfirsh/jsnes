@@ -10,7 +10,7 @@
 
 import fs from "fs";
 import path from "path";
-import NES from "./src/nes.js";
+import NES from "./src/nes.ts";
 
 const ROMS = {
   croom: "roms/croom/croom.nes",

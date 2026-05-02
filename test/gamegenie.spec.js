@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it, beforeEach } from "node:test";
-import GameGenie from "../src/gamegenie.js";
-import NES from "../src/nes.js";
+import GameGenie from "../src/gamegenie.ts";
+import NES from "../src/nes.ts";
 import fs from "fs";
 
 describe("GameGenie", function () {
