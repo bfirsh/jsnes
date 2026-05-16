@@ -6,3 +6,10 @@
 /local-roms
 /node_modules
 /tmp
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
