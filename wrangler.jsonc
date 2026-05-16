@@ -5,8 +5,18 @@
   "observability": {
     "enabled": true
   },
+  // Build the web app before deploying. `web/dist` is gitignored, so the
+  // Cloudflare build server must produce it. This runs during `wrangler deploy`.
+  "build": {
+    "command": "npm --prefix web install && npm --prefix web run build"
+  },
+  // Upload the *built* site, not the `web/` source tree. Pointing at `web`
+  // makes Wrangler walk `web/node_modules/jsnes`, a symlink back to the repo
+  // root (the `"jsnes": "file:.."` dependency), recursing forever -> ELOOP.
   "assets": {
-    "directory": "web"
+    "directory": "web/dist",
+    // React Router SPA: serve index.html for unknown paths so deep links work.
+    "not_found_handling": "single-page-application"
   },
   "compatibility_flags": [
     "nodejs_compat"
