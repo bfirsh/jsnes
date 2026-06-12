@@ -9,7 +9,7 @@
 
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "react-router-dom": "^7.14.1"
+    "react-router-dom": "^7.17.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",
