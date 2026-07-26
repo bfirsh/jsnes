@@ -31,6 +31,7 @@ class Mapper1 extends Mapper0 {
 
     // Register 3:
     this.romBankSelect = 0;
+    this.romBankSelectValid = true;
   }
 
   write(address, value) {
@@ -100,6 +101,9 @@ class Mapper1 extends Mapper0 {
         // VROM Switching Size:
         this.vromSwitchingSize = (value >> 4) & 1;
 
+        if (this.usesSuromPrgBanking() && this.romBankSelectValid) {
+          this.applySuromPrgBanking();
+        }
         break;
 
       case 1:
@@ -132,6 +136,9 @@ class Mapper1 extends Mapper0 {
           }
         }
 
+        if (this.usesSuromPrgBanking() && this.romBankSelectValid) {
+          this.applySuromPrgBanking();
+        }
         break;
 
       case 2:
@@ -156,42 +163,81 @@ class Mapper1 extends Mapper0 {
         break;
 
       default: {
-        // Select ROM bank:
-        // -------------------------
-        let bank;
-        let baseBank = 0;
+        this.romBankSelect = value & 0xf;
+        this.romBankSelectValid = true;
 
-        if (this.nes.rom.romCount >= 32) {
-          // 1024 kB cart
-          if (this.vromSwitchingSize === 0) {
-            if (this.romSelectionReg0 === 1) {
-              baseBank = 16;
-            }
-          } else {
-            baseBank =
-              (this.romSelectionReg0 | (this.romSelectionReg1 << 1)) << 3;
-          }
-        } else if (this.nes.rom.romCount >= 16) {
-          // 512 kB cart
-          if (this.romSelectionReg0 === 1) {
-            baseBank = 8;
-          }
-        }
-
-        if (this.prgSwitchingSize === 0) {
-          // 32kB
-          bank = baseBank + (value & 0xf);
-          this.load32kRomBank(bank, 0x8000);
+        if (this.usesSuromPrgBanking()) {
+          this.applySuromPrgBanking();
         } else {
-          // 16kB
-          bank = baseBank * 2 + (value & 0xf);
-          if (this.prgSwitchingArea === 0) {
-            this.loadRomBank(bank, 0xc000);
+          // Select ROM bank:
+          // -------------------------
+          let bank;
+          let baseBank = 0;
+
+          if (this.nes.rom.romCount >= 32) {
+            // 1024 kB cart
+            if (this.vromSwitchingSize === 0) {
+              if (this.romSelectionReg0 === 1) {
+                baseBank = 16;
+              }
+            } else {
+              baseBank =
+                (this.romSelectionReg0 | (this.romSelectionReg1 << 1)) << 3;
+            }
+          } else if (this.nes.rom.romCount >= 16) {
+            // 512 kB cart
+            if (this.romSelectionReg0 === 1) {
+              baseBank = 8;
+            }
+          }
+
+          if (this.prgSwitchingSize === 0) {
+            // 32kB
+            bank = baseBank + (value & 0xf);
+            this.load32kRomBank(bank, 0x8000);
           } else {
-            this.loadRomBank(bank, 0x8000);
+            // 16kB
+            bank = baseBank * 2 + (value & 0xf);
+            if (this.prgSwitchingArea === 0) {
+              this.loadRomBank(bank, 0xc000);
+            } else {
+              this.loadRomBank(bank, 0x8000);
+            }
           }
         }
+        break;
       }
+    }
+  }
+
+  isSurom() {
+    return this.nes.rom.romCount === 32 && this.nes.rom.vromCount === 0;
+  }
+
+  usesSuromPrgBanking() {
+    return this.isSurom() && this.vromSwitchingSize === 0;
+  }
+
+  applySuromPrgBanking() {
+    // SUROM uses CHR-RAM, so CHR bank 0 bit 4 is available as the outer
+    // PRG-ROM address bit. Each outer page contains sixteen 16 KB banks.
+    const pageBase = this.romSelectionReg0 << 4;
+    const selectedBank = pageBase + this.romBankSelect;
+
+    if (this.prgSwitchingSize === 0) {
+      // Modes 0 and 1 select an aligned 32 KB pair. Keep the calculation in
+      // 16 KB units so the outer page is applied exactly once.
+      const firstBank = selectedBank & ~1;
+      this.loadRomBank(firstBank, 0x8000);
+      this.loadRomBank(firstBank + 1, 0xc000);
+    } else if (this.prgSwitchingArea === 0) {
+      // Mode 2 fixes the first bank of the active page at $8000.
+      this.loadRomBank(pageBase, 0x8000);
+      this.loadRomBank(selectedBank, 0xc000);
+    } else {
+      // Mode 3 fixes the last bank of the active page at $C000.
+      this.loadRomBank(selectedBank, 0x8000);
+      this.loadRomBank(pageBase + 15, 0xc000);
     }
   }
 
@@ -250,6 +296,7 @@ class Mapper1 extends Mapper0 {
     s.romSelectionReg0 = this.romSelectionReg0;
     s.romSelectionReg1 = this.romSelectionReg1;
     s.romBankSelect = this.romBankSelect;
+    s.romBankSelectValid = this.romBankSelectValid;
     s.regBuffer = this.regBuffer;
     s.regBufferCounter = this.regBufferCounter;
     return s;
@@ -265,6 +312,9 @@ class Mapper1 extends Mapper0 {
     this.romSelectionReg0 = s.romSelectionReg0;
     this.romSelectionReg1 = s.romSelectionReg1;
     this.romBankSelect = s.romBankSelect;
+    // Older states contain romBankSelect but never updated it after register
+    // writes. Preserve their restored CPU windows until register 3 is written.
+    this.romBankSelectValid = s.romBankSelectValid === true;
     this.regBuffer = s.regBuffer;
     this.regBufferCounter = s.regBufferCounter;
   }
