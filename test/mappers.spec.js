@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it, beforeEach } from "node:test";
 import Mappers from "../src/mappers/index.js";
+import NES from "../src/nes.js";
 import NameTable from "../src/ppu/nametable.js";
 import Tile from "../src/tile.js";
 
@@ -80,6 +81,52 @@ function populateMockRom(mockNes) {
   }
 }
 
+function createMapper1Rom(prgBankCount, chrBankCount = 0) {
+  const headerSize = 16;
+  const prgBankSize = 16384;
+  const chrBankSize = 8192;
+  const data = new Uint8Array(
+    headerSize + prgBankCount * prgBankSize + chrBankCount * chrBankSize,
+  );
+
+  data.set([0x4e, 0x45, 0x53, 0x1a]); // "NES" followed by the iNES terminator.
+  data[4] = prgBankCount;
+  data[5] = chrBankCount;
+  data[6] = 0x10; // Mapper 1, horizontal mirroring.
+
+  for (let bank = 0; bank < prgBankCount; bank++) {
+    const start = headerSize + bank * prgBankSize;
+    data.fill(bank, start, start + prgBankSize);
+  }
+
+  return data;
+}
+
+function loadMapper1Rom(prgBankCount, chrBankCount = 0) {
+  const nes = new NES({
+    onFrame: function () {},
+    onAudioSample: function () {},
+    emulateSound: false,
+  });
+  nes.loadROM(createMapper1Rom(prgBankCount, chrBankCount));
+  return nes;
+}
+
+function writeMmc1Register(mapper, address, value) {
+  // MMC1 accepts the register value least-significant bit first over five
+  // consecutive CPU writes.
+  for (let bit = 0; bit < 5; bit++) {
+    mapper.write(address, (value >> bit) & 1);
+  }
+}
+
+function assertPrgBanks(nes, lowBank, highBank) {
+  assert.strictEqual(nes.cpu.mem[0x8000], lowBank);
+  assert.strictEqual(nes.cpu.mem[0xbfff], lowBank);
+  assert.strictEqual(nes.cpu.mem[0xc000], highBank);
+  assert.strictEqual(nes.cpu.mem[0xffff], highBank);
+}
+
 describe("Mappers", function () {
   let mapper = null;
   let mockNes = null;
@@ -151,6 +198,144 @@ describe("Mappers", function () {
 
       assert.strictEqual(mockNes.cpu.mem[romAddress], originalValue);
     });
+  });
+});
+
+// --- MMC1 (Mapper 1) Tests ---
+describe("MMC1 (Mapper 1)", function () {
+  it("preserves the established SUROM power-on mapping", function () {
+    const nes = loadMapper1Rom(32);
+
+    assertPrgBanks(nes, 0, 31);
+  });
+
+  it("maps both SUROM outer pages in every PRG mode", function () {
+    const modes = [
+      { control: 0x00, lower: [2, 3], upper: [18, 19] },
+      { control: 0x04, lower: [2, 3], upper: [18, 19] },
+      { control: 0x08, lower: [0, 3], upper: [16, 19] },
+      { control: 0x0c, lower: [3, 15], upper: [19, 31] },
+    ];
+
+    for (const mode of modes) {
+      const nes = loadMapper1Rom(32);
+
+      writeMmc1Register(nes.mmap, 0x8000, mode.control);
+      writeMmc1Register(nes.mmap, 0xe000, 3);
+      writeMmc1Register(nes.mmap, 0xa000, 0x00);
+      assertPrgBanks(nes, ...mode.lower);
+
+      writeMmc1Register(nes.mmap, 0xa000, 0x10);
+      assertPrgBanks(nes, ...mode.upper);
+    }
+  });
+
+  it("reapplies a retained PRG bank when the SUROM outer page changes", function () {
+    const nes = loadMapper1Rom(32);
+
+    writeMmc1Register(nes.mmap, 0xe000, 5);
+    assertPrgBanks(nes, 5, 15);
+
+    writeMmc1Register(nes.mmap, 0xa000, 0x10);
+    assertPrgBanks(nes, 21, 31);
+  });
+
+  it("reapplies both PRG windows when the control mode changes", function () {
+    const nes = loadMapper1Rom(32);
+
+    writeMmc1Register(nes.mmap, 0xa000, 0x10);
+    writeMmc1Register(nes.mmap, 0xe000, 5);
+    assertPrgBanks(nes, 21, 31);
+
+    writeMmc1Register(nes.mmap, 0x8000, 0x08);
+    assertPrgBanks(nes, 16, 21);
+
+    writeMmc1Register(nes.mmap, 0x8000, 0x00);
+    assertPrgBanks(nes, 20, 21);
+  });
+
+  it("does not apply SUROM outer banking to an ordinary MMC1 image", function () {
+    const nes = loadMapper1Rom(8);
+
+    assertPrgBanks(nes, 0, 7);
+    writeMmc1Register(nes.mmap, 0xe000, 3);
+    writeMmc1Register(nes.mmap, 0xa000, 0x10);
+    assertPrgBanks(nes, 3, 7);
+
+    writeMmc1Register(nes.mmap, 0x8000, 0x08);
+    assertPrgBanks(nes, 3, 7);
+  });
+
+  it("preserves legacy high-bit banking for 64-bank MMC1 images", function () {
+    const nes = loadMapper1Rom(64, 1);
+
+    writeMmc1Register(nes.mmap, 0x8000, 0x1c);
+    writeMmc1Register(nes.mmap, 0xa000, 0x10);
+    writeMmc1Register(nes.mmap, 0xc000, 0x10);
+    writeMmc1Register(nes.mmap, 0xe000, 2);
+
+    assertPrgBanks(nes, 50, 63);
+  });
+
+  it("retains the existing 4 KB CHR-mode PRG mapping path", function () {
+    const nes = loadMapper1Rom(32);
+
+    writeMmc1Register(nes.mmap, 0x8000, 0x1c);
+    writeMmc1Register(nes.mmap, 0xa000, 0x10);
+    writeMmc1Register(nes.mmap, 0xe000, 3);
+
+    assertPrgBanks(nes, 19, 31);
+  });
+
+  it("requires both 32 PRG banks and CHR-RAM for SUROM outer banking", function () {
+    const nes = loadMapper1Rom(32, 1);
+
+    writeMmc1Register(nes.mmap, 0xe000, 3);
+    writeMmc1Register(nes.mmap, 0xa000, 0x10);
+    assertPrgBanks(nes, 3, 31);
+  });
+
+  it("reuses the saved PRG selection through the NES state API", function () {
+    const rom = createMapper1Rom(32);
+    const source = new NES({ emulateSound: false });
+    source.loadROM(rom);
+    writeMmc1Register(source.mmap, 0xe000, 5);
+    const state = source.toJSON();
+
+    const restored = new NES({ emulateSound: false });
+    restored.loadROM(rom);
+    restored.fromJSON(state);
+    assertPrgBanks(restored, 5, 15);
+    writeMmc1Register(restored.mmap, 0xa000, 0x10);
+
+    assert.strictEqual(restored.mmap.romBankSelect, 5);
+    assert.strictEqual(restored.mmap.romBankSelectValid, true);
+    assertPrgBanks(restored, 21, 31);
+  });
+
+  it("does not remap legacy states from a stale PRG selection", function () {
+    const rom = createMapper1Rom(32);
+    const source = new NES({ emulateSound: false });
+    source.loadROM(rom);
+    writeMmc1Register(source.mmap, 0xe000, 5);
+    source.mmap.loadRomBank(31, 0xc000);
+
+    const legacyState = source.toJSON();
+    legacyState.mmap.romBankSelect = 0;
+    delete legacyState.mmap.romBankSelectValid;
+
+    const restored = new NES({ emulateSound: false });
+    restored.loadROM(rom);
+    restored.fromJSON(legacyState);
+    assertPrgBanks(restored, 5, 31);
+
+    writeMmc1Register(restored.mmap, 0xa000, 0x10);
+    assert.strictEqual(restored.mmap.romBankSelectValid, false);
+    assertPrgBanks(restored, 5, 31);
+
+    writeMmc1Register(restored.mmap, 0xe000, 5);
+    assert.strictEqual(restored.mmap.romBankSelectValid, true);
+    assertPrgBanks(restored, 21, 31);
   });
 });
 
