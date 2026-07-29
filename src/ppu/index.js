@@ -1730,7 +1730,12 @@ class PPU {
           // top tile is (index & $FE), bottom tile is (index & $FE) + 1.
           let sprBaseAddr = (sprTile & 1) !== 0 ? 0x1000 : 0x0000;
           let topTileNum = sprTile & 0xfe;
-          let top = (sprTile & 1) !== 0 ? topTileNum - 1 + 256 : topTileNum;
+          // Index into ptTile[]: tiles for the $1000 pattern table live at
+          // indices 256..511, so odd tile numbers (which select $1000) map to
+          // topTileNum + 256. The previous `topTileNum - 1 + 256` was off by
+          // one, fetching the wrong tile and scrambling 8x16 sprites in MMC3
+          // games such as Super Mario Bros. 3 and Kirby's Adventure.
+          let top = topTileNum + ((sprTile & 1) !== 0 ? 256 : 0);
 
           let dy = sprY + 1;
           let fineY = scan - dy;
