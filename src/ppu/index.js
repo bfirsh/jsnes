@@ -1272,7 +1272,12 @@ class PPU {
     } else {
       // Use lookup table for mirrored address:
       if (address < this.vramMirrorTable.length) {
-        this.writeMem(this.vramMirrorTable[address], value);
+        let mappedAddress = this.vramMirrorTable[address];
+        // Let the mapper handle custom nametable backends such as MMC5 ExRAM
+        // and fill mode. Otherwise fall back to the standard PPU write path.
+        if (!this.nes.mmap.writePpuMemory(mappedAddress, value)) {
+          this.writeMem(mappedAddress, value);
+        }
       } else {
         throw new Error(`Invalid VRAM address: ${address.toString(16)}`);
       }
@@ -1730,7 +1735,7 @@ class PPU {
           // top tile is (index & $FE), bottom tile is (index & $FE) + 1.
           let sprBaseAddr = (sprTile & 1) !== 0 ? 0x1000 : 0x0000;
           let topTileNum = sprTile & 0xfe;
-          let top = (sprTile & 1) !== 0 ? topTileNum - 1 + 256 : topTileNum;
+          let top = topTileNum + ((sprTile & 1) !== 0 ? 256 : 0);
 
           let dy = sprY + 1;
           let fineY = scan - dy;

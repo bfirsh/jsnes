@@ -589,6 +589,15 @@ class Mapper0 {
     return null;
   }
 
+  // Called by the PPU for mirrored nametable writes after the address has
+  // been translated to its backing source. Return true if the mapper handled
+  // the write and the PPU should skip its default nametable cache update.
+  // MMC5 overrides this for ExRAM/fill-mode nametable sources.
+  // eslint-disable-next-line no-unused-vars
+  writePpuMemory(address, value) {
+    return false;
+  }
+
   // Look up a sprite pattern tile by ptTile index (0-511).
   // Default: return from the PPU's current ptTile cache.
   // MMC5 overrides this to look up from Set A's VROM banks directly,

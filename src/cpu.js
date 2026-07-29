@@ -795,6 +795,7 @@ class CPU {
 
     // Check IRQ/reset at the start of each instruction.
     if (this.irqRequested) {
+      let clearIrqRequest = false;
       temp = this.getStatus();
 
       this.REG_PC_NEW = this.REG_PC;
@@ -808,12 +809,14 @@ class CPU {
           // Clear the B flag (bit 4) for hardware interrupts
           this.doIrq(temp & 0xef);
           interruptCycles = 7;
+          clearIrqRequest = true;
           break;
         }
         case 2: {
           // Reset:
           this.doResetInterrupt();
           interruptCycles = 7;
+          clearIrqRequest = true;
           break;
         }
       }
@@ -821,7 +824,12 @@ class CPU {
       this.REG_PC = this.REG_PC_NEW;
       this.F_INTERRUPT = this.F_INTERRUPT_NEW;
       this.F_BRK = this.F_BRK_NEW;
-      this.irqRequested = false;
+      // Leave masked IRQs latched. MMC5 can retrigger an IRQ while the
+      // handler still has I=1, and clearing the request here drops the
+      // follow-up interrupt that should fire after RTI restores I=0.
+      if (clearIrqRequest) {
+        this.irqRequested = false;
+      }
     }
 
     if (this.nes.mmap === null) return 32;

@@ -36,6 +36,13 @@ function createMockNes() {
           this.vramMirrorTable[fromStart + i] = toStart + i;
         }
       },
+      nameTableWrite: function (index, address, value) {
+        this.nameTable[index].tile[address] = value;
+      },
+      attribTableWrite: function (index, address, value) {
+        this.nameTable[index].writeAttrib(address, value);
+        this.nameTable[index].tile[0x3c0 + address] = value;
+      },
     },
     papu: {
       getLengthMax: function (value) {
@@ -232,6 +239,40 @@ describe("MMC5 (Mapper 5)", function () {
       // Power-on default: $5205=$00, $5206=$00 → product = $0000
       assert.strictEqual(mapper.load(0x5205), 0x00);
       assert.strictEqual(mapper.load(0x5206), 0x00);
+    });
+  });
+
+  describe("PPU nametable writes", function () {
+    it("writes ExRAM-backed nametable bytes to ExRAM and NameTable 2 only", function () {
+      // slot0=ExRAM, slot1=CIRAM B, slot2=CIRAM A, slot3=CIRAM B
+      mapper.write(0x5105, 0x46);
+
+      let mapped = mockNes.ppu.vramMirrorTable[0x2000];
+      assert.strictEqual(mapped, 0x2800);
+      assert.strictEqual(mockNes.ppu.ntable1[2], 0);
+
+      mapper.writePpuMemory(mapped, 0x5a);
+
+      assert.strictEqual(mapper.exram[0], 0x5a);
+      assert.strictEqual(mockNes.ppu.vramMem[0x2800], 0x5a);
+      assert.strictEqual(mockNes.ppu.nameTable[2].tile[0], 0x5a);
+      assert.strictEqual(mockNes.ppu.nameTable[0].tile[0], 0x00);
+      assert.strictEqual(mockNes.ppu.nameTable[1].tile[0], 0x00);
+    });
+
+    it("ignores writes to fill-mode nametable sources", function () {
+      mapper.write(0x5106, 0x33);
+      mapper.write(0x5107, 0x02);
+      // slot0=fill, slot1=CIRAM B, slot2=CIRAM A, slot3=CIRAM B
+      mapper.write(0x5105, 0x47);
+
+      let mapped = mockNes.ppu.vramMirrorTable[0x2000];
+      assert.strictEqual(mapped, 0x2c00);
+
+      mapper.writePpuMemory(mapped, 0x99);
+
+      assert.strictEqual(mockNes.ppu.vramMem[0x2c00], 0x33);
+      assert.strictEqual(mockNes.ppu.nameTable[3].tile[0], 0x33);
     });
   });
 

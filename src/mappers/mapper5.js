@@ -1095,6 +1095,67 @@ class Mapper5 extends Mapper0 {
     return { tile, attrib };
   }
 
+  _getFillAttrByte() {
+    return (
+      this.fillAttr |
+      (this.fillAttr << 2) |
+      (this.fillAttr << 4) |
+      (this.fillAttr << 6)
+    );
+  }
+
+  _writeNametableSource(source, offset, value) {
+    let ppu = this.nes.ppu;
+    let address = 0x2000 + (source << 10) + offset;
+    let isAttrib = offset >= 0x3c0;
+    let data = value;
+
+    switch (source) {
+      case 0:
+      case 1:
+        break;
+
+      case 2:
+        // ExRAM-backed nametable. In modes 0/1 the PPU can read/write it via
+        // $2006/$2007 during blanking, so keep ExRAM and the cached NameTable
+        // in sync. In modes 2/3 nametable reads see zeros, so writes do not
+        // persist to ExRAM and the visible data remains zero.
+        if (this.exramMode < 2) {
+          this.exram[offset] = value;
+        } else {
+          data = 0x00;
+        }
+        break;
+
+      case 3:
+        // Fill mode is generated from $5106/$5107, not writable VRAM. Ignore
+        // the attempted write and preserve the synthetic fill byte instead.
+        data = isAttrib ? this._getFillAttrByte() : this.fillTile;
+        break;
+
+      default:
+        return;
+    }
+
+    ppu.vramMem[address] = data;
+    if (isAttrib) {
+      ppu.attribTableWrite(source, offset - 0x3c0, data);
+    } else {
+      ppu.nameTableWrite(source, offset, data);
+    }
+  }
+
+  writePpuMemory(address, value) {
+    if (address < 0x2000 || address >= 0x3000) {
+      return false;
+    }
+
+    let source = (address - 0x2000) >> 10;
+    let offset = address & 0x03ff;
+    this._writeNametableSource(source, offset, value);
+    return true;
+  }
+
   // --- ROM Loading ---
   loadROM() {
     if (!this.nes.rom.valid) {
