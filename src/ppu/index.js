@@ -1730,7 +1730,7 @@ class PPU {
           // top tile is (index & $FE), bottom tile is (index & $FE) + 1.
           let sprBaseAddr = (sprTile & 1) !== 0 ? 0x1000 : 0x0000;
           let topTileNum = sprTile & 0xfe;
-          let top = (sprTile & 1) !== 0 ? topTileNum - 1 + 256 : topTileNum;
+          let top = (sprTile & 1) !== 0 ? topTileNum + 256 : topTileNum;
 
           let dy = sprY + 1;
           let fineY = scan - dy;
