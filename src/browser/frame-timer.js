@@ -60,7 +60,7 @@ export default class FrameTimer {
     );
 
     // This can happen a lot on a 144Hz display
-    if (numFrames === 0) {
+    if (numFrames <= 0) {
       return;
     }
 
