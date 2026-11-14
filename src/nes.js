@@ -141,6 +141,7 @@ class NES {
     this.reset();
     this.mmap = this.rom.createMapper();
     this.mmap.loadROM();
+    this.cpu._updatePrgReadPath();
     this.ppu.setMirroring(this.rom.getMirroringType());
     this.romData = data;
   }

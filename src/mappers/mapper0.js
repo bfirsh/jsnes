@@ -78,6 +78,13 @@ class Mapper0 {
     }
   }
 
+  // True if this mapper's PRG ROM ($8000-$FFFF) reads simply return
+  // cpu.mem[address], i.e. it doesn't override load(). The CPU then reads
+  // PRG ROM directly, without calling load().
+  readsPrgFromCpuMem() {
+    return this.load === Mapper0.prototype.load;
+  }
+
   load(address) {
     // Wrap around:
     address &= 0xffff;
