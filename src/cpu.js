@@ -738,7 +738,7 @@ export const IRQ_SOURCE_DMC = 4; // APU DMC channel
 //
 // Interrupt timing falls out of the same model: the 6502 decides whether to
 // service an interrupt based on the state of its interrupt lines at the end
-// of an instruction's *second-to-last* cycle. See _pollInterrupts().
+// of an instruction's *second-to-last* cycle. See _endCycle().
 //
 // See https://www.nesdev.org/wiki/CPU and
 // https://www.nesdev.org/wiki/CPU_interrupts
@@ -951,31 +951,30 @@ class CPU {
   _endCycle() {
     const ppu = this.ppu;
     ppu.dotTarget += 3;
+    let nmi;
     if (ppu.dotTarget > ppu.nextEventDot) {
       // Runs the dots and records the NMI output at the poll point.
       ppu.runCycleExact();
+      nmi = ppu.nmiAtPoll;
     } else {
-      ppu.nmiAtPoll = ppu.nmiOutput;
+      // No PPU event this cycle, so the NMI output can't change.
+      nmi = ppu.nmiOutput;
     }
-    this._pollInterrupts();
-  }
 
-  // Sample the interrupt lines. Happens once per cycle.
-  //
-  // The 6502 checks for interrupts at the end of each instruction, but what
-  // it actually looks at is the state of its internal "interrupt pending"
-  // signals as they were at the end of the instruction's second-to-last
-  // cycle. So we keep two generations of each signal: the current sample
-  // and the previous one. When an instruction finishes, emulate() looks at
-  // prevNeedNmi/prevRunIrq.
-  //
-  // This naturally produces lots of documented quirks, e.g. CLI followed by
-  // an instruction lets that one instruction run before the IRQ (the I flag
-  // only changes after CLI's last cycle has sampled the lines).
-  // See https://www.nesdev.org/wiki/CPU_interrupts
-  _pollInterrupts() {
+    // Sample the interrupt lines. Happens once per cycle.
+    //
+    // The 6502 checks for interrupts at the end of each instruction, but what
+    // it actually looks at is the state of its internal "interrupt pending"
+    // signals as they were at the end of the instruction's second-to-last
+    // cycle. So we keep two generations of each signal: the current sample
+    // and the previous one. When an instruction finishes, emulate() looks at
+    // prevNeedNmi/prevRunIrq.
+    //
+    // This naturally produces lots of documented quirks, e.g. CLI followed by
+    // an instruction lets that one instruction run before the IRQ (the I flag
+    // only changes after CLI's last cycle has sampled the lines).
+    // See https://www.nesdev.org/wiki/CPU_interrupts
     this.prevNeedNmi = this.needNmi;
-    const nmi = this.ppu.nmiAtPoll;
     if (nmi && !this.nmiLine) {
       this.needNmi = true;
     }
