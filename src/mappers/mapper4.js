@@ -81,9 +81,11 @@ class Mapper4 extends Mapper0 {
         break;
 
       case 0xe000:
-        // IRQ Control Reg 0 (disable)
-        //irqCounter = irqLatchValue;
+        // IRQ Control Reg 0: disable IRQs, and acknowledge (release the CPU's
+        // IRQ line for) any IRQ that is pending.
+        // See https://www.nesdev.org/wiki/MMC3#IRQ_disable_($E000-$FFFE,_even)
         this.irqEnable = 0;
+        this.nes.cpu.clearIrq();
         break;
 
       case 0xe001:

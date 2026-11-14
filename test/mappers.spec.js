@@ -13,6 +13,7 @@ function createMockNes() {
       IRQ_NORMAL: 0,
       IRQ_RESET: 2,
       requestIrq: function () {},
+      clearIrq: function () {},
     },
     ppu: {
       vramMem: new Uint8Array(0x8000),
