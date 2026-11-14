@@ -30,6 +30,11 @@ class PAPU {
     // clocked for, and the next cycle on which something happens.
     this.lastCycle = 0;
     this.nextEventCycle = 0;
+    // The CPU cycle the APU is currently processing: the cycle of a
+    // register access, or of the event cycle being clocked. (With catch-up,
+    // this can be behind cpu.cycles.) Used for timing quirks that depend on
+    // which cycle a write landed on (see length-counter.js).
+    this.cycle = 0;
 
     this.square1 = new ChannelSquare(this, true);
     this.square2 = new ChannelSquare(this, false);
@@ -122,6 +127,7 @@ class PAPU {
   // Read $4015 (APU status). Called by the CPU's bus.
   readReg(address) {
     this.catchUp(this.nes.cpu.cycles);
+    this.cycle = this.nes.cpu.cycles;
     const value = this._readStatus(address);
     this._scheduleNextEvent();
     return value;
@@ -130,6 +136,7 @@ class PAPU {
   // Write an APU register ($4000-$4017). Called by the CPU's bus.
   writeReg(address, value) {
     this.catchUp(this.nes.cpu.cycles);
+    this.cycle = this.nes.cpu.cycles;
     this._writeRegister(address, value);
     this._scheduleNextEvent();
   }
@@ -147,6 +154,7 @@ class PAPU {
   // apu_reset tests.
   softReset() {
     this.catchUp(this.nes.cpu.cycles);
+    this.cycle = this.nes.cpu.cycles;
     this._writeRegister(0x4015, 0);
     this.frameIrqEnabled = true;
     this.frameIrqClearPending = false;
@@ -358,6 +366,7 @@ class PAPU {
 
   // Clock the APU by one CPU cycle (an event cycle; see catchUp()).
   clockCycle(cycle) {
+    this.cycle = cycle;
     // Batched audio synthesis (skipped entirely if sound is off).
     if (this.emulateSound && ++this.pendingAudioCycles >= this.audioFlushAt) {
       this._flushAudio();
