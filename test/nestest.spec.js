@@ -574,10 +574,8 @@ function runNestest(romData) {
   nes.loadROM(romData);
 
   // Override PC to 0xC000 for automation mode.
-  // The emulator uses REG_PC as (actual_PC - 1).
-  nes.cpu.REG_PC = 0xc000 - 1;
-  nes.cpu.REG_PC_NEW = 0xc000 - 1;
-  // Clear the pending reset IRQ so our PC override isn't overwritten
+  nes.cpu.REG_PC = 0xc000;
+  // Clear the pending reset so our PC override isn't overwritten
   nes.cpu.irqRequested = false;
 
   // Step individual CPU instructions (no PPU needed — the automation

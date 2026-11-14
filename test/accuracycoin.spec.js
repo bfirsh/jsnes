@@ -258,50 +258,29 @@ const TEST_PAGES = [
 
 // Tests known to fail — skip these until the emulator is fixed.
 const KNOWN_FAILURES = {
-  // (NMI timing tests now pass — 0x0454, 0x0455, 0x0456)
-
-  // CPU interrupts: not cycle-accurate enough
-  0x0461: "Interrupt flag latency not emulated",
-  0x0462: "NMI overlap BRK not emulated",
-  0x0463: "NMI overlap IRQ not emulated",
-
-  // DMA: handled atomically, no bus-level interleaving
-  0x0488: "DMA + $2002 Read not emulated",
-  0x044c: "DMA + $2007 Read not emulated",
-  0x044f: "DMA + $2007 Write not emulated",
-  0x045d: "DMA + $4015 Read not emulated",
-  0x045e: "DMA + $4016 Read not emulated",
+  // DMA: register conflict / abort edge cases
   0x046b: "DMC DMA bus conflicts not emulated",
-  0x0477: "DMC DMA + OAM DMA not emulated",
-  0x0479: "Explicit DMA abort not emulated",
   0x0478: "Implicit DMA abort not emulated",
 
-  // APU: timing/behavior not accurate enough
-  0x046a: "DMC DMA timing tests need cycle-accurate bus interleaving",
-  0x045c: "APU register activation blocked by DMA + $2007 Read prerequisite",
+  // APU
+  0x046a: "DMC DMA timing not accurate",
+  0x045c: "APU register activation not accurate",
 
   // PPU behavior: rendering-related tests need dot-accurate PPU
   0x0486: "Rendering flag behavior not accurate",
   0x048a: "$2007 read during rendering not accurate",
 
   // Sprite evaluation: need accurate OAM/sprite evaluation
-  // (0x0457 sprite 0 hit now passes via pre-compute look-ahead in endScanline)
   0x0489: "Suddenly resize sprite not accurate",
   0x0458: "Arbitrary sprite zero not accurate",
   0x045a: "Misaligned OAM behavior not accurate",
   0x045b: "Address $2004 behavior not accurate",
   0x047b: "OAM corruption not accurate",
-  0x0480: "INC $4014 not accurate",
 
   // PPU misc: need dot-accurate PPU rendering pipeline
-  // (0x0481 attributes as tiles now passes with tile array fix + pre-compute)
   0x0483: "Stale BG shift registers not accurate",
   0x0487: "BG serial in not accurate",
   0x0484: "Sprites on scanline 0 not accurate",
-
-  // CPU behavior 2: need cycle-accurate instruction timing
-  0x0460: "Instruction timing not accurate",
-  0x046d: "Implied dummy reads blocked by DMA sync prerequisite",
 };
 
 // Flatten all tests for easy iteration
