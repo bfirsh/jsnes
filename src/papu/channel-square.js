@@ -1,4 +1,10 @@
 import { fromJSON, toJSON } from "../utils.js";
+import {
+  clockLength,
+  initLengthCounter,
+  writeLengthEnable,
+  writeLengthReload,
+} from "./length-counter.js";
 
 class ChannelSquare {
   constructor(papu, square1) {
@@ -23,7 +29,7 @@ class ChannelSquare {
 
     this.progTimerCount = 0;
     this.progTimerMax = 0;
-    this.lengthCounter = 0;
+    initLengthCounter(this);
     this.squareCounter = 0;
     this.sweepCounter = 0;
     this.sweepCounterMax = 0;
@@ -36,7 +42,6 @@ class ChannelSquare {
     this.dutyMode = 0;
     this.vol = 0;
     this.isEnabled = false;
-    this.lengthCounterEnable = false;
     this.sweepActive = false;
     this.sweepCarry = false;
     this.envDecayDisable = false;
@@ -48,11 +53,8 @@ class ChannelSquare {
   }
 
   clockLengthCounter() {
-    if (this.lengthCounterEnable && this.lengthCounter > 0) {
-      this.lengthCounter--;
-      if (this.lengthCounter === 0) {
-        this.updateSampleValue();
-      }
+    if (clockLength(this)) {
+      this.updateSampleValue();
     }
   }
 
@@ -137,7 +139,7 @@ class ChannelSquare {
       this.envDecayRate = value & 0xf;
       this.envDecayLoopEnable = (value & 0x20) !== 0;
       this.dutyMode = (value >> 6) & 0x3;
-      this.lengthCounterEnable = (value & 0x20) === 0;
+      writeLengthEnable(this, (value & 0x20) === 0);
       if (this.envDecayDisable) {
         this.masterVolume = this.envDecayRate;
       } else {
@@ -160,9 +162,7 @@ class ChannelSquare {
       this.progTimerMax &= 0xff;
       this.progTimerMax |= (value & 0x7) << 8;
 
-      if (this.isEnabled) {
-        this.lengthCounter = this.papu.getLengthMax(value & 0xf8);
-      }
+      writeLengthReload(this, value);
 
       this.envReset = true;
     }

@@ -1,4 +1,10 @@
 import { fromJSON, toJSON } from "../utils.js";
+import {
+  clockLength,
+  initLengthCounter,
+  writeLengthEnable,
+  writeLengthReload,
+} from "./length-counter.js";
 
 class ChannelNoise {
   constructor(papu) {
@@ -7,8 +13,7 @@ class ChannelNoise {
     this.progTimerCount = 0;
     this.progTimerMax = 0;
     this.isEnabled = false;
-    this.lengthCounter = 0;
-    this.lengthCounterEnable = false;
+    initLengthCounter(this);
     this.envDecayDisable = false;
     this.envDecayLoopEnable = false;
     this.envReset = false;
@@ -27,11 +32,8 @@ class ChannelNoise {
   }
 
   clockLengthCounter() {
-    if (this.lengthCounterEnable && this.lengthCounter > 0) {
-      this.lengthCounter--;
-      if (this.lengthCounter === 0) {
-        this.updateSampleValue();
-      }
+    if (clockLength(this)) {
+      this.updateSampleValue();
     }
   }
 
@@ -70,7 +72,7 @@ class ChannelNoise {
       this.envDecayDisable = (value & 0x10) !== 0;
       this.envDecayRate = value & 0xf;
       this.envDecayLoopEnable = (value & 0x20) !== 0;
-      this.lengthCounterEnable = (value & 0x20) === 0;
+      writeLengthEnable(this, (value & 0x20) === 0);
       if (this.envDecayDisable) {
         this.masterVolume = this.envDecayRate;
       } else {
@@ -84,9 +86,7 @@ class ChannelNoise {
       // Length counter — only loaded when the channel is enabled via $4015.
       // Writing this register while disabled has no effect on the length counter.
       // See https://www.nesdev.org/wiki/APU#Status_($4015)
-      if (this.isEnabled) {
-        this.lengthCounter = this.papu.getLengthMax(value & 248);
-      }
+      writeLengthReload(this, value);
       this.envReset = true;
     }
     // Update:

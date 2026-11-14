@@ -35,12 +35,7 @@ function dmcDmaScreen(...crcs) {
 }
 
 // Tests that are known to fail, and why. They're skipped.
-const KNOWN_FAILURES = {
-  "blargg_apu_2005.07.30/10.len_halt_timing.nes":
-    "length counter writes just before a length clock aren't emulated yet",
-  "blargg_apu_2005.07.30/11.len_reload_timing.nes":
-    "length counter writes just before a length clock aren't emulated yet",
-};
+const KNOWN_FAILURES = {};
 
 describe("nes-test-roms: APU and DMA", { timeout: 600000 }, function () {
   defineTestRomTests(
