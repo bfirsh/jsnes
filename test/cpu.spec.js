@@ -50,10 +50,9 @@ import GameGenie from "../src/gamegenie.js";
 const NES = function (mmap) {
   this.mmap = mmap;
   this.gameGenie = new GameGenie();
-  // Stub for inline PPU stepping in CPU bus operations
-  this.ppu = { advanceDots() {} };
-  // Stub for APU catch-up during $4015 reads
-  this.papu = { advanceFrameCounter() {} };
+  // Stubs for the PPU and APU, which the CPU advances on every bus cycle.
+  this.ppu = { advanceDots() {}, nmiOutput: false };
+  this.papu = { clockCycle() {} };
 };
 
 NES.prototype.stop = function () {};
@@ -85,8 +84,7 @@ describe("CPU", function () {
   }
 
   function cpu_pc(counter) {
-    cpu.REG_PC = counter - 1;
-    cpu.REG_PC_NEW = counter - 1;
+    cpu.REG_PC = counter;
   }
 
   function memory_set(pos, val) {
@@ -125,11 +123,7 @@ describe("CPU", function () {
       return cpu.getStatus() & 0xcf;
     }
     const reg = REGISTER_MAP[register];
-    const val = cpu[reg];
-    if (register == "PC") {
-      return val + 1;
-    }
-    return val;
+    return cpu[reg];
   }
 
   function cpu_flag(flag) {
@@ -193,43 +187,16 @@ describe("CPU", function () {
     return cpu.irqRequested;
   }
 
+  // Run just the interrupt sequence for the requested interrupt, without
+  // executing the instruction at the target address.
   function execute_interrupt() {
-    // Replicate interrupt handling from cpu.emulate() without
-    // executing the instruction at the target address
-    let temp =
-      cpu.F_CARRY |
-      ((cpu.F_ZERO === 0 ? 1 : 0) << 1) |
-      (cpu.F_INTERRUPT << 2) |
-      (cpu.F_DECIMAL << 3) |
-      (cpu.F_BRK << 4) |
-      (cpu.F_NOTUSED << 5) |
-      (cpu.F_OVERFLOW << 6) |
-      (cpu.F_SIGN << 7);
-
-    cpu.REG_PC_NEW = cpu.REG_PC;
-    cpu.F_INTERRUPT_NEW = cpu.F_INTERRUPT;
-    switch (cpu.irqType) {
-      case 0: {
-        if (cpu.F_INTERRUPT !== 0) {
-          break;
-        }
-        cpu.doIrq(temp & 0xef);
-        break;
-      }
-      case 1: {
-        cpu.doNonMaskableInterrupt(temp & 0xef);
-        break;
-      }
-      case 2: {
-        cpu.doResetInterrupt();
-        break;
-      }
+    if (cpu.resetPending) {
+      cpu.emulate(); // a pending reset runs instead of an instruction
+      return;
     }
-
-    cpu.REG_PC = cpu.REG_PC_NEW;
-    cpu.F_INTERRUPT = cpu.F_INTERRUPT_NEW;
-    cpu.F_BRK = cpu.F_BRK_NEW;
-    cpu.irqRequested = false;
+    if (cpu.needNmi || (cpu.irqFlags !== 0 && cpu.F_INTERRUPT === 0)) {
+      cpu._interruptSequence(0xfffe, false);
+    }
   }
 
   it("lda imediate", function () {

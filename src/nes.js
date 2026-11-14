@@ -56,9 +56,10 @@ class NES {
     this.crashed = false;
   }
 
-  // The frame loop. PPU is advanced inline after every CPU bus operation
-  // (in cpu.load/write/push/pull). APU is clocked in bulk after each
-  // instruction for compatibility with its sample timing logic.
+  // The frame loop. Runs CPU instructions until the PPU reaches the start
+  // of VBlank. The CPU is cycle-stepped: every bus access it makes advances
+  // the PPU (3 dots) and the APU (1 cycle), and DMA transfers happen inside
+  // the CPU's read cycles, so all we need to do here is run instructions.
   frame = () => {
     if (this.crashed) {
       throw new Error(
@@ -68,43 +69,14 @@ class NES {
     this.controllers[1].clock();
     this.controllers[2].clock();
     this.ppu.startFrame();
-    let cycles;
     const cpu = this.cpu;
     const ppu = this.ppu;
-    const papu = this.papu;
     try {
-      for (;;) {
-        if (cpu.cyclesToHalt === 0) {
-          // Execute a CPU instruction. PPU advancement happens inline
-          // inside the bus operations (load/write/push/pull).
-          cycles = cpu.emulate();
-
-          // Clock APU with the full cycle count. The frame counter portion
-          // subtracts any cycles already advanced by APU catch-up.
-          papu.clockFrameCounter(cycles, cpu.apuCatchupCycles);
-          cpu.apuCatchupCycles = 0;
-
-          // Check if VBlank fired during inline PPU stepping.
-          if (ppu.frameEnded) {
-            ppu.frameEnded = false;
-            break;
-          }
-        } else {
-          // DMA halt cycles: step PPU per cycle. APU is clocked in bulk.
-          let chunk = Math.min(cpu.cyclesToHalt, 8);
-          for (let i = 0; i < chunk; i++) {
-            ppu.advanceDots(3);
-          }
-          papu.clockFrameCounter(chunk);
-          cpu.cyclesToHalt -= chunk;
-          cpu._cpuCycleBase += chunk;
-
-          if (ppu.frameEnded) {
-            ppu.frameEnded = false;
-            break;
-          }
-        }
+      if (this.mmap === null) return;
+      while (!ppu.frameEnded) {
+        cpu.emulate();
       }
+      ppu.frameEnded = false;
     } catch (e) {
       this.crashed = true;
       throw e;

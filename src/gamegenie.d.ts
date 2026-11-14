@@ -23,5 +23,10 @@ export class GameGenie {
     wantskey?: boolean,
   ) => string;
   decodeHex: (s: string) => GameGeniePatch | null;
-  encode: (addr: number, value: number, key?: number, wantskey?: boolean) => string;
+  encode: (
+    addr: number,
+    value: number,
+    key?: number,
+    wantskey?: boolean,
+  ) => string;
 }

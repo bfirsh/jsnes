@@ -4,6 +4,11 @@ import { copyArrayElements } from "../utils.js";
 // Used by games like Super Mario Bros., Donkey Kong, Excitebike.
 // No bank switching at all: 16 or 32 KB PRG-ROM, 8 KB CHR-ROM, fixed mirroring.
 // See https://www.nesdev.org/wiki/NROM
+// Offset applied to the CPU cycle counter to find which CPU cycles are APU
+// "put" cycles, on which the $4016 output latch updates. Tuned against the
+// AccuracyCoin "Controller Strobing" test.
+const JOYPAD_PARITY_OFFSET = 1;
+
 class Mapper0 {
   static mapperName = "NROM";
 
@@ -184,22 +189,7 @@ class Mapper0 {
         break;
     }
     // Write-only registers (APU $4000-$4014, etc.) are open bus.
-    // On real hardware, if a DMC DMA fetch coincides with this read cycle,
-    // the DMA steals the CPU bus cycle and the fetched sample byte appears
-    // on the data bus instead of the open bus value. This is how the ROM's
-    // DMA sync loops (LDA $4000; BNE) detect DMC activity.
-    // See https://www.nesdev.org/wiki/APU_DMC#Memory_reader
-    let cpu = this.nes.cpu;
-    if (
-      cpu._dmcFetchCycles > 0 &&
-      cpu._dmcFetchCycles === cpu.instrBusCycles + 1
-    ) {
-      let dmc = this.nes.papu.dmc;
-      if (dmc && dmc.isEnabled) {
-        return dmc.lastFetchedByte;
-      }
-    }
-    return cpu.dataBus;
+    return this.nes.cpu.dataBus;
   }
 
   regWrite(address, value) {
@@ -249,7 +239,8 @@ class Mapper0 {
 
       case 0x4014:
         // Sprite Memory DMA Access
-        this.nes.ppu.sramDMA(value);
+        // The CPU's DMA unit copies the page into OAM via $2004.
+        this.nes.cpu.startOamDma(value);
         break;
 
       case 0x4015:
@@ -270,7 +261,7 @@ class Mapper0 {
         // dummy write's value reaches OUT0. The AccuracyCoin controller
         // strobe test verifies this behavior.
         let cpu = this.nes.cpu;
-        let currentCycle = cpu._cpuCycleBase + cpu.instrBusCycles;
+        let currentCycle = cpu.cycles + JOYPAD_PARITY_OFFSET;
 
         // If previous write(s) haven't been applied to the output yet
         // (because they landed on odd cycles), sync them now if at least

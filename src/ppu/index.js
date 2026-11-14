@@ -297,14 +297,11 @@ class PPU {
   // dotsRemaining is the number of dots left in the current advanceDots()
   // call (including the VBlank dot), used for NMI delay calculation.
   // 0 means VBlank fires at the boundary between steps.
-  _fireVblankSet(cpu, dotsRemaining) {
+  _fireVblankSet() {
     this.vblankPending = false;
     if (!this.nmiSuppressed) {
       this.setStatusFlag(this.STATUS_VBLANK, true);
       this._updateNmiOutput();
-      if (cpu.nmiRaised) {
-        cpu.nmiDotsRemainingInStep = dotsRemaining;
-      }
     }
     this.nmiSuppressed = false;
     this.startVBlank();
@@ -317,11 +314,7 @@ class PPU {
   // (~2/3 through the bus cycle), so we only promote nmiRaised to nmiPending
   // when φ2 has had time to sample the rising edge — i.e., on the last dot.
   // See https://www.nesdev.org/wiki/NMI
-  _fireVblankClear(cpu, isLastDot) {
-    if (cpu.nmiRaised && isLastDot) {
-      cpu.nmiPending = true;
-      cpu.nmiRaised = false;
-    }
+  _fireVblankClear() {
     this.setStatusFlag(this.STATUS_VBLANK, false);
     this.setStatusFlag(this.STATUS_SPRITE0HIT, false);
     // Sprite overflow flag is cleared at the same time as VBlank and
@@ -362,18 +355,17 @@ class PPU {
     }
 
     // Slow path: advance dot-by-dot checking for events.
-    let cpu = this.nes.cpu;
     for (let i = 0; i < dots; i++) {
       // VBlank set at dot 1 of scanline 0 (NES scanline 241).
       if (this.scanline === 0 && this.curX === 1 && this.vblankPending) {
-        this._fireVblankSet(cpu, dots - i);
+        this._fireVblankSet();
         this.curX++;
         continue;
       }
 
       // VBlank clear at dot 1 of scanline 20 (NES scanline 261, pre-render).
       if (this.scanline === 20 && this.curX === 1) {
-        this._fireVblankClear(cpu, i === dots - 1);
+        this._fireVblankClear();
       }
 
       // Sprite 0 hit check. On real hardware, sprite 0 hit requires BOTH
@@ -403,11 +395,11 @@ class PPU {
     // reads at that dot must see the updated state.
     // See https://www.nesdev.org/wiki/PPU_frame_timing
     if (this.scanline === 0 && this.curX === 1 && this.vblankPending) {
-      this._fireVblankSet(cpu, 0);
+      this._fireVblankSet();
     }
     if (this.scanline === 20 && this.curX === 1) {
       // isLastDot=true: the loop exhausted all dots so φ2 has sampled.
-      this._fireVblankClear(cpu, true);
+      this._fireVblankClear();
     }
   }
 
@@ -773,31 +765,11 @@ class PPU {
   // nmiPending (promoted from a previous instruction) is never cleared.
   // See https://www.nesdev.org/wiki/NMI
   _updateNmiOutput() {
+    // The PPU's /NMI output is active while both the VBlank flag and the
+    // "NMI enable" bit of $2000 are set. The CPU samples it every cycle and
+    // detects the rising edge. See https://www.nesdev.org/wiki/NMI
     let vblank = (this.nes.cpu.mem[0x2002] & 0x80) !== 0;
-    let newOutput = this.f_nmiOnVblank !== 0 && vblank;
-    if (newOutput && !this.nmiOutput) {
-      // Rising edge: set nmiRaised. At the end of the current instruction,
-      // the CPU checks how many bus cycles remained after this edge to
-      // determine 0-delay (immediate) vs 1-delay NMI.
-      this.nes.cpu.nmiRaised = true;
-      this.nes.cpu.nmiRaisedAtCycle = this.nes.cpu.instrBusCycles;
-    } else if (!newOutput && this.nmiOutput) {
-      // Falling edge: cancel nmiRaised only if it hasn't been latched yet.
-      if (this.nes.cpu.nmiRaised) {
-        let busCycleDiff =
-          this.nes.cpu.instrBusCycles - this.nes.cpu.nmiRaisedAtCycle;
-        if (
-          busCycleDiff === 0 ||
-          (busCycleDiff === 1 && this.nes.cpu.nmiDotsRemainingInStep === 0)
-        ) {
-          // Case 1: same bus cycle, or Case 2: post-loop edge on the
-          // immediately previous bus cycle. Edge not latched — cancel.
-          this.nes.cpu.nmiRaised = false;
-        }
-        // else: edge was latched at a previous φ2, don't cancel.
-      }
-    }
-    this.nmiOutput = newOutput;
+    this.nmiOutput = this.f_nmiOnVblank !== 0 && vblank;
   }
 
   updateControlReg2(value) {
@@ -1104,28 +1076,6 @@ class PPU {
   // DMA always copies exactly 256 bytes from CPU page $XX00-$XXFF.
   // The destination starts at the current OAMADDR and wraps within OAM.
   // See https://www.nesdev.org/wiki/PPU_registers#OAMDMA
-  sramDMA(value) {
-    let baseAddress = value * 0x100;
-    let data;
-    for (let i = 0; i < 256; i++) {
-      data = this.nes.cpu.mem[baseAddress + i];
-      let oamAddr = (this.sramAddress + i) & 0xff;
-      this.spriteMem[oamAddr] = data;
-      this.spriteRamWriteUpdate(oamAddr, data);
-    }
-
-    // OAM DMA takes 513 CPU cycles (1 wait + 256 read/write pairs), plus
-    // an extra alignment cycle if the CPU is on an odd cycle (a "put" cycle).
-    // This ensures the DMA always begins on an even cycle, synchronizing the
-    // CPU to a known cycle parity. The AccuracyCoin controller strobe test
-    // relies on this alignment to verify APU-clock-gated OUT0 behavior.
-    // See https://www.nesdev.org/wiki/DMA#OAM_DMA
-    let cpu = this.nes.cpu;
-    let currentCycle = cpu._cpuCycleBase + cpu.instrBusCycles;
-    let cycles = currentCycle % 2 === 0 ? 514 : 513;
-    cpu.haltCycles(cycles);
-  }
-
   // Updates the scroll registers from a new VRAM address.
   regsFromAddress() {
     let address = (this.vramTmpAddress >> 8) & 0xff;
