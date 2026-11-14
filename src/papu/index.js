@@ -102,7 +102,6 @@ class PAPU {
     this.smpTriangle = 0;
     this.smpDmc = 0;
     this.channelEnableValue = 0xff;
-    this.extraCycles = 0;
     this.maxSample = -500000;
     this.minSample = 500000;
   }
@@ -901,7 +900,6 @@ class PAPU {
     "stereoPosRTriangle",
     "stereoPosRNoise",
     "stereoPosRDMC",
-    "extraCycles",
     "maxSample",
     "minSample",
     "panning",

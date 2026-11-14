@@ -4,6 +4,8 @@ A JavaScript NES emulator.
 
 It's a library that works in both the browser and Node.js.
 
+The CPU, PPU and APU are emulated cycle by cycle, and it passes all 134 tests in the bundled copy of the [AccuracyCoin](https://github.com/100thCoin/AccuracyCoin) accuracy test ROM.
+
 ## Installation
 
 For Node.js or Webpack:

@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run format` - Auto-format all code (core and web) with Prettier
 - `npm run test:watch` - Run tests in watch mode for development
 - `npm run typecheck` - TypeScript type checking (verifies `.d.ts` files)
-- `node bench.js` - Run performance benchmark (~1800 fps baseline). Run this on major changes or when you suspect a performance regression/improvement.
+- `node bench.js` - Run performance benchmark (~500 fps on a small cloud VM; compare against `master` on the same machine rather than an absolute number). Run this on major changes or when you suspect a performance regression/improvement. The CPU/PPU/APU inner loops are the hot paths.
 
 ## Code Architecture
 
@@ -22,17 +22,17 @@ JSNES is a JavaScript NES emulator with component-based architecture mirroring a
 
 **Main Orchestrator**: `nes.js` - Central class that coordinates all emulation components. Accepts callback functions for frame rendering, audio output, and status updates.
 
-**CPU**: `cpu.js` - Implements 6502 processor with 64KB address space, instruction execution, and interrupt handling (NMI, IRQ, reset).
+**CPU**: `cpu.js` - Cycle-stepped 6502. Every bus access is one `read()`/`write()` call = one CPU cycle, which clocks the APU, advances the PPU 3 dots and samples the interrupt lines. Also contains the DMA unit (OAM and DMC DMA), since DMA works by halting the CPU.
 
-**PPU**: `ppu.js` - Picture Processing Unit handles 256x240 graphics rendering, VRAM management, background/sprite rendering, and scrolling.
+**PPU**: `ppu/index.js` - Dot-stepped Picture Processing Unit: loopy v/t/x/w scroll registers, background fetch/shift-register pipeline, per-dot sprite evaluation and sprite output units, 256x240 frame buffer output.
 
-**PAPU**: `papu.js` - Audio Processing Unit implements NES's 5 audio channels (2 square waves, triangle, noise, DMC) with 44.1kHz/48kHz sample generation.
+**PAPU**: `papu/` - Audio Processing Unit with NES's 5 audio channels (2 square waves, triangle, noise, DMC). Everything the CPU can observe (frame counter, length counters, IRQ flags, DMC DMA requests) runs exactly per CPU cycle in `clockCycle()`; audio synthesis is batched in `_flushAudio()`.
 
-**Memory Mappers**: `mappers.js` - Implements cartridge memory mappers (0-180) using inheritance hierarchy. All mappers inherit from Mapper 0 and override specific banking/memory mapping behavior.
+**Memory Mappers**: `mappers/` - Implements cartridge memory mappers (0-180) using inheritance hierarchy. All mappers inherit from Mapper 0 (`mapper0.js`, which also handles the CPU-side I/O registers $2000-$4017) and override specific banking/memory mapping behavior.
 
 **ROM Loader**: `rom.js` - Parses iNES format ROM files, extracts PRG-ROM/CHR-ROM, and determines appropriate mapper.
 
-**Tile Renderer**: `tile.js` - Handles 8x8 pixel tile rendering with sprite flipping (horizontal/vertical), alpha-blending priority, and scanline-based rendering.
+**Tile cache**: `tile.js` - Pre-decoded 8x8 pattern tiles (`ppu.ptTile`). The PPU renders from raw pattern bytes, but mappers maintain this cache and MMC5's extended attribute mode uses it.
 
 **Controller**: `controller.js` - Button state management for 2 controllers with 8 buttons each (A, B, SELECT, START, UP, DOWN, LEFT, RIGHT) and serial strobe protocol.
 
@@ -43,7 +43,7 @@ JSNES is a JavaScript NES emulator with component-based architecture mirroring a
 - **Event-driven design**: Main NES class uses callbacks (`onFrame`, `onAudioSample`, `onStatusUpdate`, `onBatteryRamWrite`)
 - **Component separation**: Each NES subsystem is a separate class with clear interfaces
 - **Inheritance for mappers**: Code reuse while supporting cartridge-specific behavior
-- **Frame-based execution**: 60 FPS timing with proper CPU cycle counting
+- **Frame-based execution**: `nes.frame()` runs CPU instructions until the PPU starts VBlank. Timing within the frame is exact (cycle/dot level).
 
 ### Usage Pattern
 ```javascript
@@ -71,7 +71,7 @@ Test ROMs:
 - `roms/nestest/` - CPU instruction test ROM (official + unofficial opcodes)
 - `local-roms/` - Collection of ROMs for manual testing
 
-Known AccuracyCoin failures are listed in the `KNOWN_FAILURES` object in `test/accuracycoin.spec.js`.
+All 134 AccuracyCoin tests pass. If one ever has to be skipped, list it in the `KNOWN_FAILURES` object in `test/accuracycoin.spec.js`. `roms/AccuracyCoin/AccuracyCoin.asm` is fully commented and is the best documentation of what each test expects; when a test fails, read its source and instrument the emulator (e.g. log the relevant register accesses with `cpu.cycles` and `ppu.line`/`ppu.dot`) rather than guessing.
 
 Remember that AccuracyCoin and nestest are DEFINITELY correct. They pass on a real NES. Don't blame the ROM for being wrong.
 
@@ -124,13 +124,20 @@ Dummy reads occur in:
 
 RMW instructions (ASL, LSR, ROL, ROR, INC, DEC, and unofficial SLO, SRE, RLA, RRA, DCP, ISC) also perform a "dummy write" — they write the original value back to the address before writing the modified value. This is documented in the ASL implementation (case 2) in `cpu.js`.
 
-### PPU Catch-up
+### Cycle stepping and PPU catch-up
 
-On real hardware, the CPU and PPU advance in lockstep (3 PPU dots per CPU cycle). The emulator runs CPU instructions atomically for performance, then advances the PPU afterward. This means PPU register reads mid-instruction (e.g., reading VBlank status from `$2002`) would see stale PPU state.
+On real hardware the CPU, PPU and APU run in lockstep: each CPU cycle is 3 PPU dots and 1 APU cycle. The emulator models this directly:
 
-To fix this, `cpu.load()` and `cpu.write()` call `_ppuCatchUp()` before any PPU register access ($2000-$3FFF). This method advances the PPU by `instrBusCycles * 3` dots — the number of PPU dots that should have elapsed based on how many bus operations the instruction has completed so far. The frame loop in `nes.js` then subtracts the already-advanced dots from the total.
+- Every CPU bus access is a full cycle (`cpu.read()`/`cpu.write()`). Instructions are written out cycle by cycle, including dummy reads/writes, so cycle counts are never looked up from a table.
+- Within a cycle the order is: DMA check (reads only), APU clock, the bus access, then the PPU's 3 dots. The CPU samples NMI after the first of those 3 dots, and IRQ at the end of the cycle. These orderings are calibrated against AccuracyCoin; changing them breaks VBlank/NMI/APU timing tests.
+- Interrupts are polled every cycle; an instruction services an interrupt if one was pending at the end of its *second-to-last* cycle (`prevNeedNmi`/`prevRunIrq`). CLI/SEI/PLP latency, RTI, the branch delay quirk and NMI hijacking of BRK/IRQ all follow from this.
+- For speed the PPU runs lazily ("catch-up"): `_endCycle()` adds 3 to `ppu.dotTarget`, and the PPU runs the owed dots in a batch (`ppu.catchUp()`) whenever something could observe it — PPU register access, cartridge/mapper access ($4020+, except ROM reads), $4017 (Zapper). The PPU predicts its next CPU-visible event (`_scheduleNextEvent()`: VBlank set/clear, the odd-frame dot skip, the mapper scanline clock at dot 260, a pending $2001 change) and runs in exact step for that one cycle (`runCycleExact()`). If you add PPU behaviour that the CPU can see without a register access, add it as an event there.
 
-See https://www.nesdev.org/wiki/Catch-up
+See https://www.nesdev.org/wiki/Catch-up and https://www.nesdev.org/wiki/CPU_interrupts
+
+### DMA
+
+OAM DMA ($4014) and DMC DMA both halt the CPU on its next *read* cycle (`cpu._runDma()`). While halted, the CPU repeats its pending read on halt/dummy/alignment cycles, which has side effects on registers like $2002, $2007, $4015 and $4016. DMA reads happen on "get" (even) cycles and OAM writes on "put" (odd) cycles. If the CPU was halted while reading $4000-$401F, DMA reads also hit the 2A03's internal registers (low 5 address bits) — see `_dmaFetch()`. DMC DMA requests, start/disable delays and the 1-cycle "implicit abort" live in `papu/channel-dm.js`. See https://www.nesdev.org/wiki/DMA
 
 ### JSR Cycle Order
 
@@ -138,15 +145,25 @@ The real 6502 reads JSR's target high byte *after* pushing the return address, m
 
 ### APU Frame IRQ
 
-The frame interrupt flag (`frameIrqActive`) is set in step 4 of the 4-step frame counter sequence, but ONLY when the IRQ inhibit flag is clear (`frameIrqEnabled` is true). Writing $4017 with bit 6 set prevents the flag from being set entirely — it doesn't just suppress the IRQ, it prevents the flag from appearing in $4015 bit 6. See https://www.nesdev.org/wiki/APU_Frame_Counter
+In 4-step mode the frame interrupt flag (`frameIrqActive`) is asserted on 3 consecutive CPU cycles at the end of the sequence (29828, 29829, 29830). The first two set it regardless of the IRQ inhibit bit; the third leaves it set only if IRQs aren't inhibited. Writing $4017 with bit 6 set clears it. Reading $4015 clears it at the next put->get boundary, not immediately. See https://www.nesdev.org/wiki/APU_Frame_Counter
 
-### DMC DMA Bus Hijacking
+### SHx opcodes and DMA
 
-The DMC channel's DMA transfer can hijack CPU bus cycles, which interacts with certain unofficial opcodes (SHx family). During DMA, the value on the data bus affects these instructions' output since they AND the high byte of the target address with the accumulator/register. The implementation handles this interaction to match real hardware behavior.
+SHA/SHX/SHY/SHS store `register & (H+1)`, where H is the high byte of the base address. If a DMA halted the CPU on the cycle just before the write, the `& (H+1)` term is lost (`cpu._shx()`).
+
+### PPU rendering quirks
+
+The PPU emulates the real fetch/shift pipeline, so most quirks follow naturally. Ones that needed explicit handling (all tested by AccuracyCoin, documented in `ppu/index.js`):
+- Rendering-disabled behaviour: BG shifters and sprite shifters freeze, but sprite X counters keep counting; if rendering is off at dot 340 the X counters are zeroed.
+- BG shifters shift in 0 (low plane) / 1 (high plane); a skipped reload shows these bits.
+- Sprite evaluation is a byte-level state machine (misaligned OAMADDR, X-coordinate range check, overflow bug, "sprite 0" = first sprite found at dot 66).
+- The pre-render line fetches sprites using line 261 & 255 = 5 for range checks; skipping dot 340 on odd frames skips loading the sprite X counters.
+- Disabling rendering mid-line schedules OAM corruption (row = secondary OAM address), applied on the next rendering dot.
+- $2001 writes reach the pipeline 2 dots later (`MASK_DELAY`).
 
 ### Unofficial Opcodes
 
-The CPU implements the full set of unofficial 6502 opcodes needed to pass nestest: ALR, ANC, ARR, AXS, LAX, SAX, DCP, ISC, RLA, RRA, SLO, SRE, SKB, IGN, SHA, SHX, SHY, SHS, LAE, ANE, LXA, and DUMMY (cycle halt). The SHx/SHA family have complex bus interactions documented in the code.
+The CPU implements the full set of unofficial 6502 opcodes needed to pass nestest: ALR, ANC, ARR, AXS, LAX, SAX, DCP, ISC, RLA, RRA, SLO, SRE, SKB, IGN, SHA, SHX, SHY, SHS, LAE, ANE and LXA. KIL/JAM opcodes throw.
 
 ## State Serialization
 
