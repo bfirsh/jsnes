@@ -659,6 +659,13 @@ class PPU {
       } else {
         if (dot >= 1 && dot <= 256) {
           this._blankPixel(line, dot - 1);
+          // The sprite X counters keep counting down while rendering is
+          // off (only the sprite shift registers stop), so a sprite still
+          // appears at its normal X position if rendering is re-enabled
+          // before it. (AccuracyCoin "BG Serial In")
+          for (let i = 0; i < this.sprCount; i++) {
+            if (this.sprX[i] !== 0) this.sprX[i]--;
+          }
         } else if (dot === 340) {
           this._spriteCountersWithRenderingOff();
         }
@@ -752,14 +759,16 @@ class PPU {
     if (dot === 0) return; // idle dot
 
     if (dot <= 256) {
-      // Shift the background registers (from dot 2), then fetch.
-      if (dot >= 2) this._shiftBg();
+      if (!isPreRender) {
+        // Output a pixel (from the current state of the shift registers).
+        this._renderPixel(line, dot - 1);
+      }
+      // Shift the background registers, then fetch.
+      this._shiftBg();
       this._bgFetch(dot);
       if (dot === 256) this._incY();
 
       if (!isPreRender) {
-        // Output a pixel.
-        this._renderPixel(line, dot - 1);
         // Sprite evaluation for the next line.
         if (dot <= 64) {
           // Clear secondary OAM, one byte every 2 dots.
@@ -776,8 +785,6 @@ class PPU {
       }
     } else if (dot <= 320) {
       if (dot === 257) {
-        this._shiftBg();
-        this._reloadBg();
         // Copy the horizontal scroll bits from t to v.
         this.vramAddress =
           (this.vramAddress & 0x7be0) | (this.vramTmpAddress & 0x041f);
@@ -812,11 +819,9 @@ class PPU {
     } else if (dot <= 336) {
       // Prefetch the first two tiles of the next line.
       if (dot === 321) this.nes.mmap.onBgRender();
-      if (dot >= 322) this._shiftBg();
+      this._shiftBg();
       this._bgFetch(dot);
     } else if (dot === 337) {
-      this._shiftBg();
-      this._reloadBg();
       // Unused nametable fetch.
       this.ntByte = this.mirroredLoad(0x2000 | (this.vramAddress & 0x0fff));
     } else if (dot === 339) {
@@ -842,11 +847,17 @@ class PPU {
 
   // Background fetches for dots 1-256 and 321-336. Each 8-dot group fetches
   // one tile: nametable byte (dots 1-2), attribute byte (3-4), pattern low
-  // (5-6) and high (7-8) bit planes, then coarse X is incremented.
+  // (5-6) and high (7-8) bit planes. At the end of the group the tile is
+  // loaded into the shift registers and coarse X is incremented.
+  //
+  // The shift registers shift on every one of these dots, and each visible
+  // pixel is taken from them just before the shift. So a tile loaded at the
+  // end of dot 8 has moved into the high (output) half 8 dots later. If
+  // rendering is off at the moment of a load, the load is skipped and the
+  // "serial in" bits shifted in show up instead (AccuracyCoin "BG Serial In").
   _bgFetch(dot) {
     switch (dot & 7) {
       case 1: {
-        if (dot >= 9) this._reloadBg();
         this.ntByte = this.mirroredLoad(0x2000 | (this.vramAddress & 0x0fff));
         break;
       }
@@ -882,6 +893,8 @@ class PPU {
         break;
       }
       case 0: {
+        // End of the tile: load it into the shift registers and move on.
+        this._reloadBg();
         this._incCoarseX();
         break;
       }

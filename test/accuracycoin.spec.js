@@ -256,10 +256,9 @@ const TEST_PAGES = [
   },
 ];
 
-// Tests known to fail — skip these until the emulator is fixed.
-const KNOWN_FAILURES = {
-  0x0487: "BG serial in not accurate",
-};
+// Tests known to fail — skip these until the emulator is fixed. (Currently
+// none: every AccuracyCoin test passes.)
+const KNOWN_FAILURES = {};
 
 // Flatten all tests for easy iteration
 const ALL_TESTS = [];
