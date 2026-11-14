@@ -64,16 +64,18 @@ Tests use `node:test` + `node:assert/strict` (Node's built-in test runner):
 - `test/mappers.spec.js` - Mapper functionality tests (ROM protection, SRAM writes, RAM mirroring)
 - `test/nestest.spec.js` - Full nestest.nes ROM harness with detailed error code mappings for all CPU instructions and addressing modes
 - `test/accuracycoin.spec.js` - AccuracyCoin test ROM harness (134 hardware accuracy tests)
+- `test/nes-test-roms-{cpu,ppu,apu,mappers}.spec.js` - blargg's test ROMs and others from the nes-test-roms collection (runner in `test/helpers/test-rom-runner.js`, which understands both the `$6000` status protocol and on-screen results, and can press reset and controller buttons)
 
 Test ROMs:
 - `roms/croom/` - Simple test ROM for automated testing
 - `roms/AccuracyCoin/` - Comprehensive accuracy test ROM (134 tests covering CPU, PPU, APU behavior)
 - `roms/nestest/` - CPU instruction test ROM (official + unofficial opcodes)
+- `roms/nes-test-roms/` - ~80 test ROMs from https://github.com/christopherpow/nes-test-roms, each directory with its readme (see `roms/nes-test-roms/README.md` for what was left out and why)
 - `local-roms/` - Collection of ROMs for manual testing
 
-All 134 AccuracyCoin tests pass. If one ever has to be skipped, list it in the `KNOWN_FAILURES` object in `test/accuracycoin.spec.js`. `roms/AccuracyCoin/AccuracyCoin.asm` is fully commented and is the best documentation of what each test expects; when a test fails, read its source and instrument the emulator (e.g. log the relevant register accesses with `cpu.cycles` and `ppu.line`/`ppu.dot`) rather than guessing.
+All 134 AccuracyCoin tests pass. If one ever has to be skipped, list it in the `KNOWN_FAILURES` object in `test/accuracycoin.spec.js`. Tests from nes-test-roms that don't pass are listed, with the reason, in the `KNOWN_FAILURES` map in each `test/nes-test-roms-*.spec.js` file; they're older than AccuracyCoin, so if the two ever disagree, AccuracyCoin wins. `roms/AccuracyCoin/AccuracyCoin.asm` is fully commented and is the best documentation of what each test expects; when a test fails, read its source and instrument the emulator (e.g. log the relevant register accesses with `cpu.cycles` and `ppu.line`/`ppu.dot`) rather than guessing.
 
-Remember that AccuracyCoin and nestest are DEFINITELY correct. They pass on a real NES. Don't blame the ROM for being wrong.
+Remember that AccuracyCoin, nestest and blargg's tests are DEFINITELY correct. They pass on a real NES. Don't blame the ROM for being wrong. (The one exception so far is a 2005 blargg test that predates the discovery of OAM corruption; see `KNOWN_FAILURES` in `test/nes-test-roms-ppu.spec.js`.)
 
 ## Build Process
 
