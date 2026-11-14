@@ -258,14 +258,6 @@ const TEST_PAGES = [
 
 // Tests known to fail — skip these until the emulator is fixed.
 const KNOWN_FAILURES = {
-  // DMA: register conflict / abort edge cases
-  0x046b: "DMC DMA bus conflicts not emulated",
-  0x0478: "Implicit DMA abort not emulated",
-
-  // APU
-  0x046a: "DMC DMA timing not accurate",
-  0x045c: "APU register activation not accurate",
-
   // PPU behavior: rendering-related tests need dot-accurate PPU
   0x0486: "Rendering flag behavior not accurate",
   0x048a: "$2007 read during rendering not accurate",

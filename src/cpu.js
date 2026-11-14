@@ -848,6 +848,8 @@ class CPU {
     // SHx unofficial opcodes, whose stored value depends on whether the CPU
     // was halted right before the write.
     this.lastDmaEndCycle = -1;
+    // Cycle on which a 1-cycle aborted DMC DMA would halt the CPU.
+    this.abortedDmaCycle = -1;
 
     // Game Genie is applied on reads from cartridge space.
     this._gameGenieActive = false;
@@ -886,6 +888,12 @@ class CPU {
   // One CPU write cycle. Writes are never interrupted by DMA: if a DMA
   // becomes pending during a write, it waits for the next read cycle.
   write(addr, value) {
+    if (this.abortedDmaCycle === this.cycles + 1 && this.dmcDmaAbort) {
+      // A pending 1-cycle aborted DMC DMA lands on a write: it vanishes.
+      this.dmcDmaRunning = false;
+      this.dmcDmaAbort = false;
+      this.dmaNeedHalt = this.oamDmaRunning;
+    }
     this.cycles++;
     this.nes.papu.clockCycle();
     this.dataBus = value;
@@ -1046,21 +1054,22 @@ class CPU {
     }
   }
 
+  // A DMC DMA that halts the CPU for one cycle and is then aborted (see
+  // ChannelDM._requestDma). Unlike a normal DMA, it isn't delayed by write
+  // cycles: if the next cycle is a write, it simply doesn't happen.
+  startAbortedDmcDma() {
+    if (this.dmcDmaRunning) return;
+    this.dmcDmaRunning = true;
+    this.dmcDmaAbort = true;
+    this.dmaNeedHalt = true;
+    this.abortedDmaCycle = this.cycles + 1;
+  }
+
   // Called when the game writes to $4014.
   startOamDma(page) {
     this.oamDmaRunning = true;
     this.oamDmaPage = page;
     this.dmaNeedHalt = true;
-  }
-
-  // One DMA bus cycle: a full CPU cycle (APU clock, PPU dots, interrupt
-  // sampling) during which the DMA unit (or the halted CPU) uses the bus.
-  _dmaCycleRead(addr) {
-    this.cycles++;
-    this.nes.papu.clockCycle();
-    const value = this._dmaBusRead(addr);
-    this._endCycle();
-    return value;
   }
 
   // A cycle in which the halted CPU repeats its pending read. Most of the
@@ -1089,22 +1098,30 @@ class CPU {
   }
 
   // Read performed by a DMA unit for its own purposes (fetching a DMC
-  // sample byte or an OAM byte).
+  // sample byte or an OAM byte). Returns the value the DMA unit receives.
   //
-  // Hardware quirk: the 2A03's internal registers at $4000-$401F are
-  // selected only by the low 5 bits of the address *when the CPU's own
-  // address is also in $4000-$401F*. So if the CPU was halted while
-  // reading e.g. $4016, a DMA read from $C016 also reads $4016 internally
-  // (clocking the controller), and the two values collide on the bus.
-  // See https://www.nesdev.org/wiki/DMA#Register_conflicts
+  // Hardware quirk: inside the 2A03, the readable registers ($4015-$4017)
+  // are enabled whenever the *CPU's* address bus is in $4000-$401F, and
+  // they only decode the low 5 bits of the address. Normally the DMA units
+  // can't see them, but if the CPU was halted while reading from that range
+  // (e.g. LDA $4016), then a DMA read from any address whose low 5 bits are
+  // $15-$17 also reads the register, colliding with whatever the external
+  // memory returns:
+  //   - $4015 (APU status): the read clears the frame IRQ flag; the DMA
+  //     receives the status (bit 5 is open bus, so it comes from the
+  //     external value), but as usual the status doesn't drive the external
+  //     data bus, which keeps the external value.
+  //   - $4016/$4017 (controllers): the controller drives bits 0-4, the
+  //     external value supplies bits 5-7 (normally "open bus").
+  // See https://www.nesdev.org/wiki/DMA#Register_conflicts and the
+  // AccuracyCoin "APU Register Activation" / "DMC DMA Bus Conflicts" tests.
   _dmaFetch(addr, haltedAddr) {
     this.cycles++;
     this.nes.papu.clockCycle();
     let value;
-    const cpuInRegs = (haltedAddr & 0xffe0) === 0x4000;
-    if (!cpuInRegs) {
+    if ((haltedAddr & 0xffe0) !== 0x4000) {
       if (addr >= 0x4000 && addr <= 0x401f) {
-        // Nothing drives the external bus for these addresses.
+        // With the registers disabled, nothing drives the bus here.
         value = this.dataBus;
       } else {
         value = this._dmaBusRead(addr);
@@ -1113,31 +1130,22 @@ class CPU {
     } else {
       const internal = 0x4000 | (addr & 0x1f);
       if (internal === 0x4015) {
-        // Internal $4015 read (clears the frame IRQ flag) plus the external
-        // read of the real address.
-        value = this.nes.mmap.load(0x4015);
-        if (addr !== internal) {
-          this._dmaBusRead(addr);
-        }
+        const status = this.nes.mmap.load(0x4015);
+        const external =
+          addr === internal ? this.dataBus : this._dmaBusRead(addr);
+        value = (status & 0xdf) | (external & 0x20);
       } else if (internal === 0x4016 || internal === 0x4017) {
-        let internalValue;
+        let port;
         if (this._lastDmaReadAddr === internal) {
           // The controller port's /OE line stays active across back-to-back
           // reads, so the controller only sees one read (no extra clock).
-          internalValue = this.dataBus;
+          port = this.dataBus;
         } else {
-          internalValue = this.nes.mmap.load(internal);
+          port = this.nes.mmap.load(internal);
         }
-        if (addr !== internal) {
-          // Bus conflict: the external device drives the bus too. Bits 5-7
-          // of the controller ports are open bus (undriven), so they come
-          // from the external value; the other bits are ANDed together.
-          const external = this._dmaBusRead(addr);
-          value = (external & 0xe0) | (internalValue & external & 0x1f);
-        } else {
-          value = internalValue;
-        }
-        this.dataBus = value;
+        const external =
+          addr === internal ? this.dataBus : this._dmaBusRead(addr);
+        value = this.dataBus = (external & 0xe0) | (port & 0x1f);
       } else {
         value = this._dmaBusRead(addr);
       }

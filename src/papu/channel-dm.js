@@ -43,6 +43,7 @@ class ChannelDM {
     "silence",
     "startDelay",
     "disableDelay",
+    "lastFetchCycle",
   ];
 
   constructor(papu) {
@@ -78,6 +79,8 @@ class ChannelDM {
     // these happen on APU clock edges, so they depend on the cycle parity.
     this.startDelay = 0;
     this.disableDelay = 0;
+    // CPU cycle of the most recent DMA fetch.
+    this.lastFetchCycle = -100;
   }
 
   // Called once per CPU cycle.
@@ -131,13 +134,28 @@ class ChannelDM {
   }
 
   _requestDma() {
-    if (this.bufferEmpty && this.bytesRemaining > 0) {
-      this.papu.nes.cpu.startDmcDma();
+    // While a $4015 write's start delay is counting down, the DMA can't
+    // start yet (it will be requested when the delay expires).
+    if (!this.bufferEmpty || this.startDelay !== 0) return;
+    const cpu = this.papu.nes.cpu;
+    if (this.bytesRemaining > 0) {
+      cpu.startDmcDma();
+    } else if (cpu.cycles - this.lastFetchCycle <= 2) {
+      // "Implicit abort": the DMA unit only notices that the sample ended
+      // a couple of cycles after the fetch of the last byte. If the output
+      // unit empties the buffer within that window (this happens when a
+      // 1-byte sample is started just before the output unit finishes its
+      // cycle), a reload DMA starts but is aborted right away. It still
+      // halts the CPU for one cycle (or not at all, if that cycle is a
+      // write). See https://www.nesdev.org/wiki/DMA#DMC_DMA and the
+      // AccuracyCoin "Implicit DMA Abort" test.
+      cpu.startAbortedDmcDma();
     }
   }
 
   // Called by the CPU's DMA unit with the byte it read from currentAddress.
   dmaComplete(value) {
+    this.lastFetchCycle = this.papu.nes.cpu.cycles;
     if (this.bytesRemaining === 0) return;
     this.buffer = value;
     this.bufferEmpty = false;
