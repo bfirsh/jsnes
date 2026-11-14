@@ -12,6 +12,11 @@ class Mapper5 extends Mapper0 {
 
   constructor(nes) {
     super(nes);
+    // The MMC5 detects a new scanline from the PPU's nametable fetches at
+    // the start of the line, so clock its counter at the end of each line.
+    // (Dot 339 rather than 340, since the pre-render line skips dot 340 on
+    // odd frames.)
+    this.irqClockDot = 339;
 
     // PRG banking
     // $5100: PRG mode (0=32K, 1=16K+16K, 2=16K+8K+8K, 3=8K+8K+8K+8K)
@@ -1175,6 +1180,8 @@ class Mapper5 extends Mapper0 {
     this.lastChrWrite = s.lastChrWrite;
     this.ntMapping = new Uint8Array(s.ntMapping);
     this.exramMode = s.exramMode;
+    // Per-tile BG data (extended attributes) is only used in ExRAM mode 1.
+    this.bgTileOverride = this.exramMode === 1;
     this.exram = new Uint8Array(s.exram);
     this.fillTile = s.fillTile;
     this.fillAttr = s.fillAttr;

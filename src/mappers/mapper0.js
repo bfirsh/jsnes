@@ -34,6 +34,12 @@ class Mapper0 {
     // ExRAM mode 1). When true, the PPU calls getBgTileData() for each
     // background tile during rendering.
     this.bgTileOverride = false;
+
+    // The PPU dot (257-339) on which clockIrqCounter() is called each
+    // rendered line.
+    // MMC3-style counters are clocked by PPU A12 rising when the sprite
+    // patterns are fetched, around dot 260.
+    this.irqClockDot = 260;
   }
 
   write(address, value) {
@@ -544,6 +550,8 @@ class Mapper0 {
     return this.nes.rom.vromCount === 0;
   }
 
+  // Called by the PPU once per rendered scanline (when rendering is
+  // enabled), at dot `irqClockDot` (see the constructor).
   clockIrqCounter() {
     // Does nothing. This is used by the MMC3 mapper.
   }

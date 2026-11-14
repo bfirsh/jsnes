@@ -724,19 +724,19 @@ class PPU {
     e = this._dotsUntil(261, 339);
     if (e < d) d = e;
     if (this.renderingOn) {
-      // The mapper's scanline counter is clocked at dot 260 of each
-      // rendered line.
+      // The mapper's scanline counter is clocked once per rendered line.
+      const irqDot = this.nes.mmap ? this.nes.mmap.irqClockDot : 260;
       const line = this.line;
       let next;
       if (line < 240) {
-        next = this.dot <= 260 ? line : line + 1;
+        next = this.dot <= irqDot ? line : line + 1;
         if (next === 240) next = 261;
-      } else if (line === 261 && this.dot > 260) {
+      } else if (line === 261 && this.dot > irqDot) {
         next = 0;
       } else {
         next = 261;
       }
-      e = this._dotsUntil(next, 260);
+      e = this._dotsUntil(next, irqDot);
       if (e < d) d = e;
     }
     if (this.maskDelay !== 0 && this.maskDelay - 1 < d) {
@@ -856,6 +856,13 @@ class PPU {
     }
     if (dot === 0) return; // idle dot
 
+    if (dot > 256 && dot === this.nes.mmap.irqClockDot) {
+      // Clock the mapper's scanline counter once per rendered line (MMC3
+      // and friends count PPU A12 rising edges during the sprite fetches,
+      // around dot 260; see Mapper0.irqClockDot).
+      this.nes.mmap.clockIrqCounter();
+    }
+
     if (dot <= 256) {
       if (!isPreRender) {
         this._renderSpan(line, dot, dot + 1);
@@ -892,12 +899,6 @@ class PPU {
         // Copy the vertical scroll bits from t to v.
         this.vramAddress =
           (this.vramAddress & 0x041f) | (this.vramTmpAddress & 0x7be0);
-      }
-      if (dot === 260) {
-        // MMC3 and friends count scanlines from PPU A12 rising edges, which
-        // happen during sprite fetches. Approximate that with one clock per
-        // rendered line.
-        this.nes.mmap.clockIrqCounter();
       }
     } else if (dot <= 336) {
       // Prefetch the first two tiles of the next line.

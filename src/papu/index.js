@@ -274,6 +274,7 @@ class PAPU {
     while (nCycles > 0) {
       // Don't process channel ticks beyond the next output sample.
       let maxCycles = ((this.sampleTimerMax - this.sampleTimer) >> 10) + 1;
+      if (maxCycles < 1) maxCycles = 1;
       let n = nCycles < maxCycles ? nCycles : maxCycles;
       this._clockChannels(n);
       nCycles -= n;
@@ -313,7 +314,7 @@ class PAPU {
 
     // Clock Square channel 1 Prog timer:
     square1.progTimerCount -= nCycles;
-    if (square1.progTimerCount <= 0) {
+    while (square1.progTimerCount <= 0) {
       square1.progTimerCount += (square1.progTimerMax + 1) << 1;
 
       square1.squareCounter++;
@@ -323,7 +324,7 @@ class PAPU {
 
     // Clock Square channel 2 Prog timer:
     square2.progTimerCount -= nCycles;
-    if (square2.progTimerCount <= 0) {
+    while (square2.progTimerCount <= 0) {
       square2.progTimerCount += (square2.progTimerMax + 1) << 1;
 
       square2.squareCounter++;

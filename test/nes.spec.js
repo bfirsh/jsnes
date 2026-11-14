@@ -178,6 +178,31 @@ describe("NES", function () {
     assert.strictEqual(restored.controllers[2].state[1], 0x41);
   });
 
+  describe("#fromJSON()", function () {
+    it("restores a saved state", function () {
+      let data = fs.readFileSync("roms/croom/croom.nes").toString("binary");
+      let nes = new NES();
+      nes.loadROM(data);
+      for (let i = 0; i < 10; i++) nes.frame();
+      let state = JSON.parse(JSON.stringify(nes.toJSON()));
+      let nes2 = new NES();
+      nes2.loadROM(data);
+      nes2.fromJSON(state);
+      assert.strictEqual(nes2.cpu.REG_PC, nes.cpu.REG_PC);
+      assert.strictEqual(nes2.cpu.cycles, nes.cpu.cycles);
+      nes2.frame();
+    });
+
+    it("rejects states from incompatible versions", function () {
+      let data = fs.readFileSync("roms/croom/croom.nes").toString("binary");
+      let nes = new NES();
+      nes.loadROM(data);
+      let state = nes.toJSON();
+      delete state.version;
+      assert.throws(() => nes.fromJSON(state), /incompatible version/);
+    });
+  });
+
   describe("#getFPS()", function () {
     let nes = new NES();
     before(function () {
