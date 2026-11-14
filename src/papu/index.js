@@ -26,6 +26,11 @@ class PAPU {
   constructor(nes) {
     this.nes = nes;
 
+    // Catch-up state (see catchUp()): the last CPU cycle the APU has been
+    // clocked for, and the next cycle on which something happens.
+    this.lastCycle = 0;
+    this.nextEventCycle = 0;
+
     this.square1 = new ChannelSquare(this, true);
     this.square2 = new ChannelSquare(this, false);
     this.triangle = new ChannelTriangle(this);
@@ -78,6 +83,7 @@ class PAPU {
     this.sampleTimer = 0;
     this.updateChannelEnable(0);
     this.frameCycleCounter = 0;
+    this.lastCycle = 0;
     this.frameStep = 0;
     this.countSequence = 0;
     this.sampleCount = 0;
@@ -109,10 +115,27 @@ class PAPU {
     this.channelEnableValue = 0xff;
     this.maxSample = -500000;
     this.minSample = 500000;
+
+    this._scheduleNextEvent();
+  }
+
+  // Read $4015 (APU status). Called by the CPU's bus.
+  readReg(address) {
+    this.catchUp(this.nes.cpu.cycles);
+    const value = this._readStatus(address);
+    this._scheduleNextEvent();
+    return value;
+  }
+
+  // Write an APU register ($4000-$4017). Called by the CPU's bus.
+  writeReg(address, value) {
+    this.catchUp(this.nes.cpu.cycles);
+    this._writeRegister(address, value);
+    this._scheduleNextEvent();
   }
 
   // eslint-disable-next-line no-unused-vars
-  readReg(address) {
+  _readStatus(address) {
     // Read 0x4015:
     let tmp = 0;
     tmp |= this.square1.getLengthStatus();
@@ -147,7 +170,7 @@ class PAPU {
     return tmp & 0xff;
   }
 
-  writeReg(address, value) {
+  _writeRegister(address, value) {
     this._flushAudio();
     if (address >= 0x4000 && address < 0x4004) {
       // Square Wave 1 Control
@@ -245,6 +268,72 @@ class PAPU {
   // The parts that only affect the audio output (square/triangle/noise
   // timers and the output mixer) are batched up and run every few cycles
   // by _flushAudio() for speed.
+  // --- Catch-up ---
+  //
+  // Like the PPU (see PPU.catchUp()), the APU isn't clocked every CPU cycle.
+  // Between "events" (a frame counter step, the DMC timer expiring, an
+  // audio sample being due, the short delays after a $4015/$4017 access),
+  // all it does is count, so it can be advanced in bulk. The CPU calls
+  // catchUp() on the cycle of the next event, and before any access to the
+  // APU's registers.
+
+  // Clock the APU up to and including CPU cycle `cycle`.
+  catchUp(cycle) {
+    while (this.lastCycle < cycle) {
+      let next = this.nextEventCycle;
+      if (next <= this.lastCycle) next = this.lastCycle + 1;
+      if (next > cycle) {
+        this._advance(cycle - this.lastCycle);
+        this.lastCycle = cycle;
+        return;
+      }
+      if (next - 1 > this.lastCycle) {
+        this._advance(next - 1 - this.lastCycle);
+        this.lastCycle = next - 1;
+      }
+      this.clockCycle(next);
+      this.lastCycle = next;
+      this._scheduleNextEvent();
+    }
+  }
+
+  // Advance by n cycles, none of which is an event cycle, so only the
+  // counters move.
+  _advance(n) {
+    if (this.emulateSound) this.pendingAudioCycles += n;
+    this.frameCycleCounter += n;
+    // The DMC timer counts on even cycles (see clockCycle()).
+    const a = this.lastCycle;
+    this.dmc.timer -= 2 * (((a + n) >> 1) - (a >> 1));
+  }
+
+  // Work out the next cycle (after lastCycle) on which clockCycle() has
+  // more to do than count.
+  _scheduleNextEvent() {
+    const last = this.lastCycle;
+    const dmc = this.dmc;
+    if ((this.frameIrqClearDelay | dmc.disableDelay | dmc.startDelay) !== 0) {
+      // A short delay is counting down: clock every cycle.
+      this.nextEventCycle = last + 1;
+      return;
+    }
+    // Frame counter step.
+    let next = last + (this.nextFrameEvent - this.frameCycleCounter);
+    // Audio output sample.
+    if (this.emulateSound) {
+      const a = last + (this.audioFlushAt - this.pendingAudioCycles);
+      if (a < next) next = a;
+    }
+    // DMC timer expiry: it loses 2 on each even cycle.
+    let even = last + 1;
+    if (even & 1) even++;
+    const steps = (dmc.timer + 1) >> 1;
+    const d = steps > 1 ? even + 2 * (steps - 1) : even;
+    if (d < next) next = d;
+    this.nextEventCycle = next > last ? next : last + 1;
+  }
+
+  // Clock the APU by one CPU cycle (an event cycle; see catchUp()).
   clockCycle(cycle) {
     // Batched audio synthesis (skipped entirely if sound is off).
     if (this.emulateSound && ++this.pendingAudioCycles >= this.audioFlushAt) {
@@ -867,6 +956,7 @@ class PAPU {
   }
 
   toJSON() {
+    this.catchUp(this.nes.cpu.cycles);
     let obj = toJSON(this);
     obj.dmc = this.dmc.toJSON();
     obj.noise = this.noise.toJSON();
@@ -883,6 +973,7 @@ class PAPU {
     this.square1.fromJSON(s.square1);
     this.square2.fromJSON(s.square2);
     this.triangle.fromJSON(s.triangle);
+    this._scheduleNextEvent();
   }
 
   static JSON_PROPERTIES = [
@@ -894,6 +985,7 @@ class PAPU {
     "frameIrqClearDelay",
     "nextFrameEvent",
     "pendingAudioCycles",
+    "lastCycle",
     "audioFlushAt",
     "startedPlaying",
     "recordOutput",

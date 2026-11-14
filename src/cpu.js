@@ -871,7 +871,9 @@ class CPU {
       this._runDma(addr);
     }
     this.cycles++;
-    this.papu.clockCycle(this.cycles);
+    if (this.cycles >= this.papu.nextEventCycle) {
+      this.papu.catchUp(this.cycles);
+    }
     let value;
     if (addr < 0x2000) {
       // Internal RAM, mirrored every 2KB.
@@ -927,7 +929,9 @@ class CPU {
       this.dmaNeedHalt = this.oamDmaRunning;
     }
     this.cycles++;
-    this.papu.clockCycle(this.cycles);
+    if (this.cycles >= this.papu.nextEventCycle) {
+      this.papu.catchUp(this.cycles);
+    }
     this.dataBus = value;
     if (addr < 0x2000) {
       this.mem[addr & 0x7ff] = value;
@@ -1121,7 +1125,9 @@ class CPU {
   // time this is harmless, but for I/O registers it has side effects.
   _haltedRead(addr, skipRead) {
     this.cycles++;
-    this.papu.clockCycle(this.cycles);
+    if (this.cycles >= this.papu.nextEventCycle) {
+      this.papu.catchUp(this.cycles);
+    }
     if (!skipRead) {
       this._dmaBusRead(addr);
     }
@@ -1168,7 +1174,9 @@ class CPU {
   // AccuracyCoin "APU Register Activation" / "DMC DMA Bus Conflicts" tests.
   _dmaFetch(addr, haltedAddr) {
     this.cycles++;
-    this.papu.clockCycle(this.cycles);
+    if (this.cycles >= this.papu.nextEventCycle) {
+      this.papu.catchUp(this.cycles);
+    }
     let value;
     if ((haltedAddr & 0xffe0) !== 0x4000) {
       if (addr >= 0x4000 && addr <= 0x401f) {
@@ -1208,7 +1216,9 @@ class CPU {
 
   _dmaWrite(addr, value) {
     this.cycles++;
-    this.papu.clockCycle(this.cycles);
+    if (this.cycles >= this.papu.nextEventCycle) {
+      this.papu.catchUp(this.cycles);
+    }
     this.dataBus = value;
     this._syncPpu(addr);
     this.nes.mmap.write(addr, value);
