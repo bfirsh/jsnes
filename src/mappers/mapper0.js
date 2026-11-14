@@ -4,11 +4,6 @@ import { copyArrayElements } from "../utils.js";
 // Used by games like Super Mario Bros., Donkey Kong, Excitebike.
 // No bank switching at all: 16 or 32 KB PRG-ROM, 8 KB CHR-ROM, fixed mirroring.
 // See https://www.nesdev.org/wiki/NROM
-// Offset applied to the CPU cycle counter to find which CPU cycles are APU
-// "put" cycles, on which the $4016 output latch updates. Tuned against the
-// AccuracyCoin "Controller Strobing" test.
-const JOYPAD_PARITY_OFFSET = 1;
-
 class Mapper0 {
   static mapperName = "NROM";
 
@@ -20,9 +15,9 @@ class Mapper0 {
     this.joypadLastWrite = 0;
     // The effective OUT0 value visible to the controller shift register.
     // On the 2A03, OUT0-OUT2 are output latches that only update on APU
-    // clock edges (every 2 CPU cycles). Writes to $4016 on "get" cycles
-    // (odd CPU cycle count) update the internal register but NOT the output
-    // latch until the next APU clock. This distinction matters for RMW
+    // clock edges (every 2 CPU cycles). Writes to $4016 on "put" cycles
+    // update the internal register but NOT the output latch until the next
+    // APU clock (see the $4016 case in regWrite). This distinction matters for RMW
     // instructions like DEC $4016 that produce a 1-cycle strobe pulse:
     // the dummy write and final write land on consecutive CPU cycles, and
     // whether the pulse is visible depends on APU clock alignment.
@@ -250,23 +245,22 @@ class Mapper0 {
 
       case 0x4016: {
         // Joystick 1 + Strobe
-        // The 2A03 output ports (OUT0-OUT2) only update on APU clock edges,
-        // which happen every 2 CPU cycles. A write to $4016 always updates
-        // the internal register immediately, but the effective output
-        // (joypadOutputBit0) only changes on odd-parity CPU cycles.
-        // This matters for RMW instructions like DEC $4016: the dummy
-        // write (original value) and real write (modified value) happen on
-        // consecutive cycles. If the dummy write lands on an APU tick
-        // (even) but the real write lands on a non-tick (odd), only the
-        // dummy write's value reaches OUT0. The AccuracyCoin controller
-        // strobe test verifies this behavior.
-        let cpu = this.nes.cpu;
-        let currentCycle = cpu.cycles + JOYPAD_PARITY_OFFSET;
+        // Bit 0 drives the 2A03's OUT0 pin, which strobes the controllers.
+        // The output pins are latched from the internal register on APU
+        // clock edges (every 2 CPU cycles): a write on a "get" cycle reaches
+        // OUT0 at the get->put transition at the end of that cycle, while a
+        // write on a "put" cycle waits for the next one (and can be
+        // overwritten before then). This matters for RMW instructions like
+        // DEC $4016, whose dummy write and real write land on consecutive
+        // cycles: only one of them reaches OUT0. The AccuracyCoin
+        // "Controller Strobing" test verifies this behavior.
+        // See https://www.nesdev.org/wiki/CPU_pin_out_and_signal_timing
+        let cycle = this.nes.cpu.cycles;
 
         // If previous write(s) haven't been applied to the output yet
-        // (because they landed on odd cycles), sync them now if at least
-        // one APU tick has passed since then.
-        if (currentCycle - this.joypadLastWriteCycle > 1) {
+        // (because they landed on put cycles), apply them now if an APU
+        // clock edge has passed since then.
+        if (cycle - this.joypadLastWriteCycle > 1) {
           let prevBit = this.joypadLastWrite & 1;
           if (prevBit !== this.joypadOutputBit0) {
             if (this.joypadOutputBit0 === 1 && prevBit === 0) {
@@ -278,15 +272,9 @@ class Mapper0 {
         }
 
         this.joypadLastWrite = value;
-        this.joypadLastWriteCycle = currentCycle;
+        this.joypadLastWriteCycle = cycle;
 
-        // Apply to effective output only on APU tick ("put") cycles.
-        // After OAM DMA sync, _cpuCycleBase is always odd, so the first
-        // instruction cycle (_cpuCycleBase + 1) is even = "get". The 5th
-        // cycle of a 6-cycle RMW (dummy write) is _cpuCycleBase + 4 = odd
-        // = "put" = APU tick. This matches real hardware where OUT0 updates
-        // on "put" cycles.
-        if (currentCycle % 2 === 1) {
+        if (!this.nes.papu._isPutCycle()) {
           let newBit = value & 1;
           if (this.joypadOutputBit0 === 1 && newBit === 0) {
             this.joy1StrobeState = 0;
