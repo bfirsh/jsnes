@@ -310,6 +310,22 @@ class PPU {
     }
   }
 
+  // The reset button. The PPU's reset line clears PPUCTRL, PPUMASK, the
+  // $2005/$2006 write toggle and the read buffer; VRAM, OAM, palette and
+  // the scroll position are unaffected.
+  // (Real PPUs also ignore writes to several registers until the end of the
+  // first VBlank after reset; that isn't emulated.)
+  // See https://www.nesdev.org/wiki/PPU_power_up_state
+  softReset() {
+    this.catchUp();
+    this.updateControlReg1(0);
+    this.updateControlReg2(0);
+    this.firstWrite = true;
+    this.vramBufferedReadValue = 0;
+    // Our upcoming events (NMI, rendering-dependent ones) may have changed.
+    this.nextEventDot = 0;
+  }
+
   // Define a mirrored area in the address lookup table.
   // Assumes the regions don't overlap.
   // The 'to' region is the region that is physically in memory.

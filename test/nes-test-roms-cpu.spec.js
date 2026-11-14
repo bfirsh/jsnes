@@ -9,11 +9,7 @@ import {
 } from "./helpers/test-rom-runner.js";
 
 // Tests that are known to fail, and why. They're skipped.
-const KNOWN_FAILURES = {
-  "cpu_reset/registers.nes": "nes.reset() doesn't emulate the reset button yet",
-  "cpu_reset/ram_after_reset.nes":
-    "nes.reset() doesn't emulate the reset button yet",
-};
+const KNOWN_FAILURES = {};
 
 describe("nes-test-roms: CPU", { timeout: 600000 }, function () {
   defineTestRomTests(
