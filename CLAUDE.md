@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run format` - Auto-format all code (core and web) with Prettier
 - `npm run test:watch` - Run tests in watch mode for development
 - `npm run typecheck` - TypeScript type checking (verifies `.d.ts` files)
-- `node bench.js` - Run performance benchmark (~500 fps on a small cloud VM; compare against `master` on the same machine rather than an absolute number). Run this on major changes or when you suspect a performance regression/improvement. The CPU/PPU/APU inner loops are the hot paths.
+- `node bench.js` - Run performance benchmark (~900 fps on a small cloud VM; compare against `master` on the same machine rather than an absolute number). Run this on major changes or when you suspect a performance regression/improvement. The CPU/PPU/APU inner loops are the hot paths.
 
 ## Code Architecture
 
@@ -26,7 +26,7 @@ JSNES is a JavaScript NES emulator with component-based architecture mirroring a
 
 **PPU**: `ppu/index.js` - Dot-stepped Picture Processing Unit: loopy v/t/x/w scroll registers, background fetch/shift-register pipeline, per-dot sprite evaluation and sprite output units, 256x240 frame buffer output.
 
-**PAPU**: `papu/` - Audio Processing Unit with NES's 5 audio channels (2 square waves, triangle, noise, DMC). Everything the CPU can observe (frame counter, length counters, IRQ flags, DMC DMA requests) runs exactly per CPU cycle in `clockCycle()`; audio synthesis is batched in `_flushAudio()`.
+**PAPU**: `papu/` - Audio Processing Unit with NES's 5 audio channels (2 square waves, triangle, noise, DMC). Everything the CPU can observe (frame counter, length counters, IRQ flags, DMC DMA requests) is exact to the CPU cycle. Like the PPU it runs lazily: counters advance in bulk and `clockCycle()` runs only on event cycles (see `catchUp()`). Audio synthesis runs once per output sample in `_flushAudio()`, with each channel's output averaged exactly over the cycles in between.
 
 **Memory Mappers**: `mappers/` - Implements cartridge memory mappers (0-180) using inheritance hierarchy. All mappers inherit from Mapper 0 (`mapper0.js`, which also handles the CPU-side I/O registers $2000-$4017) and override specific banking/memory mapping behavior.
 
@@ -132,6 +132,8 @@ On real hardware the CPU, PPU and APU run in lockstep: each CPU cycle is 3 PPU d
 - Within a cycle the order is: DMA check (reads only), APU clock, the bus access, then the PPU's 3 dots. The CPU samples NMI after the first of those 3 dots, and IRQ at the end of the cycle. These orderings are calibrated against AccuracyCoin; changing them breaks VBlank/NMI/APU timing tests.
 - Interrupts are polled every cycle; an instruction services an interrupt if one was pending at the end of its *second-to-last* cycle (`prevNeedNmi`/`prevRunIrq`). CLI/SEI/PLP latency, RTI, the branch delay quirk and NMI hijacking of BRK/IRQ all follow from this.
 - For speed the PPU runs lazily ("catch-up"): `_endCycle()` adds 3 to `ppu.dotTarget`, and the PPU runs the owed dots in a batch (`ppu.catchUp()`) whenever something could observe it — PPU register access, cartridge/mapper access ($4020+, except ROM reads), $4017 (Zapper). The PPU predicts its next CPU-visible event (`_scheduleNextEvent()`: VBlank set/clear, the odd-frame dot skip, the mapper scanline clock at `mmap.irqClockDot`, a pending $2001 change) and runs in exact step for that one cycle (`runCycleExact()`). If you add PPU behaviour that the CPU can see without a register access, add it as an event there.
+- The APU works the same way: the CPU only checks `cycles >= papu.nextEventCycle`; `papu.catchUp()` advances counters in bulk and runs `clockCycle()` exactly on event cycles (frame counter steps, DMC timer expiry, audio samples, $4015/$4017 delays). APU register reads/writes catch up first. New APU behaviour the CPU can observe must be an event in `_scheduleNextEvent()`.
+- On visible lines the PPU renders a tile (8 dots) at a time and keeps a precomputed sprite line (`_buildSpriteLine()`); anything that would disturb those (rendering toggled mid-line) falls back to exact per-dot state. When optimizing, verify with AccuracyCoin from several power-on alignments and compare frame buffers / audio output with `main`.
 
 See https://www.nesdev.org/wiki/Catch-up and https://www.nesdev.org/wiki/CPU_interrupts
 
