@@ -20,11 +20,12 @@ import PaletteTable from "./palette-table.js";
 //                     memory fetches), but outputs no pixels. Flags are
 //                     cleared at dot 1.
 //
-// This emulator is *dot-stepped*: advanceDots() runs the PPU's internal
-// pipeline one dot at a time, doing the same memory fetches and register
-// updates the real chip does on each dot. The CPU calls advanceDots() during
-// every CPU cycle, so the PPU and CPU stay in lockstep and mid-frame
-// register writes take effect on exactly the right pixel.
+// This emulator is *dot-stepped*: the PPU's internal pipeline runs one dot
+// at a time (_tick(), or _renderSpan() for runs of visible pixels), doing
+// the same memory fetches and register updates the real chip does on each
+// dot. The CPU owes the PPU 3 dots per CPU cycle and the PPU is kept exactly
+// in step with it (see catchUp()), so mid-frame register writes take effect
+// on exactly the right pixel.
 //
 // Background rendering (per visible/pre-render scanline):
 //   Every 8 dots, the PPU fetches one tile: nametable byte (which tile),
@@ -743,13 +744,6 @@ class PPU {
       d = this.maskDelay - 1;
     }
     this.nextEventDot = this.dotsRun + d;
-  }
-
-  // Advance the PPU by the given number of dots.
-  advanceDots(dots) {
-    for (let i = 0; i < dots; i++) {
-      this._tick();
-    }
   }
 
   // Process one dot.
