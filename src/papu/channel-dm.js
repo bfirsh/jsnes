@@ -83,8 +83,10 @@ class ChannelDM {
     this.lastFetchCycle = -100;
   }
 
-  // Called once per CPU cycle.
-  clockCycle() {
+  // Count down the delayed effects of $4015 writes. Called by the APU
+  // once per CPU cycle while either is active. (The DMC timer itself is
+  // clocked in PAPU.clockCycle().)
+  clockDelays() {
     if (this.disableDelay !== 0 && --this.disableDelay === 0) {
       // Disabling via $4015 takes effect now. If a DMA was already
       // scheduled, it gets cancelled (or aborted, if it already halted the
@@ -94,17 +96,6 @@ class ChannelDM {
     }
     if (this.startDelay !== 0 && --this.startDelay === 0) {
       this._requestDma();
-    }
-
-    // The timer is clocked by the APU clock, i.e. on every other CPU cycle
-    // (the "get" cycles), so DMA requests always line up the same way with
-    // the get/put phase. The period is in CPU cycles (always even).
-    if ((this.papu.nes.cpu.cycles & 1) === 0) {
-      this.timer -= 2;
-      if (this.timer <= 0) {
-        this.timer = this.period;
-        this._clockOutput();
-      }
     }
   }
 

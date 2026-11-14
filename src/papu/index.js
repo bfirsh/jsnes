@@ -69,6 +69,9 @@ class PAPU {
     }
 
     this.sampleRate = this.nes.opts.sampleRate;
+    // With emulateSound off, the channels' timers and the mixer aren't run
+    // (everything the CPU can observe still is).
+    this.emulateSound = this.nes.opts.emulateSound !== false;
     this.sampleTimerMax = Math.floor(
       (1024.0 * CPU_FREQ_NTSC) / this.sampleRate,
     );
@@ -240,28 +243,44 @@ class PAPU {
   // The parts that only affect the audio output (square/triangle/noise
   // timers and the output mixer) are batched up and run every few cycles
   // by _flushAudio() for speed.
-  clockCycle() {
-    // Batched audio synthesis.
-    if (++this.pendingAudioCycles >= 8) {
+  clockCycle(cycle) {
+    // Batched audio synthesis (skipped entirely if sound is off).
+    if (this.emulateSound && ++this.pendingAudioCycles >= 8) {
       this._flushAudio();
     }
 
-    // Deferred clearing of the frame interrupt flag after a $4015 read.
+    const dmc = this.dmc;
+    // Rarely-active countdowns: the deferred clear of the frame interrupt
+    // flag after a $4015 read, and the DMC's $4015 start/disable delays.
+    if ((this.frameIrqClearDelay | dmc.disableDelay | dmc.startDelay) !== 0) {
+      this._clockDelays();
+    }
+
+    // Frame counter.
+    if (++this.frameCycleCounter >= this.nextFrameEvent) {
+      this._advanceFrameSteps();
+    }
+
+    // The DMC timer is clocked by the APU clock, i.e. on every other CPU
+    // cycle (the "get" cycles), so DMA requests always line up the same way
+    // with the get/put phase. Its period is in CPU cycles (always even).
+    if ((cycle & 1) === 0) {
+      dmc.timer -= 2;
+      if (dmc.timer <= 0) {
+        dmc.timer = dmc.period;
+        dmc._clockOutput();
+      }
+    }
+  }
+
+  _clockDelays() {
     if (this.frameIrqClearDelay !== 0 && --this.frameIrqClearDelay === 0) {
       if (this.frameIrqClearPending) {
         this.frameIrqClearPending = false;
         this._setFrameIrq(false);
       }
     }
-
-    // Frame counter.
-    this.frameCycleCounter++;
-    if (this.frameCycleCounter >= this.nextFrameEvent) {
-      this._advanceFrameSteps();
-    }
-
-    // DMC output timer and its delayed $4015 effects.
-    this.dmc.clockCycle();
+    this.dmc.clockDelays();
   }
 
   // Run the audio-only parts of the APU for the cycles accumulated since

@@ -851,6 +851,9 @@ class CPU {
 
     // Game Genie is applied on reads from cartridge space.
     this._gameGenieActive = false;
+    // True when PRG ROM reads ($8000-$FFFF) can come straight from cpu.mem
+    // instead of going through the mapper. See _updatePrgReadPath().
+    this.directPrgReads = false;
 
     // Shortcuts to the PPU and APU, which are advanced on every cycle.
     // (The NES sets these again once it has created all its components.)
@@ -868,11 +871,15 @@ class CPU {
       this._runDma(addr);
     }
     this.cycles++;
-    this.papu.clockCycle();
+    this.papu.clockCycle(this.cycles);
     let value;
     if (addr < 0x2000) {
       // Internal RAM, mirrored every 2KB.
       value = this.dataBus = this.mem[addr & 0x7ff];
+    } else if (addr >= 0x8000 && this.directPrgReads) {
+      // PRG ROM. Almost every mapper copies the selected PRG banks into
+      // cpu.mem, so skip the mapper call (this is the most common read).
+      value = this.dataBus = this.mem[addr];
     } else if (addr === 0x4015) {
       // The APU status register is inside the CPU chip; reading it doesn't
       // update the external data bus. See https://www.nesdev.org/wiki/Open_bus_behavior
@@ -920,7 +927,7 @@ class CPU {
       this.dmaNeedHalt = this.oamDmaRunning;
     }
     this.cycles++;
-    this.papu.clockCycle();
+    this.papu.clockCycle(this.cycles);
     this.dataBus = value;
     if (addr < 0x2000) {
       this.mem[addr & 0x7ff] = value;
@@ -1115,7 +1122,7 @@ class CPU {
   // time this is harmless, but for I/O registers it has side effects.
   _haltedRead(addr, skipRead) {
     this.cycles++;
-    this.papu.clockCycle();
+    this.papu.clockCycle(this.cycles);
     if (!skipRead) {
       this._dmaBusRead(addr);
     }
@@ -1162,7 +1169,7 @@ class CPU {
   // AccuracyCoin "APU Register Activation" / "DMC DMA Bus Conflicts" tests.
   _dmaFetch(addr, haltedAddr) {
     this.cycles++;
-    this.papu.clockCycle();
+    this.papu.clockCycle(this.cycles);
     let value;
     if ((haltedAddr & 0xffe0) !== 0x4000) {
       if (addr >= 0x4000 && addr <= 0x401f) {
@@ -1202,7 +1209,7 @@ class CPU {
 
   _dmaWrite(addr, value) {
     this.cycles++;
-    this.papu.clockCycle();
+    this.papu.clockCycle(this.cycles);
     this.dataBus = value;
     this._syncPpu(addr);
     this.nes.mmap.write(addr, value);
@@ -2181,6 +2188,15 @@ class CPU {
   _updateCartridgeLoader() {
     this._gameGenieActive =
       this.nes.gameGenie.enabled && this.nes.gameGenie.patches.length > 0;
+    this._updatePrgReadPath();
+  }
+
+  // Use the fast path for PRG ROM reads unless the mapper handles reads
+  // itself or Game Genie codes need to be applied.
+  _updatePrgReadPath() {
+    const mmap = this.nes.mmap;
+    this.directPrgReads =
+      !this._gameGenieActive && !!mmap && mmap.readsPrgFromCpuMem();
   }
 
   static JSON_PROPERTIES = [
