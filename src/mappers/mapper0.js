@@ -40,6 +40,12 @@ class Mapper0 {
     // MMC3-style counters are clocked by PPU A12 rising when the sprite
     // patterns are fetched, around dot 260.
     this.irqClockDot = 260;
+
+    // Set to true by mappers whose IRQ counter is clocked by PPU address
+    // line A12 rising (MMC3). The PPU then calls clockIrqCounter() on each
+    // such edge (including ones caused by $2006/$2007 accesses) instead of
+    // at irqClockDot.
+    this.a12Watch = false;
   }
 
   write(address, value) {

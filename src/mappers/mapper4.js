@@ -23,10 +23,15 @@ class Mapper4 extends Mapper0 {
     this.prgAddressSelect = 0;
     this.chrAddressSelect = 0;
     this.pageNumber = 0;
+    // Scanline counter. See https://www.nesdev.org/wiki/MMC3#IRQ_Specifics
     this.irqCounter = 0;
-    this.irqLatchValue = 0;
+    this.irqLatchValue = 0; // reload value, written to $C000
+    this.irqReload = false; // set by $C001: reload on the next clock
     this.irqEnable = 0;
     this.prgAddressChanged = false;
+    // The counter is clocked by rising edges of PPU A12 (see the PPU's
+    // _a12Fetch()).
+    this.a12Watch = true;
   }
 
   write(address, value) {
@@ -70,14 +75,14 @@ class Mapper4 extends Mapper0 {
         break;
 
       case 0xc000:
-        // IRQ Counter register
-        this.irqCounter = value;
-        //nes.ppu.mapperIrqCounter = 0;
+        // IRQ latch: the value the counter is reloaded with.
+        this.irqLatchValue = value;
         break;
 
       case 0xc001:
-        // IRQ Latch register
-        this.irqLatchValue = value;
+        // IRQ reload: clear the counter, so it's reloaded on the next clock.
+        this.irqCounter = 0;
+        this.irqReload = true;
         break;
 
       case 0xe000:
@@ -217,15 +222,23 @@ class Mapper4 extends Mapper0 {
     this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
   }
 
+  // Called on each (filtered) rising edge of PPU A12: normally once per
+  // rendered scanline. If the counter is 0 or a reload was requested, it's
+  // reloaded from the latch; otherwise it's decremented. If it's then 0 and
+  // IRQs are enabled, the IRQ line is asserted. (This is the behaviour of
+  // the common "MMC3B"/"new" MMC3. Some older MMC3As only fire the IRQ when
+  // the counter is decremented to 0 or reloaded via $C001, not when it's
+  // reloaded with 0 after naturally reaching 0.)
+  // See https://www.nesdev.org/wiki/MMC3#IRQ_Specifics
   clockIrqCounter() {
-    if (this.irqEnable === 1) {
+    if (this.irqCounter === 0 || this.irqReload) {
+      this.irqCounter = this.irqLatchValue;
+      this.irqReload = false;
+    } else {
       this.irqCounter--;
-      if (this.irqCounter < 0) {
-        // Trigger IRQ:
-        //nes.getCpu().doIrq();
-        this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NORMAL);
-        this.irqCounter = this.irqLatchValue;
-      }
+    }
+    if (this.irqCounter === 0 && this.irqEnable === 1) {
+      this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NORMAL);
     }
   }
 
@@ -237,6 +250,7 @@ class Mapper4 extends Mapper0 {
     s.pageNumber = this.pageNumber;
     s.irqCounter = this.irqCounter;
     s.irqLatchValue = this.irqLatchValue;
+    s.irqReload = this.irqReload;
     s.irqEnable = this.irqEnable;
     s.prgAddressChanged = this.prgAddressChanged;
     return s;
@@ -250,6 +264,7 @@ class Mapper4 extends Mapper0 {
     this.pageNumber = s.pageNumber;
     this.irqCounter = s.irqCounter;
     this.irqLatchValue = s.irqLatchValue;
+    this.irqReload = s.irqReload === true;
     this.irqEnable = s.irqEnable;
     this.prgAddressChanged = s.prgAddressChanged;
   }
