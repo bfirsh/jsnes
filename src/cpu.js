@@ -1019,6 +1019,16 @@ class CPU {
     }
   }
 
+  // The reset button: run the reset sequence before the next instruction.
+  // Registers other than S, P's I flag and PC are unchanged, and the reset
+  // sequence doesn't write to the stack (see _interruptSequence()).
+  softReset() {
+    this.resetPending = true;
+    this.needNmi = false;
+    this.prevNeedNmi = false;
+    this.forcedNmi = false;
+  }
+
   // Release the cartridge IRQ line (mappers call this when the game
   // acknowledges the interrupt).
   clearIrq() {

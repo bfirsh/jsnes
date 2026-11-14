@@ -78,7 +78,7 @@ class PAPU {
     this.frameStep = 0;
     this.countSequence = 0;
     this.sampleCount = 0;
-    this.frameIrqEnabled = false;
+    this.frameIrqEnabled = true;
     this.frameIrqActive = false;
     // Deferred clearing of the frame IRQ flag: on real hardware, reading
     // $4015 doesn't clear bit 6 immediately. The clear takes effect at the
@@ -104,6 +104,27 @@ class PAPU {
     this.channelEnableValue = 0xff;
     this.maxSample = -500000;
     this.minSample = 500000;
+  }
+
+  // The reset button. All channels are silenced as if $4015 were written
+  // with 0 (which also clears the DMC IRQ flag), the frame IRQ flag is
+  // cleared, and the frame counter restarts as if the last value written to
+  // $4017 were written again, except that the IRQ inhibit flag is cleared.
+  // Other channel registers ($4000-$4013) are unchanged. Restarting the
+  // counter here, 7 cycles (the reset sequence) before the first
+  // instruction, gives the same timing as at power-on, which matches
+  // "as if $4017 were written 9-12 cycles before the first instruction"
+  // once the write delay is accounted for.
+  // See https://www.nesdev.org/wiki/CPU_power_up_state and blargg's
+  // apu_reset tests.
+  softReset() {
+    this.writeReg(0x4015, 0);
+    this.frameIrqEnabled = true;
+    this.frameIrqClearPending = false;
+    this._setFrameIrq(false);
+    this.frameCycleCounter = 0;
+    this.frameStep = 0;
+    this._updateNextFrameEvent();
   }
 
   // eslint-disable-next-line no-unused-vars
