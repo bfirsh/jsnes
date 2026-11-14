@@ -168,8 +168,10 @@ class Mapper5 extends Mapper0 {
       let val = 0;
       if (this.irqPending) val |= 0x80;
       if (this.inFrame) val |= 0x40;
-      // Reading $5204 acknowledges (clears) the IRQ pending flag
+      // Reading $5204 acknowledges (clears) the IRQ pending flag, which
+      // releases the CPU's IRQ line.
       this.irqPending = false;
+      this.nes.cpu.clearIrq();
       return val;
     }
 
@@ -502,9 +504,11 @@ class Mapper5 extends Mapper0 {
     // $5204: Scanline IRQ enable
     if (address === 0x5204) {
       this.irqEnabled = (value & 0x80) !== 0;
-      // If both enabled and pending, fire IRQ immediately
+      // The IRQ line is asserted while an IRQ is both pending and enabled.
       if (this.irqEnabled && this.irqPending) {
         this.nes.cpu.requestIrq(this.nes.cpu.IRQ_NORMAL);
+      } else if (!this.irqEnabled) {
+        this.nes.cpu.clearIrq();
       }
       return;
     }
