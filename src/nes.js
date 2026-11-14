@@ -5,6 +5,8 @@ import PAPU from "./papu/index.js";
 import GameGenie from "./gamegenie.js";
 import ROM from "./rom.js";
 
+const SAVE_STATE_VERSION = 2;
+
 class NES {
   constructor(opts) {
     this.opts = {
@@ -153,6 +155,9 @@ class NES {
 
   toJSON() {
     return {
+      // Bumped when the save state format changes incompatibly. Version 2
+      // is the cycle-accurate CPU/PPU/APU.
+      version: SAVE_STATE_VERSION,
       // romData: this.romData,
       cpu: this.cpu.toJSON(),
       mmap: this.mmap.toJSON(),
@@ -166,6 +171,11 @@ class NES {
   }
 
   fromJSON(s) {
+    if (s.version !== SAVE_STATE_VERSION) {
+      throw new Error(
+        "This save state was made with an incompatible version of JSNES.",
+      );
+    }
     this.reset();
     // this.romData = s.romData;
     this.cpu.fromJSON(s.cpu);
