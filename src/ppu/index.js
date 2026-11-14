@@ -1771,7 +1771,8 @@ class PPU {
           ovfStep = 1;
           addr++;
         } else {
-          addr += 5;
+          // The overflow bug: see _evaluateSprites().
+          addr = ((addr + 4) & 0x1fc) | ((addr + 1) & 3);
         }
       } else if (ovfStep < 3) {
         ovfStep++;
@@ -1840,9 +1841,12 @@ class PPU {
           this.evalOvfStep = 1;
           addr++;
         } else {
-          // Hardware bug: both the sprite index and the byte index are
-          // incremented, so the next "Y" read is really some other byte.
-          addr += 5;
+          // Hardware bug: both the sprite index (n, OAMADDR bits 2-7) and
+          // the byte index (m, bits 0-1) are incremented, without a carry
+          // from m into n, so the next "Y" read is really some other byte
+          // (the 2nd byte of the next sprite, then the 3rd of the one
+          // after, ...). (blargg's sprite_overflow_tests 4.Obscure)
+          addr = ((addr + 4) & 0x1fc) | ((addr + 1) & 3);
         }
       } else if (this.evalOvfStep < 3) {
         this.evalOvfStep++;
