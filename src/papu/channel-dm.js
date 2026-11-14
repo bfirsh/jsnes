@@ -96,9 +96,15 @@ class ChannelDM {
       this._requestDma();
     }
 
-    if (--this.timer === 0) {
-      this.timer = this.period;
-      this._clockOutput();
+    // The timer is clocked by the APU clock, i.e. on every other CPU cycle
+    // (the "get" cycles), so DMA requests always line up the same way with
+    // the get/put phase. The period is in CPU cycles (always even).
+    if ((this.papu.nes.cpu.cycles & 1) === 0) {
+      this.timer -= 2;
+      if (this.timer <= 0) {
+        this.timer = this.period;
+        this._clockOutput();
+      }
     }
   }
 
