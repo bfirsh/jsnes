@@ -707,14 +707,12 @@ export const IRQ_SOURCE_DMC = 4; // APU DMC channel
 
 // The PPU runs at exactly 3x the CPU clock, so 3 PPU "dots" elapse during
 // every CPU cycle. The CPU performs its bus access first, then the PPU is
-// advanced. The CPU's interrupt inputs are sampled partway through the
-// cycle (during the second half of the cycle, called φ2, on real hardware).
-// NMI_POLL_DOT says how many of the cycle's 3 PPU dots have elapsed at that
-// sampling point. This determines e.g. whether a VBlank flag that becomes
-// set near the end of an instruction triggers an NMI immediately after that
-// instruction or one instruction later. It is tuned against the AccuracyCoin
-// "NMI Timing" tests.
-const NMI_POLL_DOT = 1;
+// advanced (see _endCycle()). The CPU's NMI input is sampled partway through
+// the cycle (during the second half of the cycle, called φ2, on real
+// hardware): after the first of the cycle's 3 dots. This determines e.g.
+// whether a VBlank flag that becomes set near the end of an instruction
+// triggers an NMI immediately after that instruction or one instruction
+// later. It is tuned against the AccuracyCoin "NMI Timing" tests.
 
 // ============================================================================
 // The CPU
@@ -853,6 +851,11 @@ class CPU {
 
     // Game Genie is applied on reads from cartridge space.
     this._gameGenieActive = false;
+
+    // Shortcuts to the PPU and APU, which are advanced on every cycle.
+    // (The NES sets these again once it has created all its components.)
+    this.ppu = nes.ppu;
+    this.papu = nes.papu;
   }
 
   // ==========================================================================
@@ -865,7 +868,7 @@ class CPU {
       this._runDma(addr);
     }
     this.cycles++;
-    this.nes.papu.clockCycle();
+    this.papu.clockCycle();
     let value;
     if (addr < 0x2000) {
       // Internal RAM, mirrored every 2KB.
@@ -875,6 +878,14 @@ class CPU {
       // update the external data bus. See https://www.nesdev.org/wiki/Open_bus_behavior
       value = this.nes.mmap.load(addr);
     } else {
+      if (
+        addr < 0x8000 &&
+        (addr < 0x4000 || addr >= 0x4020 || addr === 0x4017)
+      ) {
+        // The PPU (or a mapper that watches it) may be involved: bring the
+        // PPU up to date first. See PPU.catchUp().
+        this._syncPpu(addr);
+      }
       value = this.nes.mmap.load(addr);
       if (this._gameGenieActive && addr >= 0x8000) {
         value = this.nes.gameGenie.applyCodes(addr, value);
@@ -883,6 +894,20 @@ class CPU {
     }
     this._endCycle();
     return value;
+  }
+
+  // Bring the PPU up to the current cycle before an access that could
+  // observe or change its state: PPU registers ($2000-$3FFF), cartridge
+  // registers (mappers switch CHR banks or count scanlines) and $4017
+  // (the Zapper looks at the screen).
+  _syncPpu(addr) {
+    const ppu = this.ppu;
+    ppu.catchUp();
+    if (addr < 0x4000) {
+      // A PPU register access can change the PPU's upcoming events (e.g.
+      // enabling NMI or rendering), so re-check them this cycle.
+      ppu.nextEventDot = 0;
+    }
   }
 
   // One CPU write cycle. Writes are never interrupted by DMA: if a DMA
@@ -895,11 +920,14 @@ class CPU {
       this.dmaNeedHalt = this.oamDmaRunning;
     }
     this.cycles++;
-    this.nes.papu.clockCycle();
+    this.papu.clockCycle();
     this.dataBus = value;
     if (addr < 0x2000) {
       this.mem[addr & 0x7ff] = value;
     } else {
+      if (addr < 0x4000 || addr >= 0x4020) {
+        this._syncPpu(addr);
+      }
       this.nes.mmap.write(addr, value);
     }
     this._endCycle();
@@ -907,11 +935,22 @@ class CPU {
 
   // Second half of every cycle: advance the PPU 3 dots and sample the
   // interrupt lines at the right moment within the cycle.
+  //
+  // For speed, the PPU is normally run lazily ("catch-up"): we just add this
+  // cycle's 3 dots to its to-do count, and it runs them in a batch the next
+  // time anything needs to look at it. If the PPU has an event coming up
+  // that the CPU would notice (like VBlank starting), it runs exactly in
+  // step for that cycle instead. See PPU.catchUp().
   _endCycle() {
-    const ppu = this.nes.ppu;
-    ppu.advanceDots(NMI_POLL_DOT);
+    const ppu = this.ppu;
+    ppu.dotTarget += 3;
+    if (ppu.dotTarget > ppu.nextEventDot) {
+      // Runs the dots and records the NMI output at the poll point.
+      ppu.runCycleExact();
+    } else {
+      ppu.nmiAtPoll = ppu.nmiOutput;
+    }
     this._pollInterrupts();
-    ppu.advanceDots(3 - NMI_POLL_DOT);
   }
 
   // Sample the interrupt lines. Happens once per cycle.
@@ -929,7 +968,7 @@ class CPU {
   // See https://www.nesdev.org/wiki/CPU_interrupts
   _pollInterrupts() {
     this.prevNeedNmi = this.needNmi;
-    const nmi = this.nes.ppu.nmiOutput;
+    const nmi = this.ppu.nmiAtPoll;
     if (nmi && !this.nmiLine) {
       this.needNmi = true;
     }
@@ -1076,7 +1115,7 @@ class CPU {
   // time this is harmless, but for I/O registers it has side effects.
   _haltedRead(addr, skipRead) {
     this.cycles++;
-    this.nes.papu.clockCycle();
+    this.papu.clockCycle();
     if (!skipRead) {
       this._dmaBusRead(addr);
     }
@@ -1090,6 +1129,12 @@ class CPU {
     if (addr < 0x2000) {
       value = this.mem[addr & 0x7ff];
     } else {
+      if (
+        addr < 0x8000 &&
+        (addr < 0x4000 || addr >= 0x4020 || addr === 0x4017)
+      ) {
+        this._syncPpu(addr);
+      }
       value = this.nes.mmap.load(addr);
       if (addr === 0x4015) return value;
     }
@@ -1117,7 +1162,7 @@ class CPU {
   // AccuracyCoin "APU Register Activation" / "DMC DMA Bus Conflicts" tests.
   _dmaFetch(addr, haltedAddr) {
     this.cycles++;
-    this.nes.papu.clockCycle();
+    this.papu.clockCycle();
     let value;
     if ((haltedAddr & 0xffe0) !== 0x4000) {
       if (addr >= 0x4000 && addr <= 0x401f) {
@@ -1157,8 +1202,9 @@ class CPU {
 
   _dmaWrite(addr, value) {
     this.cycles++;
-    this.nes.papu.clockCycle();
+    this.papu.clockCycle();
     this.dataBus = value;
+    this._syncPpu(addr);
     this.nes.mmap.write(addr, value);
     this._endCycle();
   }

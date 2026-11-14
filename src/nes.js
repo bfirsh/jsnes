@@ -26,6 +26,8 @@ class NES {
     this.cpu = new CPU(this);
     this.ppu = new PPU(this);
     this.papu = new PAPU(this);
+    this.cpu.ppu = this.ppu;
+    this.cpu.papu = this.papu;
     this.gameGenie = new GameGenie();
     this.gameGenie.onChange = () => this.cpu._updateCartridgeLoader();
     this.mmap = null;
@@ -45,6 +47,8 @@ class NES {
     this.cpu = new CPU(this);
     this.ppu = new PPU(this);
     this.papu = new PAPU(this);
+    this.cpu.ppu = this.ppu;
+    this.cpu.papu = this.papu;
 
     if (this.mmap !== null) {
       this.mmap = this.rom.createMapper();

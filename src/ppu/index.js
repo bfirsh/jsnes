@@ -152,6 +152,15 @@ class PPU {
 
     // NMI output line (vblankFlag AND f_nmiOnVblank). The CPU samples it.
     this.nmiOutput = false;
+    // nmiOutput at the point in the current CPU cycle where the CPU samples
+    // it (see runCycleExact()).
+    this.nmiAtPoll = false;
+
+    // Catch-up state (see catchUp()): dots the CPU has asked for, dots
+    // actually run, and the dot of the next event the CPU could notice.
+    this.dotTarget = 0;
+    this.dotsRun = 0;
+    this.nextEventDot = 0;
     // Set when $2002 is read on the dot just before VBlank would be set,
     // which prevents the flag being set (and the NMI) for that frame.
     this.nmiSuppressed = false;
@@ -640,8 +649,103 @@ class PPU {
   // The dot clock
   // ==========================================================================
 
-  // Advance the PPU by the given number of dots. Called by the CPU every
-  // cycle (3 dots per CPU cycle).
+  // --- Catch-up ---
+  //
+  // The CPU owes the PPU 3 dots per CPU cycle (dotTarget counts them), but
+  // the PPU doesn't run them straight away. Running the PPU in batches is
+  // much faster than interleaving it with the CPU one cycle at a time, and
+  // gives the same result as long as the batches are run before anything
+  // looks at or changes the PPU's state. So:
+  //   - Before the CPU accesses a PPU register or the cartridge, it calls
+  //     catchUp() to run all the dots owed so far.
+  //   - The PPU works out when its next "event" is: something the CPU
+  //     would notice without accessing a register (the NMI line changing
+  //     at the start/end of VBlank, the mapper's scanline counter being
+  //     clocked, the end of the frame). On the CPU cycle containing that
+  //     dot, runCycleExact() runs the PPU in step with the CPU.
+  // See https://www.nesdev.org/wiki/Catch-up
+
+  // Run all the dots owed by the CPU.
+  catchUp() {
+    const target = this.dotTarget;
+    while (this.dotsRun < target) {
+      const dot = this.dot;
+      if (
+        this.line < 240 &&
+        dot >= 1 &&
+        dot <= 256 &&
+        this.renderingOn &&
+        this.maskDelay === 0 &&
+        !this.oamCorruptPending
+      ) {
+        // Fast path: a run of pixels on a visible line.
+        let end = dot + (target - this.dotsRun);
+        if (end > 257) end = 257;
+        this._renderSpan(this.line, dot, end);
+        this.dotsRun += end - dot;
+        this.dot = end;
+      } else {
+        this._tick();
+        this.dotsRun++;
+      }
+    }
+  }
+
+  // Run the current CPU cycle's 3 dots exactly in step with the CPU, then
+  // work out when the next event is. nmiAtPoll records the NMI output after
+  // the first dot of the cycle, which is when the CPU samples it.
+  runCycleExact() {
+    const target = this.dotTarget;
+    this.dotTarget = target - 2;
+    this.catchUp();
+    this.nmiAtPoll = this.nmiOutput;
+    this.dotTarget = target;
+    this.catchUp();
+    this._scheduleNextEvent();
+  }
+
+  // Number of dots from the current position until the PPU reaches
+  // (line, dot) for the next time.
+  _dotsUntil(line, dot) {
+    let d = (line - this.line) * 341 + (dot - this.dot);
+    if (d < 0) d += 262 * 341;
+    return d;
+  }
+
+  // Work out the dot (in dotsRun units) of the next event the CPU might
+  // notice. See catchUp().
+  _scheduleNextEvent() {
+    // VBlank start and end, and the odd-frame dot skip (which changes the
+    // length of the frame, so we sync there to keep this arithmetic simple).
+    let d = this._dotsUntil(241, 1);
+    let e = this._dotsUntil(261, 1);
+    if (e < d) d = e;
+    e = this._dotsUntil(261, 339);
+    if (e < d) d = e;
+    if (this.renderingOn) {
+      // The mapper's scanline counter is clocked at dot 260 of each
+      // rendered line.
+      const line = this.line;
+      let next;
+      if (line < 240) {
+        next = this.dot <= 260 ? line : line + 1;
+        if (next === 240) next = 261;
+      } else if (line === 261 && this.dot > 260) {
+        next = 0;
+      } else {
+        next = 261;
+      }
+      e = this._dotsUntil(next, 260);
+      if (e < d) d = e;
+    }
+    if (this.maskDelay !== 0 && this.maskDelay - 1 < d) {
+      // A $2001 write is about to take effect.
+      d = this.maskDelay - 1;
+    }
+    this.nextEventDot = this.dotsRun + d;
+  }
+
+  // Advance the PPU by the given number of dots.
   advanceDots(dots) {
     for (let i = 0; i < dots; i++) {
       this._tick();
@@ -760,28 +864,13 @@ class PPU {
 
     if (dot <= 256) {
       if (!isPreRender) {
-        // Output a pixel (from the current state of the shift registers).
-        this._renderPixel(line, dot - 1);
-      }
-      // Shift the background registers, then fetch.
-      this._shiftBg();
-      this._bgFetch(dot);
-      if (dot === 256) this._incY();
-
-      if (!isPreRender) {
-        // Sprite evaluation for the next line.
-        if (dot <= 64) {
-          // Clear secondary OAM, one byte every 2 dots.
-          if ((dot & 1) === 0) {
-            this.secondaryOAM[(dot >> 1) - 1] = 0xff;
-            this.secIdx = (dot >> 1) & 0x1f;
-          }
-          if (dot === 64) {
-            this._startEvaluation();
-          }
-        } else {
-          this._evaluateSprites(line, dot);
-        }
+        this._renderSpan(line, dot, dot + 1);
+      } else {
+        // The pre-render line does the background fetches, but outputs no
+        // pixels and doesn't evaluate sprites.
+        this._shiftBg();
+        this._bgFetch(dot);
+        if (dot === 256) this._incY();
       }
     } else if (dot <= 320) {
       if (dot === 257) {
@@ -944,66 +1033,131 @@ class PPU {
     this.attrLatchHi = this.atBits >> 1;
   }
 
-  // Compute and output the pixel at x (0-255) on a visible line, while
-  // rendering is enabled. Also detects sprite 0 hits.
-  _renderPixel(line, x) {
-    // Background pixel.
-    let bgPixel = 0;
-    if (this.f_bgVisibility === 1 && (x >= 8 || this.f_bgClipping === 1)) {
-      const bit = 15 - this.fineX;
-      const p =
-        ((this.bgShiftLo >> bit) & 1) | (((this.bgShiftHi >> bit) & 1) << 1);
-      if (p !== 0) {
-        const abit = 7 - this.fineX;
-        bgPixel =
-          p |
-          (((this.attrShiftLo >> abit) & 1) << 2) |
-          (((this.attrShiftHi >> abit) & 1) << 3);
+  // Process dots [from, to) of a visible line (1 <= from < to <= 257) with
+  // rendering enabled: for each dot, output a pixel, shift the background
+  // registers, do that dot's background fetch, and do that dot's step of
+  // sprite evaluation. This is the hot loop of the whole emulator, so the
+  // background shift registers are kept in local variables.
+  _renderSpan(line, from, to) {
+    let bgLo = this.bgShiftLo;
+    let bgHi = this.bgShiftHi;
+    let atLo = this.attrShiftLo;
+    let atHi = this.attrShiftHi;
+    const fineX = this.fineX;
+    const bit = 15 - fineX;
+    const abit = 7 - fineX;
+    const showBg = this.f_bgVisibility === 1;
+    const bgLeft = this.f_bgClipping === 1;
+    const palColors = this.palColors;
+    const buffer = this.buffer;
+    const rowBase = line << 8;
+
+    for (let dot = from; dot < to; dot++) {
+      // --- Output the pixel for x = dot - 1 ---
+      const x = dot - 1;
+      let bgPixel = 0;
+      if (showBg && (x >= 8 || bgLeft)) {
+        const p = ((bgLo >> bit) & 1) | (((bgHi >> bit) & 1) << 1);
+        if (p !== 0) {
+          bgPixel =
+            p | (((atLo >> abit) & 1) << 2) | (((atHi >> abit) & 1) << 3);
+        }
+      }
+      let colorIndex = bgPixel;
+      if (this.sprCount !== 0 || this.spriteSkipGlitch) {
+        const spr = this._spritePixel(x, bgPixel);
+        // Sprites are drawn in front of the background unless their
+        // priority bit says otherwise (and the background is opaque).
+        if (spr !== 0 && (bgPixel === 0 || (spr & 0x100) === 0)) {
+          colorIndex = spr & 0x1f;
+        }
+      }
+      buffer[rowBase | x] = palColors[colorIndex];
+
+      // --- Shift the background registers ---
+      // The pattern shifters shift in a 0 (low plane) and a 1 (high
+      // plane), which shows up if the PPU is made to skip a reload. The
+      // attribute shifters shift in their latch.
+      bgLo = (bgLo << 1) & 0xffff;
+      bgHi = ((bgHi << 1) | 1) & 0xffff;
+      atLo = ((atLo << 1) | this.attrLatchLo) & 0xff;
+      atHi = ((atHi << 1) | this.attrLatchHi) & 0xff;
+
+      // --- Background fetch for this dot ---
+      if ((dot & 7) === 0) {
+        // End of a tile: load it into the shift registers.
+        bgLo = (bgLo & 0xff00) | this.ptLo;
+        bgHi = (bgHi & 0xff00) | this.ptHi;
+        this.attrLatchLo = this.atBits & 1;
+        this.attrLatchHi = this.atBits >> 1;
+        this._incCoarseX();
+        if (dot === 256) this._incY();
+      } else if ((dot & 1) === 1) {
+        this._bgFetch(dot);
+      }
+
+      // --- Sprite evaluation for the next line ---
+      if (dot <= 64) {
+        // Clear secondary OAM, one byte every 2 dots.
+        if ((dot & 1) === 0) {
+          this.secondaryOAM[(dot >> 1) - 1] = 0xff;
+          this.secIdx = (dot >> 1) & 0x1f;
+          if (dot === 64) {
+            this._startEvaluation();
+          }
+        }
+      } else if ((dot & 1) === 1) {
+        // Odd dots: read OAM.
+        this.oamLatch = this.spriteMem[this.sramAddress];
+      } else {
+        // Even dots: process the byte read.
+        this._evaluateSprites(line, dot);
       }
     }
 
-    // Sprite pixels. Each slot's X counter counts down to 0, then the slot
-    // shifts out its 8 pixels. The lowest-numbered opaque slot wins.
-    let sprPixel = 0;
-    let sprBehind = false;
+    this.bgShiftLo = bgLo;
+    this.bgShiftHi = bgHi;
+    this.attrShiftLo = atLo;
+    this.attrShiftHi = atHi;
+  }
+
+  // Sprite pixel at x (0-255). Returns 0 if no sprite pixel; otherwise the
+  // palette index (0x10-0x1F) plus 0x100 if the sprite is behind the
+  // background. Also detects sprite 0 hits against bgPixel.
+  //
+  // Each slot's X counter counts down to 0, then the slot shifts out its 8
+  // pixels. The lowest-numbered opaque slot wins.
+  _spritePixel(x, bgPixel) {
+    let result = 0;
     const count = this.sprCount;
-    if (count !== 0) {
-      const glitch = this.spriteSkipGlitch;
-      const showSprites =
-        this.f_spVisibility === 1 && (x >= 8 || this.f_spClipping === 1);
-      const sprX = this.sprX;
-      const sprLo = this.sprLo;
-      const sprHi = this.sprHi;
-      for (let i = 0; i < count; i++) {
-        if (sprX[i] !== 0 && !glitch) {
-          sprX[i]--;
-          continue;
-        }
-        const p = ((sprLo[i] >> 7) & 1) | ((sprHi[i] >> 6) & 2);
-        sprLo[i] = sprLo[i] << 1;
-        sprHi[i] = sprHi[i] << 1;
-        if (glitch && this.sprLatchX[i] !== 0) {
-          sprX[i] = this.sprLatchX[i] - 1;
-        }
-        if (p === 0 || !showSprites) continue;
-        if (i === 0 && this.sprite0Line && bgPixel !== 0 && x !== 255) {
-          this.sprite0HitFlag = 1;
-        }
-        if (sprPixel === 0) {
-          sprPixel = p | ((this.sprAttr[i] & 3) << 2);
-          sprBehind = (this.sprAttr[i] & 0x20) !== 0;
-        }
+    const glitch = this.spriteSkipGlitch;
+    this.spriteSkipGlitch = false;
+    const showSprites =
+      this.f_spVisibility === 1 && (x >= 8 || this.f_spClipping === 1);
+    const sprX = this.sprX;
+    const sprLo = this.sprLo;
+    const sprHi = this.sprHi;
+    for (let i = 0; i < count; i++) {
+      if (sprX[i] !== 0 && !glitch) {
+        sprX[i]--;
+        continue;
+      }
+      const p = ((sprLo[i] >> 7) & 1) | ((sprHi[i] >> 6) & 2);
+      sprLo[i] = sprLo[i] << 1;
+      sprHi[i] = sprHi[i] << 1;
+      if (glitch && this.sprLatchX[i] !== 0) {
+        sprX[i] = this.sprLatchX[i] - 1;
+      }
+      if (p === 0 || !showSprites) continue;
+      if (i === 0 && this.sprite0Line && bgPixel !== 0 && x !== 255) {
+        this.sprite0HitFlag = 1;
+      }
+      if (result === 0) {
+        const attr = this.sprAttr[i];
+        result = 0x10 | p | ((attr & 3) << 2) | ((attr & 0x20) << 3);
       }
     }
-    this.spriteSkipGlitch = false;
-
-    let color;
-    if (sprPixel !== 0 && (bgPixel === 0 || !sprBehind)) {
-      color = this.palColors[0x10 | sprPixel];
-    } else {
-      color = this.palColors[bgPixel];
-    }
-    this.buffer[(line << 8) | x] = color;
+    return result;
   }
 
   // ==========================================================================
@@ -1032,12 +1186,9 @@ class PPU {
     return row >= 0 && row < (this.f_spriteSize ? 16 : 8);
   }
 
+  // Process the OAM byte read on the previous (odd) dot. Called on the even
+  // dots 66-256.
   _evaluateSprites(line, dot) {
-    if ((dot & 1) === 1) {
-      // Odd dots: read OAM.
-      this.oamLatch = this.spriteMem[this.sramAddress];
-      return;
-    }
     const s = this.oamLatch;
     let addr = this.sramAddress;
 
@@ -1217,6 +1368,7 @@ class PPU {
 
   // Used by the Zapper: is the pixel at (x, y) bright white?
   isPixelWhite(x, y) {
+    this.catchUp();
     return this.buffer[(y << 8) + x] === 0xffffff;
   }
 
@@ -1242,6 +1394,7 @@ class PPU {
     "sprite0HitFlag",
     "spriteOverflowFlag",
     "nmiOutput",
+    "nmiAtPoll",
     "nmiSuppressed",
     "line",
     "dot",
@@ -1292,6 +1445,7 @@ class PPU {
   ];
 
   toJSON() {
+    this.catchUp();
     let state = toJSON(this);
     state.vramMirrorTable = this.vramMirrorTable;
     return state;
@@ -1302,6 +1456,9 @@ class PPU {
     if (state.vramMirrorTable) {
       this.vramMirrorTable.set(state.vramMirrorTable);
     }
+    this.dotTarget = 0;
+    this.dotsRun = 0;
+    this.nextEventDot = 0;
     // Rebuild derived state.
     for (let i = 0; i < 0x2000; i++) {
       this.patternWrite(i, this.vramMem[i]);
