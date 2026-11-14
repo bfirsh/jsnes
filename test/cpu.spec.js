@@ -51,7 +51,14 @@ const NES = function (mmap) {
   this.mmap = mmap;
   this.gameGenie = new GameGenie();
   // Stubs for the PPU and APU, which the CPU advances on every bus cycle.
-  this.ppu = { advanceDots() {}, nmiOutput: false };
+  this.ppu = {
+    dotTarget: 0,
+    nextEventDot: Infinity,
+    nmiOutput: false,
+    nmiAtPoll: false,
+    catchUp() {},
+    runCycleExact() {},
+  };
   this.papu = { clockCycle() {} };
 };
 
