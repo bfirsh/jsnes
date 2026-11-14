@@ -1224,34 +1224,48 @@ class PPU {
         // their current value (attribute: bit 7 - fineX - k, or the latch
         // once that has been shifted in).
         const x0 = dot - 1;
-        const useSprites = this.sprLineValid;
-        for (let k = 0; k < 8; k++) {
-          const x = x0 + k;
-          let bgPixel = 0;
-          if (showBg && (x >= 8 || bgLeft)) {
-            const b = bit - k;
-            const p = ((bgLo >> b) & 1) | (((bgHi >> b) & 1) << 1);
-            if (p !== 0) {
-              const ab = abit - k;
-              bgPixel =
-                ab >= 0
-                  ? p | (((atLo >> ab) & 1) << 2) | (((atHi >> ab) & 1) << 3)
-                  : p | (latLo << 2) | (latHi << 3);
-            }
+        // Bit (7 - k) of these 8-bit windows of the shift registers is the
+        // value at the top of the register after k shifts, i.e. what pixel
+        // k of this group uses. The attribute windows continue into the
+        // latch bits once the shifter's own bits have been used up.
+        const sh = 8 - fineX;
+        let pix = 0;
+        if (showBg && (x0 >= 8 || bgLeft)) {
+          pix =
+            DECODE_PLANES[(((bgHi >> sh) & 0xff) << 8) | ((bgLo >> sh) & 0xff)];
+        }
+        const pal =
+          DECODE_PLANES[
+            (((((atHi << 8) | (latHi ? 0xff : 0)) >> sh) & 0xff) << 8) |
+              ((((atLo << 8) | (latLo ? 0xff : 0)) >> sh) & 0xff)
+          ];
+        if (!this.sprLineValid) {
+          for (let k = 0; k < 8; k++) {
+            const s2 = 14 - 2 * k;
+            const p = (pix >> s2) & 3;
+            buffer[rowBase | (x0 + k)] =
+              palColors[p === 0 ? 0 : p | (((pal >> s2) & 3) << 2)];
           }
-          let colorIndex = bgPixel;
-          if (useSprites) {
+        } else {
+          for (let k = 0; k < 8; k++) {
+            const x = x0 + k;
+            const s2 = 14 - 2 * k;
+            const p = (pix >> s2) & 3;
+            const bgPixel = p === 0 ? 0 : p | (((pal >> s2) & 3) << 2);
+            let colorIndex = bgPixel;
             const spr = sprLine[x];
             if (spr !== 0 && showSprites && (x >= 8 || spLeft)) {
               if (spr & 0x200 && bgPixel !== 0 && x !== 255) {
                 this.sprite0HitFlag = 1;
               }
+              // Sprites are drawn in front of the background unless their
+              // priority bit says otherwise (and the background is opaque).
               if (bgPixel === 0 || (spr & 0x100) === 0) {
                 colorIndex = spr & 0x1f;
               }
             }
+            buffer[rowBase | x] = palColors[colorIndex];
           }
-          buffer[rowBase | x] = palColors[colorIndex];
         }
 
         // After 8 shifts the old tile is gone, the next tile is in the high
@@ -1781,6 +1795,21 @@ class PPU {
     }
     this.updatePalettes();
   }
+}
+
+// DECODE_PLANES[(hi << 8) | lo] packs the 8 two-bit pixels of a pair of
+// bit planes, leftmost pixel in bits 14-15: pixel k is
+// (DECODE_PLANES[...] >> (14 - 2 * k)) & 3.
+const DECODE_PLANES = new Uint16Array(65536);
+for (let v = 0; v < 65536; v++) {
+  const lo = v & 0xff;
+  const hi = v >> 8;
+  let packed = 0;
+  for (let k = 0; k < 8; k++) {
+    const p = ((lo >> (7 - k)) & 1) | (((hi >> (7 - k)) & 1) << 1);
+    packed |= p << (14 - 2 * k);
+  }
+  DECODE_PLANES[v] = packed;
 }
 
 // Bit-reversed bytes, for horizontally flipped sprites.
