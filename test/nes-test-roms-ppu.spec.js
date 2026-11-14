@@ -34,11 +34,6 @@ const VBL_NMI_TIMING_TESTS = [
 
 // Tests that are known to fail, and why. They're skipped.
 const KNOWN_FAILURES = {
-  "sprite_overflow_tests/3.Timing.nes":
-    "the sprite overflow bug's OAM address increment is wrong",
-  "sprite_overflow_tests/4.Obscure.nes":
-    "the sprite overflow bug's OAM address increment is wrong",
-
   "blargg_ppu_tests_2005.09.15b/power_up_palette.nes":
     "palette RAM starts zeroed instead of with typical power-on contents",
 
