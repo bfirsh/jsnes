@@ -1,4 +1,10 @@
 import { fromJSON, toJSON } from "../utils.js";
+import {
+  clockLength,
+  initLengthCounter,
+  writeLengthEnable,
+  writeLengthReload,
+} from "./length-counter.js";
 
 class ChannelTriangle {
   constructor(papu) {
@@ -9,8 +15,7 @@ class ChannelTriangle {
     this.triangleCounter = 0;
     this.isEnabled = false;
     this.sampleCondition = false;
-    this.lengthCounter = 0;
-    this.lengthCounterEnable = false;
+    initLengthCounter(this);
     this.linearCounter = 0;
     this.lcLoadValue = 0;
     this.lcHalt = true;
@@ -20,11 +25,8 @@ class ChannelTriangle {
   }
 
   clockLengthCounter() {
-    if (this.lengthCounterEnable && this.lengthCounter > 0) {
-      this.lengthCounter--;
-      if (this.lengthCounter === 0) {
-        this.updateSampleCondition();
-      }
+    if (clockLength(this)) {
+      this.updateSampleCondition();
     }
   }
 
@@ -60,7 +62,7 @@ class ChannelTriangle {
       this.lcLoadValue = value & 0x7f;
 
       // Length counter enable:
-      this.lengthCounterEnable = !this.lcControl;
+      writeLengthEnable(this, !this.lcControl);
     } else if (address === 0x400a) {
       // Programmable timer:
       this.progTimerMax &= 0x700;
@@ -72,9 +74,7 @@ class ChannelTriangle {
       // Length counter is only loaded when the channel is enabled via $4015.
       // Writing this register while disabled has no effect on the length counter.
       // See https://www.nesdev.org/wiki/APU#Status_($4015)
-      if (this.isEnabled) {
-        this.lengthCounter = this.papu.getLengthMax(value & 0xf8);
-      }
+      writeLengthReload(this, value);
       this.lcHalt = true;
     }
 
