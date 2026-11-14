@@ -97,8 +97,10 @@ class PAPU {
     this.frameIrqClearDelay = 0;
     // Counter value at which the frame counter next has something to do.
     this.nextFrameEvent = FRAME_STEPS_4[0];
-    // CPU cycles not yet run through the audio synthesis (_flushAudio).
+    // CPU cycles not yet run through the audio synthesis (_flushAudio), and
+    // how many to accumulate before running them.
     this.pendingAudioCycles = 0;
+    this.audioFlushAt = 1;
     this.accCount = 0;
     this.smpSquare1 = 0;
     this.smpSquare2 = 0;
@@ -245,7 +247,7 @@ class PAPU {
   // by _flushAudio() for speed.
   clockCycle(cycle) {
     // Batched audio synthesis (skipped entirely if sound is off).
-    if (this.emulateSound && ++this.pendingAudioCycles >= 8) {
+    if (this.emulateSound && ++this.pendingAudioCycles >= this.audioFlushAt) {
       this._flushAudio();
     }
 
@@ -292,12 +294,20 @@ class PAPU {
     this.pendingAudioCycles = 0;
     while (nCycles > 0) {
       // Don't process channel ticks beyond the next output sample.
-      let maxCycles = ((this.sampleTimerMax - this.sampleTimer) >> 10) + 1;
-      if (maxCycles < 1) maxCycles = 1;
-      let n = nCycles < maxCycles ? nCycles : maxCycles;
+      let n = this._cyclesToNextSample();
+      if (nCycles < n) n = nCycles;
       this._clockChannels(n);
       nCycles -= n;
     }
+    // Unless something changes channel state first, run the next batch
+    // when the next output sample is due.
+    this.audioFlushAt = this._cyclesToNextSample();
+  }
+
+  // CPU cycles until the next output sample is produced (at least 1).
+  _cyclesToNextSample() {
+    const n = ((this.sampleTimerMax - this.sampleTimer) >> 10) + 1;
+    return n < 1 ? 1 : n;
   }
 
   // Clocks the square, triangle and noise channel timers and the audio
@@ -331,25 +341,11 @@ class PAPU {
       }
     }
 
-    // Clock Square channel 1 Prog timer:
-    square1.progTimerCount -= nCycles;
-    while (square1.progTimerCount <= 0) {
-      square1.progTimerCount += (square1.progTimerMax + 1) << 1;
-
-      square1.squareCounter++;
-      square1.squareCounter &= 0x7;
-      square1.updateSampleValue();
-    }
-
-    // Clock Square channel 2 Prog timer:
-    square2.progTimerCount -= nCycles;
-    while (square2.progTimerCount <= 0) {
-      square2.progTimerCount += (square2.progTimerMax + 1) << 1;
-
-      square2.squareCounter++;
-      square2.squareCounter &= 0x7;
-      square2.updateSampleValue();
-    }
+    // Clock the square channels. Their output is accumulated exactly (each
+    // value weighted by how many cycles it lasted), so the batch can span
+    // several steps of the waveform.
+    this.smpSquare1 += this._clockSquare(square1, nCycles);
+    this.smpSquare2 += this._clockSquare(square2, nCycles);
 
     // Clock noise channel Prog timer:
     let acc_c = nCycles;
@@ -401,6 +397,26 @@ class PAPU {
       this.sample();
       this.sampleTimer -= this.sampleTimerMax;
     }
+  }
+
+  // Run a square channel's timer for nCycles CPU cycles. Returns the sum of
+  // its output over those cycles.
+  _clockSquare(square, nCycles) {
+    const period = (square.progTimerMax + 1) << 1;
+    let count = square.progTimerCount;
+    if (count < 0) count = 0;
+    let remaining = nCycles;
+    let sum = 0;
+    // The waveform steps when the timer reaches 0.
+    while (count <= remaining) {
+      sum += square.sampleValue * count;
+      remaining -= count;
+      count = period;
+      square.squareCounter = (square.squareCounter + 1) & 0x7;
+      square.updateSampleValue();
+    }
+    square.progTimerCount = count - remaining;
+    return sum + square.sampleValue * remaining;
   }
 
   // Set or clear the frame interrupt flag, updating the CPU's IRQ line.
@@ -489,25 +505,10 @@ class PAPU {
     }
 
     // Now sample normally:
-    if (cycles === 2) {
-      this.smpTriangle += this.triValue << 1;
-      this.smpDmc += this.dmc.sample << 1;
-      this.smpSquare1 += this.square1.sampleValue << 1;
-      this.smpSquare2 += this.square2.sampleValue << 1;
-      this.accCount += 2;
-    } else if (cycles === 4) {
-      this.smpTriangle += this.triValue << 2;
-      this.smpDmc += this.dmc.sample << 2;
-      this.smpSquare1 += this.square1.sampleValue << 2;
-      this.smpSquare2 += this.square2.sampleValue << 2;
-      this.accCount += 4;
-    } else {
-      this.smpTriangle += cycles * this.triValue;
-      this.smpDmc += cycles * this.dmc.sample;
-      this.smpSquare1 += cycles * this.square1.sampleValue;
-      this.smpSquare2 += cycles * this.square2.sampleValue;
-      this.accCount += cycles;
-    }
+    // (The square channels are accumulated in _clockChannels().)
+    this.smpTriangle += cycles * this.triValue;
+    this.smpDmc += cycles * this.dmc.sample;
+    this.accCount += cycles;
   }
 
   // Fire a frame counter step. Each step clocks different APU units depending
@@ -891,6 +892,7 @@ class PAPU {
     "frameIrqClearDelay",
     "nextFrameEvent",
     "pendingAudioCycles",
+    "audioFlushAt",
     "startedPlaying",
     "recordOutput",
     "frameCycleCounter",

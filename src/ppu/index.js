@@ -1105,15 +1105,29 @@ class PPU {
   }
 
   // Process dots [from, to) of a visible line (1 <= from < to <= 257) with
-  // rendering enabled: for each dot, output a pixel, shift the background
-  // registers, do that dot's background fetch, and do that dot's step of
-  // sprite evaluation. This is the hot loop of the whole emulator, so the
-  // background shift registers are kept in local variables.
+  // rendering enabled: output pixels, run the background pipeline and do
+  // the sprite evaluation steps for those dots. This is the hot loop of the
+  // whole emulator.
+  //
+  // Within a span nothing outside the PPU can look at its state (see
+  // catchUp()), and the background pipeline and sprite evaluation don't
+  // depend on each other (one reads VRAM, the other OAM), so they're run
+  // as two separate loops.
   _renderSpan(line, from, to) {
+    this._renderBackgroundSpan(line, from, to);
+    this._evaluateSpan(line, from, to);
+  }
+
+  // Output the pixels for dots [from, to) and run the background pipeline
+  // (shift registers and tile fetches). The shift registers are kept in
+  // local variables.
+  _renderBackgroundSpan(line, from, to) {
     let bgLo = this.bgShiftLo;
     let bgHi = this.bgShiftHi;
     let atLo = this.attrShiftLo;
     let atHi = this.attrShiftHi;
+    let latLo = this.attrLatchLo;
+    let latHi = this.attrLatchHi;
     const fineX = this.fineX;
     const bit = 15 - fineX;
     const abit = 7 - fineX;
@@ -1126,8 +1140,72 @@ class PPU {
     const spLeft = this.f_spClipping === 1;
     const rowBase = line << 8;
 
-    for (let dot = from; dot < to; dot++) {
-      // --- Output the pixel for x = dot - 1 ---
+    let dot = from;
+    while (dot < to) {
+      const spritesSimple =
+        this.sprLineValid || (this.sprCount === 0 && !this.spriteSkipGlitch);
+
+      if ((dot & 7) === 1 && dot + 8 <= to && spritesSimple) {
+        // --- Fast path: one whole tile (8 dots) at once ---
+        // The four fetches only fill latches, which the pixels of this
+        // group don't use, so do them first.
+        this._bgFetch(dot);
+        this._bgFetch(dot + 2);
+        this._bgFetch(dot + 4);
+        this._bgFetch(dot + 6);
+
+        // Pixel k of the group is the bit that would be at the top of the
+        // shift registers after k shifts, i.e. bit (15 - fineX - k) of
+        // their current value (attribute: bit 7 - fineX - k, or the latch
+        // once that has been shifted in).
+        const x0 = dot - 1;
+        const useSprites = this.sprLineValid;
+        for (let k = 0; k < 8; k++) {
+          const x = x0 + k;
+          let bgPixel = 0;
+          if (showBg && (x >= 8 || bgLeft)) {
+            const b = bit - k;
+            const p = ((bgLo >> b) & 1) | (((bgHi >> b) & 1) << 1);
+            if (p !== 0) {
+              const ab = abit - k;
+              bgPixel =
+                ab >= 0
+                  ? p | (((atLo >> ab) & 1) << 2) | (((atHi >> ab) & 1) << 3)
+                  : p | (latLo << 2) | (latHi << 3);
+            }
+          }
+          let colorIndex = bgPixel;
+          if (useSprites) {
+            const spr = sprLine[x];
+            if (spr !== 0 && showSprites && (x >= 8 || spLeft)) {
+              if (spr & 0x200 && bgPixel !== 0 && x !== 255) {
+                this.sprite0HitFlag = 1;
+              }
+              if (bgPixel === 0 || (spr & 0x100) === 0) {
+                colorIndex = spr & 0x1f;
+              }
+            }
+          }
+          buffer[rowBase | x] = palColors[colorIndex];
+        }
+
+        // After 8 shifts the old tile is gone, the next tile is in the high
+        // half, and the attribute shifters are full of their latch bits.
+        // Then the tile just fetched is loaded.
+        bgLo = ((bgLo << 8) & 0xff00) | this.ptLo;
+        bgHi = ((bgHi << 8) & 0xff00) | this.ptHi;
+        atLo = latLo ? 0xff : 0;
+        atHi = latHi ? 0xff : 0;
+        latLo = this.atBits & 1;
+        latHi = this.atBits >> 1;
+        this._incCoarseX();
+        if (dot === 249) this._incY();
+        dot += 8;
+        continue;
+      }
+
+      // --- One dot at a time ---
+      // Output the pixel for x = dot - 1.
       const x = dot - 1;
       let bgPixel = 0;
       if (showBg && (x >= 8 || bgLeft)) {
@@ -1152,37 +1230,46 @@ class PPU {
         }
       } else if (this.sprCount !== 0 || this.spriteSkipGlitch) {
         const spr = this._spritePixel(x, bgPixel);
-        // Sprites are drawn in front of the background unless their
-        // priority bit says otherwise (and the background is opaque).
         if (spr !== 0 && (bgPixel === 0 || (spr & 0x100) === 0)) {
           colorIndex = spr & 0x1f;
         }
       }
       buffer[rowBase | x] = palColors[colorIndex];
 
-      // --- Shift the background registers ---
-      // The pattern shifters shift in a 0 (low plane) and a 1 (high
-      // plane), which shows up if the PPU is made to skip a reload. The
-      // attribute shifters shift in their latch.
+      // Shift the background registers. The pattern shifters shift in a 0
+      // (low plane) and a 1 (high plane), which shows up if the PPU is made
+      // to skip a reload. The attribute shifters shift in their latch.
       bgLo = (bgLo << 1) & 0xffff;
       bgHi = ((bgHi << 1) | 1) & 0xffff;
-      atLo = ((atLo << 1) | this.attrLatchLo) & 0xff;
-      atHi = ((atHi << 1) | this.attrLatchHi) & 0xff;
+      atLo = ((atLo << 1) | latLo) & 0xff;
+      atHi = ((atHi << 1) | latHi) & 0xff;
 
-      // --- Background fetch for this dot ---
+      // Background fetch for this dot.
       if ((dot & 7) === 0) {
         // End of a tile: load it into the shift registers.
         bgLo = (bgLo & 0xff00) | this.ptLo;
         bgHi = (bgHi & 0xff00) | this.ptHi;
-        this.attrLatchLo = this.atBits & 1;
-        this.attrLatchHi = this.atBits >> 1;
+        latLo = this.atBits & 1;
+        latHi = this.atBits >> 1;
         this._incCoarseX();
         if (dot === 256) this._incY();
       } else if ((dot & 1) === 1) {
         this._bgFetch(dot);
       }
+      dot++;
+    }
 
-      // --- Sprite evaluation for the next line ---
+    this.bgShiftLo = bgLo;
+    this.bgShiftHi = bgHi;
+    this.attrShiftLo = atLo;
+    this.attrShiftHi = atHi;
+    this.attrLatchLo = latLo;
+    this.attrLatchHi = latHi;
+  }
+
+  // Sprite evaluation (for the next line) for dots [from, to).
+  _evaluateSpan(line, from, to) {
+    for (let dot = from; dot < to; dot++) {
       if (dot <= 64) {
         // Clear secondary OAM, one byte every 2 dots.
         if ((dot & 1) === 0) {
@@ -1200,11 +1287,6 @@ class PPU {
         this._evaluateSprites(line, dot);
       }
     }
-
-    this.bgShiftLo = bgLo;
-    this.bgShiftHi = bgHi;
-    this.attrShiftLo = atLo;
-    this.attrShiftHi = atHi;
   }
 
   // Sprite pixel at x (0-255). Returns 0 if no sprite pixel; otherwise the
