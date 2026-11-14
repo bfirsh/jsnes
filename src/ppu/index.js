@@ -1006,35 +1006,37 @@ class PPU {
   // by evaluation gets 8 dots, in which its secondary OAM bytes are read
   // and its pattern is fetched.
   _spriteFetchSpan(line, from, to, isPreRender) {
+    if (from === 257) {
+      // Copy the horizontal scroll bits from t to v.
+      this.vramAddress =
+        (this.vramAddress & 0x7be0) | (this.vramTmpAddress & 0x041f);
+      this.secIdx = 0;
+      this.sprFetchCount = 0;
+      this.sprite0Line = this.sprite0Next;
+      this.nes.mmap.onSpriteRender();
+    }
+    // Each sprite's pattern is fetched by the last dot of its 8-dot group.
+    const evalLine = isPreRender ? 261 & 0xff : line;
+    for (let slot = (from - 257) >> 3; slot < 8; slot++) {
+      const fetchDot = 264 + (slot << 3);
+      if (fetchDot >= to) break;
+      if (fetchDot >= from) this._fetchSprite(slot, evalLine);
+    }
+    // The secondary OAM address moves on dots 0, 1, 2 and 7 of each 8-dot
+    // group (it's used as the OAM corruption "seed"), i.e. 4 times per
+    // group.
+    this.secIdx =
+      (this.secIdx + SEC_IDX_STEPS[to - 257] - SEC_IDX_STEPS[from - 257]) &
+      0x1f;
+    if (isPreRender && from <= 304 && to > 280) {
+      // Copy the vertical scroll bits from t to v (dots 280-304).
+      this.vramAddress =
+        (this.vramAddress & 0x041f) | (this.vramTmpAddress & 0x7be0);
+    }
     const irqDot = this.nes.mmap.irqClockDot;
-    for (let dot = from; dot < to; dot++) {
-      if (dot === 257) {
-        // Copy the horizontal scroll bits from t to v.
-        this.vramAddress =
-          (this.vramAddress & 0x7be0) | (this.vramTmpAddress & 0x041f);
-        this.secIdx = 0;
-        this.sprFetchCount = 0;
-        this.sprite0Line = this.sprite0Next;
-        this.nes.mmap.onSpriteRender();
-      }
-      const phase = (dot - 257) & 7;
-      if (phase === 7) {
-        this._fetchSprite((dot - 257) >> 3, isPreRender ? 261 & 0xff : line);
-      }
-      // The secondary OAM address moves on dots 0, 1, 2 and 7 of each
-      // 8-dot group (it's used as the OAM corruption "seed").
-      if (phase <= 2 || phase === 7) {
-        this.secIdx = (this.secIdx + 1) & 0x1f;
-      }
-      if (isPreRender && dot >= 280 && dot <= 304) {
-        // Copy the vertical scroll bits from t to v.
-        this.vramAddress =
-          (this.vramAddress & 0x041f) | (this.vramTmpAddress & 0x7be0);
-      }
-      if (dot === irqDot) {
-        // Clock the mapper's scanline counter (see Mapper0.irqClockDot).
-        this.nes.mmap.clockIrqCounter();
-      }
+    if (irqDot >= from && irqDot < to) {
+      // Clock the mapper's scanline counter (see Mapper0.irqClockDot).
+      this.nes.mmap.clockIrqCounter();
     }
     // OAMADDR is reset to 0 throughout the sprite fetch period.
     this.sramAddress = 0;
@@ -1795,6 +1797,15 @@ class PPU {
     }
     this.updatePalettes();
   }
+}
+
+// SEC_IDX_STEPS[n] is how many times the secondary OAM address has been
+// incremented after the first n dots of the sprite fetch period (dots
+// 257-320): on the 1st, 2nd, 3rd and 8th dot of each 8-dot group.
+const SEC_IDX_STEPS = new Uint8Array(65);
+for (let n = 1; n <= 64; n++) {
+  const phase = (n - 1) & 7;
+  SEC_IDX_STEPS[n] = SEC_IDX_STEPS[n - 1] + (phase <= 2 || phase === 7 ? 1 : 0);
 }
 
 // DECODE_PLANES[(hi << 8) | lo] packs the 8 two-bit pixels of a pair of
