@@ -73,6 +73,13 @@ const A12_FILTER_DOTS = 10;
 // mmc3_test/4-scanline_timing, which checks the IRQ timing to the PPU dot.
 const A12_PHASE = 7;
 
+// Palette RAM contents at power-on (see the constructor).
+const POWER_UP_PALETTE = [
+  0x09, 0x01, 0x00, 0x01, 0x00, 0x02, 0x02, 0x0d, 0x08, 0x10, 0x08, 0x24, 0x00,
+  0x00, 0x04, 0x2c, 0x09, 0x01, 0x34, 0x03, 0x00, 0x04, 0x00, 0x14, 0x08, 0x3a,
+  0x00, 0x02, 0x00, 0x20, 0x2c, 0x08,
+];
+
 // Frames before an un-refreshed PPU open bus bit decays to 0 (~600ms).
 const OPEN_BUS_DECAY_FRAMES = 36;
 
@@ -264,6 +271,12 @@ class PPU {
 
     this.palTable = new PaletteTable();
     this.palTable.loadNTSCPalette();
+
+    // Palette RAM isn't cleared at power-on. Its contents are effectively
+    // random, but tend to be similar on a given console; use the values
+    // blargg recorded from his NES (checked by power_up_palette in his 2005
+    // PPU tests), as other emulators do.
+    this.vramMem.set(POWER_UP_PALETTE, 0x3f00);
 
     this.updateControlReg1(0);
     this.updateControlReg2(0);
