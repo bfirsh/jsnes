@@ -58,6 +58,9 @@ import PaletteTable from "./palette-table.js";
 // depends on the CPU/PPU clock alignment.
 const MASK_DELAY = 2;
 
+// Frames before an un-refreshed PPU open bus bit decays to 0 (~600ms).
+const OPEN_BUS_DECAY_FRAMES = 36;
+
 class PPU {
   // Status flags (bit numbers in $2002):
   STATUS_VRAMWRITE = 4;
@@ -121,14 +124,21 @@ class PPU {
     this.fineX = 0; // x
     this.firstWrite = true; // !w
     this.vramBufferedReadValue = 0; // $2007 read buffer
+    this.lastVramReadCycle = -10; // CPU cycle of the last $2007 read
     this.sramAddress = 0; // OAMADDR ($2003)
 
-    // PPU has its own internal I/O bus. All PPU register writes update this
-    // latch. Reading write-only registers ($2000,$2001,$2003,$2005,$2006)
-    // returns this value. $2002 uses bits 4-0 from this latch.
-    // On real hardware the latch decays to 0 after ~600ms.
+    // PPU has its own internal I/O bus, whose capacitance holds the last
+    // value driven onto it (the "decay register"). All PPU register writes
+    // set all 8 bits. Reads refresh only the bits the PPU actually drives:
+    // $2002 drives bits 7-5, $2004 and non-palette $2007 drive all 8,
+    // palette $2007 reads drive bits 5-0. Reading a write-only register
+    // ($2000,$2001,$2003,$2005,$2006) returns the latch without refreshing
+    // it. Each bit that isn't refreshed decays to 0 after ~600ms, so we keep
+    // a countdown (in frames) per bit. See ppu_open_bus in
+    // https://github.com/christopherpow/nes-test-roms and
+    // https://www.nesdev.org/wiki/Open_bus_behavior#PPU_open_bus
     this.openBusLatch = 0;
-    this.openBusDecayFrames = 0;
+    this.openBusDecay = new Uint8Array(8);
 
     // $2000 (PPUCTRL)
     this.f_nmiOnVblank = 0; // NMI on VBlank. 0=disable, 1=enable
@@ -468,9 +478,20 @@ class PPU {
     this._updateNmiOutput();
     this.firstWrite = true;
 
-    this.openBusLatch = value;
-    this.openBusDecayFrames = 36; // ~600ms at 60fps
+    // Only the 3 status bits are driven onto the PPU bus.
+    this.refreshOpenBus(0xe0, value);
     return value;
+  }
+
+  // Set the bits of the PPU open bus latch selected by `mask` to `value`,
+  // restarting their decay timers.
+  refreshOpenBus(mask, value) {
+    this.openBusLatch = (this.openBusLatch & ~mask) | (value & mask);
+    for (let i = 0; i < 8; i++) {
+      if (mask & (1 << i)) {
+        this.openBusDecay[i] = OPEN_BUS_DECAY_FRAMES;
+      }
+    }
   }
 
   // $2003 (OAMADDR) write.
@@ -492,6 +513,13 @@ class PPU {
   //   dots 257-320: the secondary OAM byte being fetched for sprites
   // See https://www.nesdev.org/wiki/PPU_registers#OAMDATA
   sramLoad() {
+    const value = this._oamDataValue();
+    // $2004 drives all 8 bits onto the PPU bus.
+    this.refreshOpenBus(0xff, value);
+    return value;
+  }
+
+  _oamDataValue() {
     if (this._isRenderingLine()) {
       const dot = this.dot;
       if (dot >= 1 && dot <= 64) {
@@ -556,6 +584,20 @@ class PPU {
 
   // $2007 (PPUDATA) read.
   vramLoad() {
+    // A $2007 read starts a VRAM fetch into the read buffer which takes a
+    // few PPU dots to complete. If a second read arrives on the very next
+    // CPU cycle (e.g. the dummy read + real read of LDA $20F7,X with a page
+    // crossing), it is effectively ignored: it doesn't touch the buffer or
+    // the address and the CPU just sees the PPU bus latch. The exact result
+    // depends on the CPU/PPU clock alignment; this matches one of the
+    // alignments real hardware shows (tested by double_2007_read in
+    // blargg's dmc_dma_during_read4).
+    const cycle = this.nes.cpu.cycles;
+    if (cycle - this.lastVramReadCycle === 1) {
+      return this.openBusLatch;
+    }
+    this.lastVramReadCycle = cycle;
+
     const address = this.vramAddress & 0x3fff;
     let value;
     if (address <= 0x3eff) {
@@ -565,7 +607,8 @@ class PPU {
         this.vramBufferedReadValue = this.vramMem[address];
         this.nes.mmap.latchAccess(address);
       } else {
-        this.vramBufferedReadValue = this.mirroredLoad(address);
+        // $3000-$3EFF mirrors the nametables at $2000-$2EFF.
+        this.vramBufferedReadValue = this.mirroredLoad(address & 0x2fff);
       }
     } else {
       // Palette RAM is returned directly (6 bits, the top 2 bits are PPU
@@ -580,14 +623,21 @@ class PPU {
       this.vramBufferedReadValue = this.mirroredLoad(address & 0x2fff);
     }
     this._incrementVramAddress();
+    // VRAM reads drive all 8 bits onto the PPU bus; palette reads only the
+    // low 6 (the top 2 came from the latch above).
+    this.refreshOpenBus(address <= 0x3eff ? 0xff : 0x3f, value);
     return value;
   }
 
   // $2007 (PPUDATA) write.
   vramWrite(value) {
     const address = this.vramAddress & 0x3fff;
-    if (address >= 0x2000) {
-      this.mirroredWrite(address, value);
+    if (address >= 0x3f00) {
+      // Palette RAM ($3F00-$3F1F, mirrored up to $3FFF).
+      this.mirroredWrite(0x3f00 | (address & 0x1f), value);
+    } else if (address >= 0x2000) {
+      // Nametables; $3000-$3EFF mirrors $2000-$2EFF.
+      this.mirroredWrite(address & 0x2fff, value);
     } else {
       // Pattern table: writable only if the cartridge has CHR RAM here.
       if (this.nes.mmap.canWriteChr(address)) {
@@ -827,12 +877,11 @@ class PPU {
     }
     this.nmiSuppressed = false;
 
-    // PPU open bus latch decay: on real hardware each bit decays to 0
-    // after ~600ms (~36 frames). We use a simple per-latch frame counter.
-    if (this.openBusDecayFrames > 0) {
-      this.openBusDecayFrames--;
-      if (this.openBusDecayFrames === 0) {
-        this.openBusLatch = 0;
+    // PPU open bus latch decay: each bit that hasn't been refreshed for
+    // ~600ms decays to 0.
+    for (let i = 0; i < 8; i++) {
+      if (this.openBusDecay[i] > 0 && --this.openBusDecay[i] === 0) {
+        this.openBusLatch &= ~(1 << i);
       }
     }
 
@@ -1380,9 +1429,10 @@ class PPU {
     "fineX",
     "firstWrite",
     "vramBufferedReadValue",
+    "lastVramReadCycle",
     "sramAddress",
     "openBusLatch",
-    "openBusDecayFrames",
+    "openBusDecay",
     "currentMirroring",
     "ntable1",
     "vblankFlag",
