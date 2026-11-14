@@ -347,45 +347,8 @@ class PAPU {
     this.smpSquare1 += this._clockSquare(square1, nCycles);
     this.smpSquare2 += this._clockSquare(square2, nCycles);
 
-    // Clock noise channel Prog timer:
-    let acc_c = nCycles;
-    if (noise.progTimerCount - acc_c > 0) {
-      // Do all cycles at once:
-      noise.progTimerCount -= acc_c;
-      noise.accCount += acc_c;
-      noise.accValue += acc_c * noise.sampleValue;
-    } else {
-      // Slow-step:
-      while (acc_c-- > 0) {
-        if (--noise.progTimerCount <= 0 && noise.progTimerMax > 0) {
-          // Update noise shift register:
-          noise.shiftReg <<= 1;
-          noise.tmp =
-            ((noise.shiftReg << (noise.randomMode === 0 ? 1 : 6)) ^
-              noise.shiftReg) &
-            0x8000;
-          if (noise.tmp !== 0) {
-            // Sample value must be 0.
-            noise.shiftReg |= 0x01;
-            noise.randomBit = 0;
-            noise.sampleValue = 0;
-          } else {
-            // Find sample value:
-            noise.randomBit = 1;
-            if (noise.isEnabled && noise.lengthCounter > 0) {
-              noise.sampleValue = noise.masterVolume;
-            } else {
-              noise.sampleValue = 0;
-            }
-          }
-
-          noise.progTimerCount += noise.progTimerMax;
-        }
-
-        noise.accValue += noise.sampleValue;
-        noise.accCount++;
-      }
-    }
+    // Clock the noise channel.
+    this._clockNoise(noise, nCycles);
 
     // Accumulate sample value:
     this.accSample(nCycles);
@@ -417,6 +380,45 @@ class PAPU {
     }
     square.progTimerCount = count - remaining;
     return sum + square.sampleValue * remaining;
+  }
+
+  // Run the noise channel's timer for nCycles CPU cycles, accumulating its
+  // output into noise.accValue/accCount. The output changes on the cycle
+  // the timer reaches 0, and that cycle already counts with the new value.
+  _clockNoise(noise, nCycles) {
+    noise.accCount += nCycles;
+    if (noise.progTimerMax <= 0) {
+      noise.progTimerCount -= nCycles;
+      noise.accValue += nCycles * noise.sampleValue;
+      return;
+    }
+    let count = noise.progTimerCount;
+    if (count < 1) count = 1;
+    let remaining = nCycles;
+    let sum = 0;
+    while (count <= remaining) {
+      sum += noise.sampleValue * (count - 1);
+      remaining -= count;
+      // Step the 15-bit shift register (the "random" bit generator).
+      noise.shiftReg <<= 1;
+      noise.tmp =
+        ((noise.shiftReg << (noise.randomMode === 0 ? 1 : 6)) ^
+          noise.shiftReg) &
+        0x8000;
+      if (noise.tmp !== 0) {
+        noise.shiftReg |= 0x01;
+        noise.randomBit = 0;
+        noise.sampleValue = 0;
+      } else {
+        noise.randomBit = 1;
+        noise.sampleValue =
+          noise.isEnabled && noise.lengthCounter > 0 ? noise.masterVolume : 0;
+      }
+      sum += noise.sampleValue;
+      count = noise.progTimerMax;
+    }
+    noise.progTimerCount = count - remaining;
+    noise.accValue += sum + noise.sampleValue * remaining;
   }
 
   // Set or clear the frame interrupt flag, updating the CPU's IRQ line.
