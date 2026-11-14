@@ -10,9 +10,6 @@ import {
 
 // Tests that are known to fail, and why. They're skipped.
 const KNOWN_FAILURES = {
-  "cpu_dummy_writes/cpu_dummy_writes_ppumem.nes":
-    "PPU open bus decay, $3000/$3F20 mirrors and back-to-back $2007 reads aren't emulated yet",
-
   "cpu_reset/registers.nes": "nes.reset() doesn't emulate the reset button yet",
   "cpu_reset/ram_after_reset.nes":
     "nes.reset() doesn't emulate the reset button yet",

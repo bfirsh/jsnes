@@ -34,13 +34,6 @@ const VBL_NMI_TIMING_TESTS = [
 
 // Tests that are known to fail, and why. They're skipped.
 const KNOWN_FAILURES = {
-  "ppu_open_bus/ppu_open_bus.nes":
-    "PPU open bus decay, $3000/$3F20 mirrors and back-to-back $2007 reads aren't emulated yet",
-  "ppu_read_buffer/test_ppu_read_buffer.nes":
-    "PPU open bus decay, $3000/$3F20 mirrors and back-to-back $2007 reads aren't emulated yet",
-  "blargg_ppu_tests_2005.09.15b/palette_ram.nes":
-    "PPU open bus decay, $3000/$3F20 mirrors and back-to-back $2007 reads aren't emulated yet",
-
   "sprite_overflow_tests/3.Timing.nes":
     "the sprite overflow bug's OAM address increment is wrong",
   "sprite_overflow_tests/4.Obscure.nes":

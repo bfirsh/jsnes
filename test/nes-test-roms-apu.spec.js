@@ -36,9 +36,6 @@ function dmcDmaScreen(...crcs) {
 
 // Tests that are known to fail, and why. They're skipped.
 const KNOWN_FAILURES = {
-  "dmc_dma_during_read4/double_2007_read.nes":
-    "PPU open bus decay, $3000/$3F20 mirrors and back-to-back $2007 reads aren't emulated yet",
-
   "apu_reset/4015_cleared.nes":
     "nes.reset() doesn't emulate the reset button yet",
   "apu_reset/4017_timing.nes":
