@@ -59,7 +59,7 @@ const NES = function (mmap) {
     catchUp() {},
     runCycleExact() {},
   };
-  this.papu = { clockCycle() {} };
+  this.papu = { nextEventCycle: Infinity, catchUp() {} };
 };
 
 NES.prototype.stop = function () {};
