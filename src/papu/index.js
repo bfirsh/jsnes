@@ -458,6 +458,24 @@ class PAPU {
     let count = square.progTimerCount;
     if (count < 0) count = 0;
     let remaining = nCycles;
+    if (!(
+      square.isEnabled &&
+      square.lengthCounter > 0 &&
+      square.progTimerMax > 7
+    )) {
+      // Silent (see ChannelSquare.updateSampleValue()): the output is 0 on
+      // every step, so just work out where the waveform ends up.
+      if (count > remaining) {
+        square.progTimerCount = count - remaining;
+      } else {
+        const rest = remaining - count;
+        const steps = 1 + Math.floor(rest / period);
+        square.squareCounter = (square.squareCounter + steps) & 0x7;
+        square.progTimerCount = period - (rest % period);
+        square.sampleValue = 0;
+      }
+      return 0;
+    }
     let sum = 0;
     // The waveform steps when the timer reaches 0.
     while (count <= remaining) {
