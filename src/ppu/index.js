@@ -1184,6 +1184,8 @@ class PPU {
     const showSprites = this.f_spVisibility === 1;
     const spLeft = this.f_spClipping === 1;
     const rowBase = line << 8;
+    const vram = this.vramMem;
+    const mirror = this.vramMirrorTable;
 
     let dot = from;
     while (dot < to) {
@@ -1192,12 +1194,30 @@ class PPU {
 
       if ((dot & 7) === 1 && dot + 8 <= to && spritesSimple) {
         // --- Fast path: one whole tile (8 dots) at once ---
-        // The four fetches only fill latches, which the pixels of this
-        // group don't use, so do them first.
-        this._bgFetch(dot);
-        this._bgFetch(dot + 2);
-        this._bgFetch(dot + 4);
-        this._bgFetch(dot + 6);
+        // The four fetches (the same as _bgFetch() does on dots 1, 3, 5 and
+        // 7 of the group) only fill latches, which the pixels of this group
+        // don't use, so do them first.
+        {
+          const v = this.vramAddress;
+          const ntByte = vram[mirror[0x2000 | (v & 0x0fff)]];
+          const at =
+            vram[
+              mirror[
+                0x23c0 | (v & 0x0c00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
+              ]
+            ];
+          this.ntByte = ntByte;
+          this.atBits = (at >> (((v >> 4) & 4) | (v & 2))) & 3;
+          const addr =
+            (this.f_bgPatternTable << 12) | (ntByte << 4) | (v >> 12);
+          this.ptLo = vram[addr];
+          this.ptHi = vram[addr + 8];
+          const mmap = this.nes.mmap;
+          mmap.latchAccess(addr + 8);
+          if (mmap.bgTileOverride) {
+            this._mapperBgOverride();
+          }
+        }
 
         // Pixel k of the group is the bit that would be at the top of the
         // shift registers after k shifts, i.e. bit (15 - fineX - k) of
