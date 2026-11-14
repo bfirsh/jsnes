@@ -1,0 +1,160 @@
+NES APU Frame Counter Test ROMs
+-------------------------------
+
+These ROMs test the APU frame counter operation and length counter
+clocking. They have been tested on an actual NES and all give a passing
+result. They can't catch every possible bug in an emulator, but they
+check for likely problems like one-off errors. 
+
+The tests do not test clocking of the envelope, sweep, or triangle's
+linear counter. Also, only the length counter on the first square wave
+($4000-$4003) is tested.
+
+The main source code for each test is included. In the tests, remember
+that the actual read/write of sta/lda $xxxx occurs on the fourth (last)
+clock if the instruction. Some of the common support code is included,
+but not all, since it runs on a custom setup. Contact me if you want to
+assemble the tests yourself.
+
+Each ROM only gives meaningful results if all previous test ROMs have
+passed without error.
+
+Each ROM runs several tests and reports a result code on screen and by
+beeping a number of times. A result code of 1 always indicates that all
+tests were passed. Other result codes indicate a problem or behavior
+that isn't implemented as stated:
+
+Shay <hotpop.com@blargg> (swap to e-mail)
+
+
+01.len_ctr
+----------
+Tests basic length counter operation
+
+1) Passed tests
+2) Problem with length counter load or $4015
+3) Problem with length table, timing, or $4015
+4) Writing $80 to $4017 should clock length immediately
+5) Writing $00 to $4017 shouldn't clock length immediately
+6) Clearing enable bit in $4015 should clear length counter
+7) When disabled via $4015, length shouldn't allow reloading
+8) Halt bit should suspend length clocking
+
+
+02.len_table
+------------
+Tests all length table entries.
+
+1) Passed
+2) Failed. Prints four bytes $II $ee $cc $02 that indicate the length
+load value written (ll), the value that the emulator uses ($ee), and the
+correct value ($cc).
+
+
+03.irq_flag
+-----------
+Tests basic operation of frame irq flag.
+
+1) Tests passed
+2) Flag shouldn't be set in $4017 mode $40
+3) Flag shouldn't be set in $4017 mode $80
+4) Flag should be set in $4017 mode $00
+5) Reading flag clears it
+6) Writing $00 or $80 to $4017 doesn't affect flag
+7) Writing $40 or $c0 to $4017 clears flag
+
+
+04.clock_jitter
+---------------
+Tests for APU clock jitter. Also tests basic timing of frame irq flag
+since it's needed to determine jitter.
+
+1) Passed tests
+2) Frame irq is set too soon
+3) Frame irq is set too late
+4) Even jitter not handled properly
+5) Odd jitter not handled properly
+
+
+05.len_timing_mode0
+-------------------
+Return current jitter in A. Takes an even number of clocks. Tests length
+counter timing in mode 0.
+
+1) Passed tests
+2) First length is clocked too soon
+3) First length is clocked too late
+4) Second length is clocked too soon
+5) Second length is clocked too late
+6) Third length is clocked too soon
+7) Third length is clocked too late
+
+
+06.len_timing_mode1
+-------------------
+Tests length counter timing in mode 1.
+
+1) Passed tests
+2) First length is clocked too soon
+3) First length is clocked too late
+4) Second length is clocked too soon
+5) Second length is clocked too late
+6) Third length is clocked too soon
+7) Third length is clocked too late
+
+
+07.irq_flag_timing
+------------------
+Frame interrupt flag is set three times in a row 29831 clocks after
+writing $4017 with $00.
+
+1) Success
+2) Flag first set too soon
+3) Flag first set too late
+4) Flag last set too soon 
+5) Flag last set too late 
+
+
+08.irq_timing
+-------------
+IRQ handler is invoked at minimum 29833 clocks after writing $00 to
+$4017.
+
+1) Passed tests
+2) Too soon
+3) Too late
+4) Never occurred
+
+
+09.reset_timing
+---------------
+After reset or power-up, APU acts as if $4017 were written with $00 from
+9 to 12 clocks before first instruction begins.
+
+1) Success
+2) $4015 didn't read back as $00 at power-up
+3) Fourth step occurs too soon
+4) Fourth step occurs too late
+
+
+10.len_halt_timing
+------------------
+Changes to length counter halt occur after clocking length, not before.
+
+1) Passed tests
+2) Length shouldn't be clocked when halted at 14914
+3) Length should be clocked when halted at 14915
+4) Length should be clocked when unhalted at 14914
+5) Length shouldn't be clocked when unhalted at 14915
+
+
+11.len_reload_timing
+--------------------
+Write to length counter reload should be ignored when made during length
+counter clocking and the length counter is not zero.
+
+1) Passed tests
+2) Reload just before length clock should work normally
+3) Reload just after length clock should work normally
+4) Reload during length clock when ctr = 0 should work normally
+5) Reload during length clock when ctr > 0 should be ignored
