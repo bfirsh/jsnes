@@ -75,7 +75,7 @@ Test ROMs:
 
 All 134 AccuracyCoin tests pass. If one ever has to be skipped, list it in the `KNOWN_FAILURES` object in `test/accuracycoin.spec.js`. The nes-test-roms tests all pass too, apart from one skipped with an explanation (`skip:` in the spec file); they're older than AccuracyCoin, so if the two ever disagree, AccuracyCoin wins. `roms/AccuracyCoin/AccuracyCoin.asm` is fully commented and is the best documentation of what each test expects; when a test fails, read its source and instrument the emulator (e.g. log the relevant register accesses with `cpu.cycles` and `ppu.line`/`ppu.dot`) rather than guessing.
 
-Remember that AccuracyCoin, nestest and blargg's tests are DEFINITELY correct. They pass on a real NES. Don't blame the ROM for being wrong.
+Remember that AccuracyCoin, nestest and blargg's tests are DEFINITELY correct. They pass on a real NES. Don't blame the ROM for being wrong. (The one exception so far is a 2005 blargg test that predates the discovery of OAM corruption; see the `skip:` comment in `test/nes-test-roms-ppu.spec.js`.)
 
 ## Build Process
 
