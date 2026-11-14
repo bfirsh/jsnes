@@ -217,6 +217,10 @@ class PPU {
     this.sprFetchCount = 0; // Slots fetched for the next line
     // Odd-frame quirk, see the end of _tick().
     this.spriteSkipGlitch = false;
+    // Precomputed sprite pixels for one line; see _buildSpriteLine().
+    this.sprLine = new Uint16Array(256);
+    this.sprLineValid = false;
+    this.sprLineFor = -1;
 
     // --- Output ---
     this.buffer = new Uint32Array(256 * 240);
@@ -423,6 +427,7 @@ class PPU {
   _applyRenderingEnable() {
     const on = this.f_bgVisibility === 1 || this.f_spVisibility === 1;
     if (this.renderingOn && !on) {
+      this._materializeSprites();
       this._renderingDisabled();
     }
     this.renderingOn = on;
@@ -801,6 +806,7 @@ class PPU {
         // it one pixel to the left. (AccuracyCoin "Sprites On Scanline 0")
         this.spriteSkipGlitch = true;
         this.sprCount = this.sprFetchCount;
+        this.sprLineValid = false;
         return;
       }
       this.dot = dot + 1;
@@ -917,6 +923,75 @@ class PPU {
         this.sprX[i] = this.sprLatchX[i];
       }
       this.sprCount = this.sprFetchCount;
+      this._buildSpriteLine(line === 261 ? 0 : line + 1);
+    }
+  }
+
+  // --- Sprite line buffer ---
+  //
+  // Running the 8 sprite output units on every pixel is slow, and as long
+  // as rendering stays enabled for the whole line their output is fully
+  // determined when the X counters are loaded at dot 340. So we precompute
+  // the line's sprite pixels into sprLine[x]:
+  //   bits 0-4: palette index (0x10-0x1F), or 0 for no sprite pixel
+  //   bit 8:    sprite is behind the background
+  //   bit 9:    the pixel comes from sprite 0 (for sprite 0 hit)
+  // If rendering is turned off partway through the line, the sprite units
+  // stop advancing, which the buffer can't represent. In that case
+  // _materializeSprites() works out the state the counters and shift
+  // registers would have reached, and the per-dot path (_spritePixel())
+  // takes over.
+  _buildSpriteLine(forLine) {
+    const sprLine = this.sprLine;
+    sprLine.fill(0);
+    this.sprLineFor = forLine;
+    this.sprLineValid = true;
+    // Lower slots have priority, so draw from the highest slot down.
+    for (let i = this.sprCount - 1; i >= 0; i--) {
+      let lo = this.sprLo[i];
+      let hi = this.sprHi[i];
+      if ((lo | hi) === 0) continue;
+      const attr = this.sprAttr[i];
+      const flags =
+        0x10 |
+        ((attr & 3) << 2) |
+        ((attr & 0x20) << 3) |
+        (i === 0 && this.sprite0Line ? 0x200 : 0);
+      const x0 = this.sprX[i];
+      for (let b = 0; b < 8 && x0 + b < 256; b++) {
+        const p = ((lo >> 7) & 1) | ((hi >> 6) & 2);
+        lo = (lo << 1) & 0xff;
+        hi = (hi << 1) & 0xff;
+        if (p !== 0) {
+          sprLine[x0 + b] = flags | p;
+        }
+      }
+    }
+  }
+
+  // Convert the sprite line buffer back into the state of the sprite
+  // output units (X counters and shift registers) at the current dot, and
+  // stop using the buffer. See _buildSpriteLine().
+  _materializeSprites() {
+    if (!this.sprLineValid) return;
+    this.sprLineValid = false;
+    if (this.line !== this.sprLineFor || this.dot > 256) {
+      // Either the line hasn't started (nothing has been output yet), or
+      // its pixels are finished and the next line's sprites are already
+      // being fetched into the units: nothing to rewind.
+      return;
+    }
+    const done = this.dot > 0 ? this.dot - 1 : 0; // pixels already output
+    for (let i = 0; i < this.sprCount; i++) {
+      const x0 = this.sprX[i];
+      if (done <= x0) {
+        this.sprX[i] = x0 - done;
+      } else {
+        const shift = Math.min(done - x0, 8);
+        this.sprX[i] = 0;
+        this.sprLo[i] = (this.sprLo[i] << shift) & 0xff;
+        this.sprHi[i] = (this.sprHi[i] << shift) & 0xff;
+      }
     }
   }
 
@@ -925,6 +1000,7 @@ class PPU {
   // straight away regardless of their X position.
   // (AccuracyCoin "Stale BG Shift Registers" test 4)
   _spriteCountersWithRenderingOff() {
+    this.sprLineValid = false;
     this.sprX.fill(0);
     this.sprCount = this.sprFetchCount;
   }
@@ -1045,6 +1121,9 @@ class PPU {
     const bgLeft = this.f_bgClipping === 1;
     const palColors = this.palColors;
     const buffer = this.buffer;
+    const sprLine = this.sprLine;
+    const showSprites = this.f_spVisibility === 1;
+    const spLeft = this.f_spClipping === 1;
     const rowBase = line << 8;
 
     for (let dot = from; dot < to; dot++) {
@@ -1059,7 +1138,19 @@ class PPU {
         }
       }
       let colorIndex = bgPixel;
-      if (this.sprCount !== 0 || this.spriteSkipGlitch) {
+      if (this.sprLineValid) {
+        const spr = sprLine[x];
+        if (spr !== 0 && showSprites && (x >= 8 || spLeft)) {
+          if (spr & 0x200 && bgPixel !== 0 && x !== 255) {
+            this.sprite0HitFlag = 1;
+          }
+          // Sprites are drawn in front of the background unless their
+          // priority bit says otherwise (and the background is opaque).
+          if (bgPixel === 0 || (spr & 0x100) === 0) {
+            colorIndex = spr & 0x1f;
+          }
+        }
+      } else if (this.sprCount !== 0 || this.spriteSkipGlitch) {
         const spr = this._spritePixel(x, bgPixel);
         // Sprites are drawn in front of the background unless their
         // priority bit says otherwise (and the background is opaque).
@@ -1441,6 +1532,7 @@ class PPU {
 
   toJSON() {
     this.catchUp();
+    this._materializeSprites();
     let state = toJSON(this);
     state.vramMirrorTable = this.vramMirrorTable;
     return state;
