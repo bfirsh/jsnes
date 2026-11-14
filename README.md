@@ -145,7 +145,7 @@ var nes = new jsnes.NES(options);
 | `nes.frame()` | Execute one frame of emulation. Call this at 60 fps. |
 | `nes.buttonDown(player, button)` | Press a button. `player` is `1` or `2`. |
 | `nes.buttonUp(player, button)` | Release a button. |
-| `nes.reset()` | Reset the emulator (like pressing the reset button on the NES). |
+| `nes.reset()` | Press the NES reset button (a soft reset: RAM and cartridge state survive). Also recovers from a crash. |
 | `nes.reloadROM()` | Reload the current ROM from scratch. |
 | `nes.getFPS()` | Get the current frames-per-second count. |
 | `nes.setFramerate(rate)` | Change the target frame rate. |

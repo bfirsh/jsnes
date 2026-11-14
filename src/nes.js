@@ -44,8 +44,28 @@ class NES {
     this.ui.updateStatus("Ready to load a ROM.");
   }
 
-  // Resets the system
+  // Presses the console's reset button (a "soft reset"). Unlike a power
+  // cycle, RAM, VRAM, OAM, the cartridge (mapper registers, PRG RAM) and
+  // most CPU/APU/PPU state survive. The CPU runs its reset sequence (I flag
+  // set, S decremented by 3, jump through the reset vector), the APU is
+  // silenced and its frame counter restarted, and the PPU's $2000/$2001 are
+  // cleared. See https://www.nesdev.org/wiki/CPU_power_up_state
+  //
+  // This also recovers from a crash (invalid opcode), as on real hardware.
   reset() {
+    if (this.mmap === null) {
+      this._powerOn();
+      return;
+    }
+    this.cpu.softReset();
+    this.ppu.softReset();
+    this.papu.softReset();
+    this.crashed = false;
+  }
+
+  // Power-on state: fresh CPU, PPU and APU. (loadROM() then creates the
+  // mapper and loads the ROM.)
+  _powerOn() {
     this.cpu = new CPU(this);
     this.ppu = new PPU(this);
     this.papu = new PAPU(this);
@@ -138,7 +158,7 @@ class NES {
     this.rom = new ROM(this);
     this.rom.load(data);
 
-    this.reset();
+    this._powerOn();
     this.mmap = this.rom.createMapper();
     this.mmap.loadROM();
     this.cpu._updatePrgReadPath();
@@ -177,7 +197,7 @@ class NES {
         "This save state was made with an incompatible version of JSNES.",
       );
     }
-    this.reset();
+    this._powerOn();
     // this.romData = s.romData;
     this.cpu.fromJSON(s.cpu);
     this.mmap.fromJSON(s.mmap);

@@ -36,21 +36,6 @@ function dmcDmaScreen(...crcs) {
 
 // Tests that are known to fail, and why. They're skipped.
 const KNOWN_FAILURES = {
-  "apu_reset/4015_cleared.nes":
-    "nes.reset() doesn't emulate the reset button yet",
-  "apu_reset/4017_timing.nes":
-    "nes.reset() doesn't emulate the reset button yet",
-  "apu_reset/4017_written.nes":
-    "nes.reset() doesn't emulate the reset button yet",
-  "apu_reset/irq_flag_cleared.nes":
-    "nes.reset() doesn't emulate the reset button yet",
-  "apu_reset/len_ctrs_enabled.nes":
-    "nes.reset() doesn't emulate the reset button yet",
-  "apu_reset/works_immediately.nes":
-    "nes.reset() doesn't emulate the reset button yet",
-  "blargg_apu_2005.07.30/09.reset_timing.nes":
-    "nes.reset() doesn't emulate the reset button yet",
-
   "blargg_apu_2005.07.30/10.len_halt_timing.nes":
     "length counter writes just before a length clock aren't emulated yet",
   "blargg_apu_2005.07.30/11.len_reload_timing.nes":
