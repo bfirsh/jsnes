@@ -34,9 +34,6 @@ const VBL_NMI_TIMING_TESTS = [
 
 // Tests that are known to fail, and why. They're skipped.
 const KNOWN_FAILURES = {
-  "blargg_ppu_tests_2005.09.15b/power_up_palette.nes":
-    "palette RAM starts zeroed instead of with typical power-on contents",
-
   // Test 3 turns rendering off at about dot 15 of line 126 and back on 12
   // lines later, then expects the overflow caused by 9 sprites at Y=230
   // (OAM rows 4-8). But turning rendering off mid-line corrupts an OAM row
