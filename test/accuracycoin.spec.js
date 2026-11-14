@@ -258,21 +258,7 @@ const TEST_PAGES = [
 
 // Tests known to fail — skip these until the emulator is fixed.
 const KNOWN_FAILURES = {
-  // PPU behavior: rendering-related tests need dot-accurate PPU
-  0x0486: "Rendering flag behavior not accurate",
-  0x048a: "$2007 read during rendering not accurate",
-
-  // Sprite evaluation: need accurate OAM/sprite evaluation
-  0x0489: "Suddenly resize sprite not accurate",
-  0x0458: "Arbitrary sprite zero not accurate",
-  0x045a: "Misaligned OAM behavior not accurate",
-  0x045b: "Address $2004 behavior not accurate",
-  0x047b: "OAM corruption not accurate",
-
-  // PPU misc: need dot-accurate PPU rendering pipeline
-  0x0483: "Stale BG shift registers not accurate",
   0x0487: "BG serial in not accurate",
-  0x0484: "Sprites on scanline 0 not accurate",
 };
 
 // Flatten all tests for easy iteration

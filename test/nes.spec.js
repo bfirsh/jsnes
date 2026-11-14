@@ -27,8 +27,9 @@ describe("NES", function () {
     // Check the first index of a white pixel on the first 6 frames of
     // output. Croom only uses 2 colors on the initial screen which makes
     // it easy to detect. Comparing full snapshots of each frame takes too
-    // long.
-    let expectedIndexes = [-1, -1, -1, 2056, 4104, 4104];
+    // long. (On frame 3 the game is loading its palette with rendering
+    // disabled, so the backdrop color changes partway down the screen.)
+    let expectedIndexes = [-1, -1, 41224, 2056, 4104, 4104];
     for (let i = 0; i < 6; i++) {
       nes.frame();
       let lastCall = onFrame.mock.calls[onFrame.mock.calls.length - 1];
