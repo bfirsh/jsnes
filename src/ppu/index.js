@@ -58,6 +58,21 @@ import PaletteTable from "./palette-table.js";
 // depends on the CPU/PPU clock alignment.
 const MASK_DELAY = 2;
 
+// MMC3-style mappers only count a rising edge of PPU address line A12 if
+// A12 has been low for long enough (they filter it using the CPU clock, M2).
+// In PPU dots, the gaps between pattern fetches during rendering are 4 or 8
+// dots (filtered out) or at least 12 (counted). See _a12Fetch().
+const A12_FILTER_DOTS = 10;
+
+// Pattern fetch pairs start every 8 dots (dots 5, 13, ..., 333). We clock the
+// mapper's counter A12_PHASE dots into each 8-dot group that fetches from
+// $1000 (dots 7, 15, ..., 335; e.g. dot 263 for sprite slot 0, dot 327 for
+// the first background tile of the next line). That is a little after the
+// address actually changes, which accounts for the delay before the MMC3
+// asserts its IRQ; the value is calibrated against blargg's
+// mmc3_test/4-scanline_timing, which checks the IRQ timing to the PPU dot.
+const A12_PHASE = 7;
+
 // Frames before an un-refreshed PPU open bus bit decays to 0 (~600ms).
 const OPEN_BUS_DECAY_FRAMES = 36;
 
@@ -171,6 +186,20 @@ class PPU {
     // actually run, and the dot of the next event the CPU could notice.
     this.dotTarget = 0;
     this.dotsRun = 0;
+
+    // --- PPU A12 (for MMC3-style scanline counters) ---
+    //
+    // MMC3 counts rising edges of PPU address line 12, i.e. the PPU moving
+    // from reading the pattern table at $0000 to the one at $1000. During
+    // rendering this happens at specific pattern fetches (see _a12Fetch());
+    // otherwise the address bus holds v, so writes to $2006 and $2007
+    // accesses can clock the counter too. Only tracked when the mapper sets
+    // a12Watch. See https://www.nesdev.org/wiki/MMC3#IRQ_Specifics
+    //
+    // True while A12 is held high by v (rendering not using the bus).
+    this.a12High = false;
+    // dotsRun value at which A12 last went low.
+    this.a12LowSince = -1000;
     this.nextEventDot = 0;
     // Set when $2002 is read on the dot just before VBlank would be set,
     // which prevents the flag being set (and the NMI) for that frame.
@@ -456,7 +485,12 @@ class PPU {
       this._materializeSprites();
       this._renderingDisabled();
     }
+    const wasOn = this.renderingOn;
     this.renderingOn = on;
+    if (wasOn !== on) {
+      // Rendering takes over the address bus from v, or gives it back.
+      this._a12FromV();
+    }
   }
 
   // NMI output = VBlank flag AND NMI enable. The CPU samples this line every
@@ -599,6 +633,7 @@ class PPU {
       if (this.vramAddress < 0x2000) {
         this.nes.mmap.latchAccess(this.vramAddress);
       }
+      this._a12FromV();
     }
     this.firstWrite = !this.firstWrite;
   }
@@ -680,6 +715,7 @@ class PPU {
     } else {
       this.vramAddress =
         (this.vramAddress + (this.f_addrInc === 1 ? 32 : 1)) & 0x7fff;
+      this._a12FromV();
     }
   }
 
@@ -753,6 +789,9 @@ class PPU {
         // Fast path: a run of pixels on a visible line.
         let end = dot + (target - this.dotsRun);
         if (end > 257) end = 257;
+        if (this.f_bgPatternTable === 1 && this.nes.mmap.a12Watch) {
+          this._a12BgSpan(dot, end);
+        }
         this._renderSpan(this.line, dot, end);
         this.dotsRun += end - dot;
         this.dot = end;
@@ -825,7 +864,10 @@ class PPU {
     if (e < d) d = e;
     e = this._dotsUntil(261, 339);
     if (e < d) d = e;
-    if (this.renderingOn) {
+    if (this.renderingOn && this.nes.mmap && this.nes.mmap.a12Watch) {
+      e = this._dotsUntilA12Clock();
+      if (e < d) d = e;
+    } else if (this.renderingOn) {
       // The mapper's scanline counter is clocked once per rendered line.
       const irqDot = this.nes.mmap ? this.nes.mmap.irqClockDot : 260;
       const line = this.line;
@@ -846,6 +888,155 @@ class PPU {
       d = this.maskDelay - 1;
     }
     this.nextEventDot = this.dotsRun + d;
+  }
+
+  // --- PPU A12 tracking (see the constructor) ---
+  //
+  // During rendering every pattern fetch pair is followed by a nametable
+  // fetch (A12 low), so A12 is only ever high for the 4 dots of a pattern
+  // fetch pair. There's one pair every 8 dots, 42 per line: 32 background
+  // tiles, then the 8 sprite slots (dots 261-320), then the first 2
+  // background tiles of the next line. We evaluate each at
+  // dot 8*j + A12_PHASE (j = 0..41). So with the background at $0000 and
+  // sprites at $1000 the counter is clocked once per line, by sprite slot
+  // 0; with the background at $1000 and sprites at $0000, once per line by
+  // the first background prefetch (the gaps between background tiles are
+  // too short to get through the A12 filter); with both at the same table,
+  // not at all. 8x16 sprites can clock it several times per line.
+
+  // A12 level of the pattern fetch evaluated at `dot`.
+  _a12Level(dot) {
+    const j = (dot - A12_PHASE) >> 3;
+    if (j < 32 || j >= 40) return this.f_bgPatternTable;
+    if (!this.f_spriteSize) return this.f_spPatternTable;
+    // 8x16 sprites: bit 0 of the tile number picks the pattern table.
+    // Unused slots fetch tile $FF (secondary OAM is cleared to $FF).
+    return this.secondaryOAM[((j - 32) << 2) + 1] & 1;
+  }
+
+  // A pattern fetch on a rendering line, at dot `dot`, which is dot number
+  // `at` in dotsRun terms.
+  _a12Fetch(dot, at) {
+    if (this._a12Level(dot) === 0) return;
+    this._a12Rise(at);
+    // The nametable fetch 4 dots later brings A12 low again.
+    this.a12LowSince = at + 4;
+  }
+
+  // Background pattern fetches with the background at $1000, for the fast
+  // path in catchUp(): dots [dot, end) of a visible line.
+  _a12BgSpan(dot, end) {
+    // First and last fetch evaluation dots in [dot, end).
+    const firstDot = dot + ((A12_PHASE - dot) & 7);
+    if (firstDot >= end) return;
+    this._a12Rise(this.dotsRun + (firstDot - dot));
+    const lastDot = end - 1 - ((end - 1 - A12_PHASE) & 7);
+    this.a12LowSince = this.dotsRun + (lastDot - dot) + 4;
+  }
+
+  _a12Rise(at) {
+    if (!this.a12High && at - this.a12LowSince > A12_FILTER_DOTS) {
+      this.nes.mmap.clockIrqCounter();
+    }
+  }
+
+  // Outside rendering, the PPU address bus holds v.
+  _a12FromV() {
+    if (this._isRenderingLine() || !this.nes.mmap || !this.nes.mmap.a12Watch) {
+      if (this.a12High) {
+        // Rendering's first fetch (a nametable) brings A12 low.
+        this.a12High = false;
+        this.a12LowSince = this.dotsRun;
+      }
+      return;
+    }
+    const high = (this.vramAddress & 0x1000) !== 0;
+    if (high && !this.a12High) {
+      this._a12Rise(this.dotsRun);
+    } else if (!high && this.a12High) {
+      this.a12LowSince = this.dotsRun;
+    }
+    this.a12High = high;
+  }
+
+  // Dots until rendering next clocks the mapper's A12 counter, by
+  // simulating the fetches on the current and next rendering lines with
+  // the current PPU settings. If 8x16 sprites are in use and secondary OAM
+  // isn't final yet (before dot 257 of the current line, or any later
+  // line), any sprite slot might be at $1000, so it's treated as a
+  // possible clock; the schedule is recomputed after each event anyway.
+  _dotsUntilA12Clock() {
+    if (
+      this.f_bgPatternTable === 0 &&
+      this.f_spriteSize === 0 &&
+      this.f_spPatternTable === 0
+    ) {
+      // Rendering never reads from $1000.
+      return Infinity;
+    }
+    let high = this.a12High;
+    let lowSince = this.a12LowSince - this.dotsRun; // relative to now
+    let line = this.line;
+    let dot = this.dot;
+    // Dots from now until dot 0 of `line` (negative for the current line).
+    let rel = -dot;
+    for (let n = 0; n < 3; n++) {
+      if (line < 240 || line === 261) {
+        if (high) {
+          high = false;
+          lowSince = rel + 1;
+        }
+        const sprKnown = n === 0 && this.dot >= 257;
+        let p = n === 0 ? dot + ((A12_PHASE - dot) & 7) : A12_PHASE;
+        for (; p <= 328 + A12_PHASE; p += 8) {
+          let level;
+          const pj = (p - A12_PHASE) >> 3;
+          if (pj < 32 || pj >= 40 || !this.f_spriteSize || sprKnown) {
+            level = this._a12Level(p);
+          } else {
+            level = 1; // unknown: assume it could be at $1000
+          }
+          if (level === 0) {
+            // Skip the rest of a run of fetches from $0000.
+            if (pj < 32) {
+              p = 31 * 8 + A12_PHASE;
+            } else if (pj < 40 && !this.f_spriteSize) {
+              p = 39 * 8 + A12_PHASE;
+            }
+            continue;
+          }
+          const t = rel + p;
+          if (t - lowSince > A12_FILTER_DOTS) {
+            return t;
+          }
+          // The rest of a run of fetches from the same table can't clock
+          // the counter either (the gaps between them are too short), so
+          // skip to the end of the run.
+          if (pj < 32) {
+            p = 31 * 8 + A12_PHASE;
+          } else if (pj < 40 && !this.f_spriteSize) {
+            p = 39 * 8 + A12_PHASE;
+          }
+          lowSince = rel + p + 4;
+        }
+      }
+      // On to the next line.
+      rel += 341;
+      line++;
+      if (line === 240) {
+        // Vblank: the bus holds v (which only the CPU can change, and
+        // that triggers a reschedule).
+        if ((this.vramAddress & 0x1000) !== 0) {
+          high = true;
+        }
+        rel += 21 * 341;
+        line = 261;
+      } else if (line === 262) {
+        line = 0;
+      }
+      dot = 0;
+    }
+    return Infinity;
   }
 
   // Process one dot.
@@ -921,6 +1112,10 @@ class PPU {
     }
     this.line = line;
     this.scanline = line >= 241 ? line - 241 : line + 21;
+    if (line === 240) {
+      // Rendering has finished with the address bus; it holds v again.
+      this._a12FromV();
+    }
   }
 
   _startVBlank() {
@@ -958,11 +1153,21 @@ class PPU {
     }
     if (dot === 0) return; // idle dot
 
-    if (dot > 320 && dot === this.nes.mmap.irqClockDot) {
-      // Clock the mapper's scanline counter once per rendered line (MMC3
-      // and friends count PPU A12 rising edges during the sprite fetches,
-      // around dot 260; see Mapper0.irqClockDot).
-      this.nes.mmap.clockIrqCounter();
+    const mmap = this.nes.mmap;
+    if (mmap.a12Watch) {
+      // (Dots 257-320 are handled by _spriteFetchSpan().)
+      if (
+        ((dot - A12_PHASE) & 7) === 0 &&
+        dot <= 328 + A12_PHASE &&
+        (dot < 257 || dot > 320)
+      ) {
+        this._a12Fetch(dot, this.dotsRun);
+      }
+    } else if (dot > 320 && dot === mmap.irqClockDot) {
+      // Clock the mapper's scanline counter once per rendered line (see
+      // Mapper0.irqClockDot). Dots 257-320 are handled by
+      // _spriteFetchSpan().
+      mmap.clockIrqCounter();
     }
 
     if (dot <= 256) {
@@ -1098,10 +1303,19 @@ class PPU {
       this.vramAddress =
         (this.vramAddress & 0x041f) | (this.vramTmpAddress & 0x7be0);
     }
-    const irqDot = this.nes.mmap.irqClockDot;
-    if (irqDot >= from && irqDot < to) {
-      // Clock the mapper's scanline counter (see Mapper0.irqClockDot).
-      this.nes.mmap.clockIrqCounter();
+    const mmap = this.nes.mmap;
+    if (mmap.a12Watch) {
+      // Sprite pattern fetches can clock an MMC3-style counter (see
+      // _a12Fetch()).
+      for (let p = from + ((A12_PHASE - from) & 7); p < to; p += 8) {
+        this._a12Fetch(p, this.dotsRun + (p - from));
+      }
+    } else {
+      const irqDot = mmap.irqClockDot;
+      if (irqDot >= from && irqDot < to) {
+        // Clock the mapper's scanline counter (see Mapper0.irqClockDot).
+        mmap.clockIrqCounter();
+      }
     }
     // OAMADDR is reset to 0 throughout the sprite fetch period.
     this.sramAddress = 0;
@@ -1781,6 +1995,7 @@ class PPU {
     "lastVramReadCycle",
     "sramAddress",
     "openBusLatch",
+    "a12High",
     "openBusDecay",
     "currentMirroring",
     "ntable1",
@@ -1854,6 +2069,7 @@ class PPU {
     this.dotTarget = 0;
     this.dotsRun = 0;
     this.nextEventDot = 0;
+    this.a12LowSince = -1000;
     // Rebuild derived state.
     for (let i = 0; i < 0x2000; i++) {
       this.patternWrite(i, this.vramMem[i]);

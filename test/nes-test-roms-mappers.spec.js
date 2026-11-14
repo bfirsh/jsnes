@@ -5,17 +5,7 @@ import { describe, it } from "node:test";
 import { defineTestRomTests } from "./helpers/test-rom-runner.js";
 
 // Tests that are known to fail, and why. They're skipped.
-const KNOWN_FAILURES = {
-  "mmc3_test_2/1-clocking.nes":
-    "the MMC3 IRQ counter isn't clocked by PPU A12 yet",
-  "mmc3_test_2/2-details.nes":
-    "the MMC3 IRQ counter isn't clocked by PPU A12 yet",
-  "mmc3_test_2/3-A12_clocking.nes":
-    "the MMC3 IRQ counter isn't clocked by PPU A12 yet",
-  "mmc3_test_2/4-scanline_timing.nes":
-    "the MMC3 IRQ counter isn't clocked by PPU A12 yet",
-  "mmc3_test_2/5-MMC3.nes": "the MMC3 IRQ counter isn't clocked by PPU A12 yet",
-};
+const KNOWN_FAILURES = {};
 
 describe("nes-test-roms: mappers", { timeout: 600000 }, function () {
   defineTestRomTests(
