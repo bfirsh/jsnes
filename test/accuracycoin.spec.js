@@ -279,7 +279,11 @@ TEST_PAGES.forEach(function (page) {
  *
  * Returns a map of result address -> result value for every test.
  */
-function runAccuracyCoin(romData) {
+//
+// `alignment` optionally changes the power-on state: on real hardware the
+// CPU/PPU clock alignment and the CPU/APU clock phase at power-on vary, and
+// AccuracyCoin is designed to pass regardless.
+function runAccuracyCoin(romData, alignment = { ppuDots: 0, cpuCycles: 0 }) {
   let nes = new NES({
     onFrame: function () {},
     onAudioSample: function () {},
@@ -287,6 +291,10 @@ function runAccuracyCoin(romData) {
   });
 
   nes.loadROM(romData);
+  for (let i = 0; i < alignment.ppuDots; i++) {
+    nes.ppu._tick();
+  }
+  nes.cpu.cycles += alignment.cpuCycles;
 
   // Run frames to let the ROM initialize and display the menu.
   // The cursor starts at $FF (top of page, highlighting the page index).
@@ -477,3 +485,26 @@ describe("AccuracyCoin", { timeout: 600000 }, function () {
     }
   });
 });
+
+// Run the whole ROM again with a different power-on CPU/PPU alignment and
+// CPU/APU clock phase, to catch timing that only works by coincidence.
+describe(
+  "AccuracyCoin (alternate power-on alignment)",
+  { timeout: 600000 },
+  function () {
+    it("passes every test", function () {
+      let data = fs.readFileSync("roms/AccuracyCoin/AccuracyCoin.nes");
+      let run = runAccuracyCoin(data.toString("binary"), {
+        ppuDots: 1,
+        cpuCycles: 1,
+      });
+      assert.equal(run.crashed, false, run.crashMessage);
+      let failures = ALL_TESTS.filter(function (test) {
+        return !KNOWN_FAILURES[test.addr] && !isPass(run.results[test.addr]);
+      }).map(function (test) {
+        return test.name + ": " + formatResult(run.results[test.addr]);
+      });
+      assert.deepEqual(failures, []);
+    });
+  },
+);
