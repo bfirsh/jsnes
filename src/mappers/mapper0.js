@@ -345,9 +345,10 @@ class Mapper0 {
       ret = 1;
     }
 
-    this.joy1StrobeState++;
-    if (this.joy1StrobeState === 24) {
-      this.joy1StrobeState = 0;
+    // The shift register fills with 1s as it's read, so once all 8 buttons
+    // have been read, every further read returns 1 until the next strobe.
+    if (this.joy1StrobeState < 8) {
+      this.joy1StrobeState++;
     }
 
     return ret;
@@ -370,9 +371,10 @@ class Mapper0 {
       ret = 1;
     }
 
-    this.joy2StrobeState++;
-    if (this.joy2StrobeState === 24) {
-      this.joy2StrobeState = 0;
+    // The shift register fills with 1s as it's read, so once all 8 buttons
+    // have been read, every further read returns 1 until the next strobe.
+    if (this.joy2StrobeState < 8) {
+      this.joy2StrobeState++;
     }
 
     return ret;
