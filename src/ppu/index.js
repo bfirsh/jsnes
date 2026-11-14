@@ -690,6 +690,37 @@ class PPU {
         this._renderSpan(this.line, dot, end);
         this.dotsRun += end - dot;
         this.dot = end;
+      } else if (
+        dot >= 257 &&
+        dot <= 320 &&
+        (this.line < 240 || this.line === 261) &&
+        this.renderingOn &&
+        this.maskDelay === 0 &&
+        !this.oamCorruptPending
+      ) {
+        // Fast path: sprite fetches during horizontal blanking.
+        let end = dot + (target - this.dotsRun);
+        if (end > 321) end = 321;
+        this._spriteFetchSpan(this.line, dot, end, this.line === 261);
+        this.dotsRun += end - dot;
+        this.dot = end;
+      } else if (
+        this.line >= 240 &&
+        this.line <= 260 &&
+        (this.line !== 241 || dot >= 2) &&
+        this.maskDelay === 0
+      ) {
+        // Fast path: nothing happens on the post-render and VBlank lines
+        // (apart from VBlank starting at line 241, dot 1), so skip ahead.
+        const left = 341 - dot;
+        const owed = target - this.dotsRun;
+        if (owed >= left) {
+          this.dotsRun += left;
+          this._nextLine();
+        } else {
+          this.dotsRun += owed;
+          this.dot = dot + owed;
+        }
       } else {
         this._tick();
         this.dotsRun++;
@@ -862,7 +893,7 @@ class PPU {
     }
     if (dot === 0) return; // idle dot
 
-    if (dot > 256 && dot === this.nes.mmap.irqClockDot) {
+    if (dot > 320 && dot === this.nes.mmap.irqClockDot) {
       // Clock the mapper's scanline counter once per rendered line (MMC3
       // and friends count PPU A12 rising edges during the sprite fetches,
       // around dot 260; see Mapper0.irqClockDot).
@@ -880,32 +911,7 @@ class PPU {
         if (dot === 256) this._incY();
       }
     } else if (dot <= 320) {
-      if (dot === 257) {
-        // Copy the horizontal scroll bits from t to v.
-        this.vramAddress =
-          (this.vramAddress & 0x7be0) | (this.vramTmpAddress & 0x041f);
-        this.secIdx = 0;
-        this.sprFetchCount = 0;
-        this.sprite0Line = this.sprite0Next;
-        this.nes.mmap.onSpriteRender();
-      }
-      // OAMADDR is reset to 0 throughout the sprite fetch period.
-      this.sramAddress = 0;
-      // Sprite pattern fetches: 8 dots per sprite.
-      const phase = (dot - 257) & 7;
-      if (phase === 7) {
-        this._fetchSprite((dot - 257) >> 3, isPreRender ? 261 & 0xff : line);
-      }
-      // The secondary OAM address moves on dots 0, 1, 2 and 7 of each
-      // 8-dot group (it's used as the OAM corruption "seed").
-      if (phase <= 2 || phase === 7) {
-        this.secIdx = (this.secIdx + 1) & 0x1f;
-      }
-      if (isPreRender && dot >= 280 && dot <= 304) {
-        // Copy the vertical scroll bits from t to v.
-        this.vramAddress =
-          (this.vramAddress & 0x041f) | (this.vramTmpAddress & 0x7be0);
-      }
+      this._spriteFetchSpan(line, dot, dot + 1, isPreRender);
     } else if (dot <= 336) {
       // Prefetch the first two tiles of the next line.
       if (dot === 321) this.nes.mmap.onBgRender();
@@ -993,6 +999,45 @@ class PPU {
         this.sprHi[i] = (this.sprHi[i] << shift) & 0xff;
       }
     }
+  }
+
+  // Dots [from, to) of the sprite fetch period (257-320) of a visible or
+  // pre-render line, with rendering enabled. Each of the 8 sprites found
+  // by evaluation gets 8 dots, in which its secondary OAM bytes are read
+  // and its pattern is fetched.
+  _spriteFetchSpan(line, from, to, isPreRender) {
+    const irqDot = this.nes.mmap.irqClockDot;
+    for (let dot = from; dot < to; dot++) {
+      if (dot === 257) {
+        // Copy the horizontal scroll bits from t to v.
+        this.vramAddress =
+          (this.vramAddress & 0x7be0) | (this.vramTmpAddress & 0x041f);
+        this.secIdx = 0;
+        this.sprFetchCount = 0;
+        this.sprite0Line = this.sprite0Next;
+        this.nes.mmap.onSpriteRender();
+      }
+      const phase = (dot - 257) & 7;
+      if (phase === 7) {
+        this._fetchSprite((dot - 257) >> 3, isPreRender ? 261 & 0xff : line);
+      }
+      // The secondary OAM address moves on dots 0, 1, 2 and 7 of each
+      // 8-dot group (it's used as the OAM corruption "seed").
+      if (phase <= 2 || phase === 7) {
+        this.secIdx = (this.secIdx + 1) & 0x1f;
+      }
+      if (isPreRender && dot >= 280 && dot <= 304) {
+        // Copy the vertical scroll bits from t to v.
+        this.vramAddress =
+          (this.vramAddress & 0x041f) | (this.vramTmpAddress & 0x7be0);
+      }
+      if (dot === irqDot) {
+        // Clock the mapper's scanline counter (see Mapper0.irqClockDot).
+        this.nes.mmap.clockIrqCounter();
+      }
+    }
+    // OAMADDR is reset to 0 throughout the sprite fetch period.
+    this.sramAddress = 0;
   }
 
   // If rendering is disabled when the sprite X counters would be loaded,
@@ -1270,6 +1315,11 @@ class PPU {
   // Sprite evaluation (for the next line) for dots [from, to).
   _evaluateSpan(line, from, to) {
     for (let dot = from; dot < to; dot++) {
+      if (dot === 65 && to === 257) {
+        // The span covers the whole evaluation: use the faster loop.
+        this._evaluateWindow(line);
+        return;
+      }
       if (dot <= 64) {
         // Clear secondary OAM, one byte every 2 dots.
         if ((dot & 1) === 0) {
@@ -1352,6 +1402,80 @@ class PPU {
   _inRange(line, y) {
     const row = line - y;
     return row >= 0 && row < (this.f_spriteSize ? 16 : 8);
+  }
+
+  // The whole of sprite evaluation (dots 65-256) in one go: the same state
+  // machine as _evaluateSprites(), with the state in local variables.
+  _evaluateWindow(line) {
+    const oam = this.spriteMem;
+    const sec = this.secondaryOAM;
+    const height = this.f_spriteSize ? 16 : 8;
+    let addr = this.sramAddress;
+    let secIdx = this.secIdx;
+    let secFull = this.secFull;
+    let done = this.evalDone;
+    let ovfStep = this.evalOvfStep;
+    let latch = this.oamLatch;
+    for (let dot = 66; dot <= 256; dot += 2) {
+      if (done) {
+        // All sprites checked: OAMADDR just steps by 4 per 2 dots.
+        const steps = ((256 - dot) >> 1) + 1;
+        latch = oam[(addr + 4 * (steps - 1)) & 0xff];
+        addr = (addr + 4 * steps) & 0xff;
+        break;
+      }
+      // Odd dot: read OAM. Even dot: process the byte.
+      const s = (latch = oam[addr]);
+      const row = line - s;
+      const inRange = row >= 0 && row < height;
+      if (!secFull) {
+        const step = secIdx & 3;
+        sec[secIdx] = s;
+        if (step === 0) {
+          if (inRange) {
+            if (dot === 66) this.sprite0Next = true;
+            secIdx++;
+            addr++;
+          } else {
+            addr = (addr + 4) & ~3;
+          }
+        } else if (step < 3) {
+          secIdx++;
+          addr++;
+        } else {
+          secIdx++;
+          addr = inRange ? addr + 1 : (addr + 1) & ~3;
+        }
+        if (secIdx === 32) {
+          secFull = true;
+          secIdx = 0;
+        }
+      } else if (ovfStep === 0) {
+        if (inRange) {
+          this.spriteOverflowFlag = 1;
+          ovfStep = 1;
+          addr++;
+        } else {
+          addr += 5;
+        }
+      } else if (ovfStep < 3) {
+        ovfStep++;
+        addr++;
+      } else {
+        ovfStep = 0;
+        addr = inRange ? addr + 1 : addr + 5;
+      }
+      if (addr > 0xff) {
+        done = true;
+        addr &= 0xff;
+      }
+    }
+    this.sramAddress = addr;
+    this.secIdx = secIdx;
+    this.secFull = secFull;
+    this.evalDone = done;
+    this.evalOvfStep = ovfStep;
+    this.oamLatch = latch;
   }
 
   // Process the OAM byte read on the previous (odd) dot. Called on the even
