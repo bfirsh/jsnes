@@ -418,6 +418,15 @@ class PAPU {
       this._clockChannels(n);
       nCycles -= n;
     }
+    // Channel state is about to change.
+    this._runSilentChannels();
+  }
+
+  // Catch up the channels that are being run lazily while silent.
+  _runSilentChannels() {
+    if (this.square1.silentCycles !== 0) this._runSilentSquare(this.square1);
+    if (this.square2.silentCycles !== 0) this._runSilentSquare(this.square2);
+    if (this.noise.silentCycles !== 0) this._runSilentNoise();
   }
 
   // Produce all the audio output samples due by the current CPU cycle.
@@ -499,38 +508,22 @@ class PAPU {
   // Run a square channel's timer for nCycles CPU cycles. Returns the sum of
   // its output over those cycles.
   _clockSquare(square, nCycles) {
-    const period = (square.progTimerMax + 1) << 1;
-    let count = square.progTimerCount;
-    if (count < 0) count = 0;
-    let remaining = nCycles;
     if (!(
       square.isEnabled &&
       square.lengthCounter > 0 &&
       square.progTimerMax > 7
     )) {
       // Silent (see ChannelSquare.updateSampleValue()): the output is 0 on
-      // every step, so just work out where the waveform ends up.
-      if (count > remaining) {
-        square.progTimerCount = count - remaining;
-      } else {
-        let rest = remaining - count;
-        let steps = 1;
-        if (rest < 4 * period) {
-          // (Usually just a step or two: avoid the slow division.)
-          while (rest >= period) {
-            rest -= period;
-            steps++;
-          }
-        } else {
-          steps += Math.floor(rest / period);
-          rest %= period;
-        }
-        square.squareCounter = (square.squareCounter + steps) & 0x7;
-        square.progTimerCount = period - rest;
-        square.sampleValue = 0;
-      }
+      // every step. It stays silent until something changes the channel,
+      // which only happens after a flush (see _flushAudio()), so leave
+      // working out where the waveform ends up until then.
+      square.silentCycles += nCycles;
       return 0;
     }
+    const period = (square.progTimerMax + 1) << 1;
+    let count = square.progTimerCount;
+    if (count < 0) count = 0;
+    let remaining = nCycles;
     let sum = 0;
     // The waveform steps when the timer reaches 0.
     while (count <= remaining) {
@@ -544,11 +537,63 @@ class PAPU {
     return sum + square.sampleValue * remaining;
   }
 
+  // Catch up a square channel's cycles postponed by _clockSquare().
+  _runSilentSquare(square) {
+    const remaining = square.silentCycles;
+    square.silentCycles = 0;
+    const period = (square.progTimerMax + 1) << 1;
+    let count = square.progTimerCount;
+    if (count < 0) count = 0;
+    if (count > remaining) {
+      square.progTimerCount = count - remaining;
+    } else {
+      let rest = remaining - count;
+      let steps = 1;
+      if (rest < 4 * period) {
+        // (Usually just a step or two: avoid the slow division.)
+        while (rest >= period) {
+          rest -= period;
+          steps++;
+        }
+      } else {
+        steps += Math.floor(rest / period);
+        rest %= period;
+      }
+      square.squareCounter = (square.squareCounter + steps) & 0x7;
+      square.progTimerCount = period - rest;
+      square.sampleValue = 0;
+    }
+  }
+
   // Run the noise channel's timer for nCycles CPU cycles, accumulating its
   // output into noise.accValue/accCount. The output changes on the cycle
   // the timer reaches 0, and that cycle already counts with the new value.
   _clockNoise(noise, nCycles) {
     noise.accCount += nCycles;
+    if (
+      noise.sampleValue === 0 &&
+      !(noise.isEnabled && noise.lengthCounter > 0 && noise.masterVolume > 0)
+    ) {
+      // Silent, and it stays silent (the volume can only change after a
+      // flush, see _flushAudio()): the output is 0 whatever the shift
+      // register does, so leave running it until it matters.
+      noise.silentCycles += nCycles;
+      return;
+    }
+    if (noise.silentCycles !== 0) this._runSilentNoise();
+    this._runNoise(noise, nCycles);
+  }
+
+  // Catch up the noise channel's cycles postponed by _clockNoise().
+  _runSilentNoise() {
+    const noise = this.noise;
+    const n = noise.silentCycles;
+    noise.silentCycles = 0;
+    // (The output is 0, so this adds nothing to the channel's output.)
+    this._runNoise(noise, n);
+  }
+
+  _runNoise(noise, nCycles) {
     if (noise.progTimerMax <= 0) {
       noise.progTimerCount -= nCycles;
       noise.accValue += nCycles * noise.sampleValue;
@@ -1056,6 +1101,7 @@ class PAPU {
 
   toJSON() {
     this.catchUp(this.nes.cpu.cycles);
+    this._runSilentChannels();
     let obj = toJSON(this);
     obj.dmc = this.dmc.toJSON();
     obj.noise = this.noise.toJSON();
