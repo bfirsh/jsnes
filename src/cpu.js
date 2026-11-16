@@ -825,6 +825,25 @@ class CPU {
     this.ppuCycles = 0;
     this.nextEvent = 0;
 
+    // Idle loop detection (see _idleLoopCheck()): a count of writes and
+    // slow reads, whether skipping is allowed, and a snapshot of the state
+    // at the start of the last loop iteration.
+    this.sideEffects = 0;
+    this.idleSkip = false;
+    this.loopPc = -1;
+    this.loopSideEffects = 0;
+    this.loopCycles = 0;
+    this.loopA = 0;
+    this.loopX = 0;
+    this.loopY = 0;
+    this.loopSP = 0;
+    this.loopC = 0;
+    this.loopZ = 0;
+    this.loopN = 0;
+    this.loopV = 0;
+    this.loopI = 0;
+    this.loopD = 0;
+
     // Tracks the last value on the CPU data bus. When reading from unmapped
     // addresses ("open bus"), the NES returns this value. Updated on every
     // read and write (except reads of $4015, which is internal to the CPU
@@ -926,6 +945,7 @@ class CPU {
 
   // A read cycle, with everything else that happens in the cycle.
   _readSlow(addr) {
+    this.sideEffects++; // (see _idleLoopCheck())
     if (this.dmaNeedHalt) {
       this._runDma(addr);
     }
@@ -1001,6 +1021,7 @@ class CPU {
   // One CPU write cycle. Writes are never interrupted by DMA: if a DMA
   // becomes pending during a write, it waits for the next read cycle.
   write(addr, value) {
+    this.sideEffects++; // (see _idleLoopCheck())
     const c = this.cycles + 1;
     if (c < this.nextEvent && addr < 0x2000) {
       // Internal RAM (see "Fast and slow cycles" above).
@@ -1470,10 +1491,16 @@ class CPU {
   // instruction.
   emulate(untilFrameEnd = false) {
     const startCycles = this.cycles;
+    // Idle loops are only skipped when running a whole frame (so that
+    // tests that step one instruction at a time see every iteration), and
+    // RAM may have been changed from outside since the last call.
+    this.idleSkip = untilFrameEnd;
+    this.loopPc = -1;
 
     do {
       if (this.resetPending) {
         this.resetPending = false;
+        this.sideEffects++;
         this._interruptSequence(VECTOR_RESET);
         continue;
       }
@@ -1774,7 +1801,9 @@ class CPU {
             const pch = this.read((ptr & 0xff00) | ((ptr + 1) & 0xff));
             this.REG_PC = (pch << 8) | pcl;
           } else {
+            const from = this.REG_PC;
             this.REG_PC = addr;
+            if (addr < from) this._idleLoopCheck(addr);
           }
           break;
         }
@@ -2232,7 +2261,66 @@ class CPU {
     if ((target & 0xff00) !== (this.REG_PC & 0xff00)) {
       this.read((this.REG_PC & 0xff00) | (target & 0xff));
     }
+    const from = this.REG_PC;
     this.REG_PC = target;
+    if (target < from) this._idleLoopCheck(target);
+  }
+
+  // --- Idle loops ---
+  //
+  // Games often wait for the next frame by spinning in a loop like
+  //   wait: LDA frameCounter / CMP lastFrame / BEQ wait
+  // until the NMI handler changes a variable in RAM. Running those loops
+  // takes most of the CPU time in many games, but it's easy to skip them
+  // exactly: if an iteration of a loop made no writes and only read RAM
+  // and ROM (no I/O registers, and nothing else happened, i.e. all its
+  // cycles were fast ones), and left the registers and flags as they were
+  // at the start of it, then the next iteration will do exactly the same,
+  // and so on, until something outside the CPU happens: an interrupt, DMA,
+  // or event (see "Fast and slow cycles"). So we can just add the cycles of
+  // as many whole iterations as fit before nextEvent.
+  //
+  // This is called after a jump or branch backwards, with the new PC. It
+  // compares the state with a snapshot taken the last time the same jump
+  // was taken.
+  _idleLoopCheck(target) {
+    if (!this.idleSkip) return;
+    if (
+      target === this.loopPc &&
+      this.sideEffects === this.loopSideEffects &&
+      this.REG_ACC === this.loopA &&
+      this.REG_X === this.loopX &&
+      this.REG_Y === this.loopY &&
+      this.REG_SP === this.loopSP &&
+      this.F_CARRY === this.loopC &&
+      this.F_ZERO === this.loopZ &&
+      this.F_SIGN === this.loopN &&
+      this.F_OVERFLOW === this.loopV &&
+      this.F_INTERRUPT === this.loopI &&
+      this.F_DECIMAL === this.loopD
+    ) {
+      // The iteration that just finished changed nothing.
+      const length = this.cycles - this.loopCycles;
+      const n = Math.floor((this.nextEvent - 1 - this.cycles) / length);
+      if (n > 0 && n < 0x40000000) {
+        this.cycles += n * length;
+      }
+      this.loopCycles = this.cycles;
+      return;
+    }
+    this.loopPc = target;
+    this.loopSideEffects = this.sideEffects;
+    this.loopCycles = this.cycles;
+    this.loopA = this.REG_ACC;
+    this.loopX = this.REG_X;
+    this.loopY = this.REG_Y;
+    this.loopSP = this.REG_SP;
+    this.loopC = this.F_CARRY;
+    this.loopZ = this.F_ZERO;
+    this.loopN = this.F_SIGN;
+    this.loopV = this.F_OVERFLOW;
+    this.loopI = this.F_INTERRUPT;
+    this.loopD = this.F_DECIMAL;
   }
 
   // SHA/SHX/SHY/SHS: store `value & (H+1)` where H is the high byte of the
