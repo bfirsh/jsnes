@@ -1299,7 +1299,6 @@ class PPU {
     const showBg = this.f_bgVisibility === 1;
     const bgLeft = this.f_bgClipping === 1;
     const palColors = this.palColors;
-    const pixColors = this.pixColors;
     const buffer = this.buffer;
     const sprLine = this.sprLine;
     const showSprites = this.f_spVisibility === 1;
@@ -1312,82 +1311,22 @@ class PPU {
         this.sprLineValid || (this.sprCount === 0 && !this.spriteSkipGlitch);
 
       if ((dot & 7) === 1 && dot + 8 <= to && spritesSimple) {
-        // --- Fast path: one whole tile (8 dots) at once ---
-        // The four fetches (the same as _bgFetch() does on dots 1, 3, 5 and
-        // 7 of the group) only fill latches, which the pixels of this group
-        // don't use, so do them first.
-        this._fetchTile();
-
-        // Pixel k of the group is the bit that would be at the top of the
-        // shift registers after k shifts, i.e. bit (15 - fineX - k) of
-        // their current value (attribute: bit 7 - fineX - k, or the latch
-        // once that has been shifted in).
-        const x0 = dot - 1;
-        // Bit (7 - k) of these 8-bit windows of the shift registers is the
-        // value at the top of the register after k shifts, i.e. what pixel
-        // k of this group uses. The attribute windows continue into the
-        // latch bits once the shifter's own bits have been used up.
-        const sh = 8 - fineX;
-        // NIBBLES packs the 8 pixels' 2-bit values into the nibbles of a
-        // 32-bit word (pixel k in bits 28-4k to 31-4k). Adding the
-        // attribute bits two places up gives each pixel's 4-bit palette
-        // index, which pixColors turns into a color (index 0, 4, 8 or 12
-        // means a transparent pixel, i.e. the backdrop color).
-        let idx =
-          NIBBLES[
-            (((((atHi << 8) | (latHi ? 0xff : 0)) >> sh) & 0xff) << 8) |
-              ((((atLo << 8) | (latLo ? 0xff : 0)) >> sh) & 0xff)
-          ] << 2;
-        if (showBg && (x0 >= 8 || bgLeft)) {
-          idx |= NIBBLES[(((bgHi >> sh) & 0xff) << 8) | ((bgLo >> sh) & 0xff)];
-        }
-        const out = rowBase | x0;
-        if (
-          !this.sprLineValid ||
-          !showSprites ||
-          (this.sprTileMask & (1 << (x0 >> 3))) === 0
-        ) {
-          // No sprite pixels in this tile.
-          buffer[out] = pixColors[idx >>> 28];
-          buffer[out + 1] = pixColors[(idx >>> 24) & 15];
-          buffer[out + 2] = pixColors[(idx >>> 20) & 15];
-          buffer[out + 3] = pixColors[(idx >>> 16) & 15];
-          buffer[out + 4] = pixColors[(idx >>> 12) & 15];
-          buffer[out + 5] = pixColors[(idx >>> 8) & 15];
-          buffer[out + 6] = pixColors[(idx >>> 4) & 15];
-          buffer[out + 7] = pixColors[idx & 15];
-        } else {
-          for (let k = 0; k < 8; k++) {
-            const x = x0 + k;
-            let colorIndex = (idx >>> (28 - 4 * k)) & 15;
-            const spr = sprLine[x];
-            if (spr !== 0 && (x >= 8 || spLeft)) {
-              const opaque = (colorIndex & 3) !== 0;
-              if (spr & 0x200 && opaque && x !== 255) {
-                this.sprite0HitFlag = 1;
-              }
-              // Sprites are drawn in front of the background unless their
-              // priority bit says otherwise (and the background is opaque).
-              if (!opaque || (spr & 0x100) === 0) {
-                colorIndex = spr & 0x1f;
-              }
-            }
-            buffer[out + k] = pixColors[colorIndex];
-          }
-        }
-
-        // After 8 shifts the old tile is gone, the next tile is in the high
-        // half, and the attribute shifters are full of their latch bits.
-        // Then the tile just fetched is loaded.
-        bgLo = ((bgLo << 8) & 0xff00) | this.ptLo;
-        bgHi = ((bgHi << 8) & 0xff00) | this.ptHi;
-        atLo = latLo ? 0xff : 0;
-        atHi = latHi ? 0xff : 0;
-        latLo = this.atBits & 1;
-        latHi = this.atBits >> 1;
-        this._incCoarseX();
-        if (dot === 249) this._incY();
-        dot += 8;
+        // --- Fast path: a run of whole tiles ---
+        const n = (to - dot) >> 3;
+        this.bgShiftLo = bgLo;
+        this.bgShiftHi = bgHi;
+        this.attrShiftLo = atLo;
+        this.attrShiftHi = atHi;
+        this.attrLatchLo = latLo;
+        this.attrLatchHi = latHi;
+        this._renderTiles(line, dot, n);
+        bgLo = this.bgShiftLo;
+        bgHi = this.bgShiftHi;
+        atLo = this.attrShiftLo;
+        atHi = this.attrShiftHi;
+        latLo = this.attrLatchLo;
+        latHi = this.attrLatchHi;
+        dot += n << 3;
         continue;
       }
 
@@ -1452,6 +1391,153 @@ class PPU {
     this.attrShiftHi = atHi;
     this.attrLatchLo = latLo;
     this.attrLatchHi = latHi;
+  }
+
+  // Render n whole tiles (8 dots each) starting at dot (dot & 7 === 1) of a
+  // visible line: the same as running the per-dot background pipeline in
+  // _renderBackgroundSpan() for 8n dots, with the state in locals. Only
+  // used when the sprites can be drawn from the sprite line buffer (or
+  // there are none).
+  //
+  // Within a tile, the four fetches (nametable, attribute, pattern low and
+  // high on dots 1, 3, 5 and 7) only fill latches that the tile's own
+  // pixels don't use, so they're done first. Pixel k of the tile is the
+  // bit that would be at the top of the shift registers after k shifts.
+  _renderTiles(line, dot, n) {
+    const vram = this.vramMem;
+    const mirror = this.vramMirrorTable;
+    const buffer = this.buffer;
+    const pixColors = this.pixColors;
+    const sprLine = this.sprLine;
+    const mmap = this.nes.mmap;
+    const override = mmap.bgTileOverride;
+    const ptBase = this.f_bgPatternTable << 12;
+    // Bit (7 - k) of the 8-bit windows (x >> sh) & 0xff of the shift
+    // registers is what pixel k of the tile uses. The attribute windows
+    // continue into the latch bits once the shifter's own bits run out.
+    const sh = 8 - this.fineX;
+    const showBg = this.f_bgVisibility === 1;
+    const bgLeft = this.f_bgClipping === 1;
+    const sprMask =
+      this.sprLineValid && this.f_spVisibility === 1 ? this.sprTileMask : 0;
+    const spLeft = this.f_spClipping === 1;
+    const rowBase = line << 8;
+    let v = this.vramAddress;
+    let bgLo = this.bgShiftLo;
+    let bgHi = this.bgShiftHi;
+    let atLo = this.attrShiftLo;
+    let atHi = this.attrShiftHi;
+    let latLo = this.attrLatchLo;
+    let latHi = this.attrLatchHi;
+    let ntByte = this.ntByte;
+    let atBits = this.atBits;
+    let ptLo = this.ptLo;
+    let ptHi = this.ptHi;
+
+    for (let t = 0; t < n; t++, dot += 8) {
+      // The fetches.
+      ntByte = vram[mirror[0x2000 | (v & 0x0fff)]];
+      const at =
+        vram[
+          mirror[0x23c0 | (v & 0x0c00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)]
+        ];
+      // Each attribute byte covers 4x4 tiles; pick the 2x2 quadrant.
+      atBits = (at >> (((v >> 4) & 4) | (v & 2))) & 3;
+      const addr = ptBase | (ntByte << 4) | (v >> 12);
+      ptLo = vram[addr];
+      ptHi = vram[addr + 8];
+      mmap.latchAccess(addr + 8);
+      if (override) {
+        this.vramAddress = v;
+        this.ntByte = ntByte;
+        this.ptLo = ptLo;
+        this.ptHi = ptHi;
+        this.atBits = atBits;
+        this._mapperBgOverride();
+        ptLo = this.ptLo;
+        ptHi = this.ptHi;
+        atBits = this.atBits;
+      }
+
+      // The pixels. NIBBLES packs a tile row's 8 pixels' 2-bit values into
+      // the nibbles of a 32-bit word (pixel k in bits 28-4k to 31-4k).
+      // Adding the attribute bits two places up gives each pixel's 4-bit
+      // palette index, which pixColors turns into a color (index 0, 4, 8
+      // or 12 means a transparent pixel, i.e. the backdrop color).
+      const x0 = dot - 1;
+      let idx =
+        NIBBLES[
+          (((((atHi << 8) | (latHi ? 0xff : 0)) >> sh) & 0xff) << 8) |
+            ((((atLo << 8) | (latLo ? 0xff : 0)) >> sh) & 0xff)
+        ] << 2;
+      if (showBg && (x0 >= 8 || bgLeft)) {
+        idx |= NIBBLES[(((bgHi >> sh) & 0xff) << 8) | ((bgLo >> sh) & 0xff)];
+      }
+      const out = rowBase | x0;
+      if ((sprMask & (1 << (x0 >> 3))) === 0) {
+        // No sprite pixels in this tile.
+        buffer[out] = pixColors[idx >>> 28];
+        buffer[out + 1] = pixColors[(idx >>> 24) & 15];
+        buffer[out + 2] = pixColors[(idx >>> 20) & 15];
+        buffer[out + 3] = pixColors[(idx >>> 16) & 15];
+        buffer[out + 4] = pixColors[(idx >>> 12) & 15];
+        buffer[out + 5] = pixColors[(idx >>> 8) & 15];
+        buffer[out + 6] = pixColors[(idx >>> 4) & 15];
+        buffer[out + 7] = pixColors[idx & 15];
+      } else {
+        for (let k = 0; k < 8; k++) {
+          const x = x0 + k;
+          let colorIndex = (idx >>> (28 - 4 * k)) & 15;
+          const spr = sprLine[x];
+          if (spr !== 0 && (x >= 8 || spLeft)) {
+            const opaque = (colorIndex & 3) !== 0;
+            if (spr & 0x200 && opaque && x !== 255) {
+              this.sprite0HitFlag = 1;
+            }
+            // Sprites are drawn in front of the background unless their
+            // priority bit says otherwise (and the background is opaque).
+            if (!opaque || (spr & 0x100) === 0) {
+              colorIndex = spr & 0x1f;
+            }
+          }
+          buffer[out + k] = pixColors[colorIndex];
+        }
+      }
+
+      // After 8 shifts the old tile is gone, the next tile is in the high
+      // half, and the attribute shifters are full of their latch bits.
+      // Then the tile just fetched is loaded.
+      bgLo = ((bgLo << 8) & 0xff00) | ptLo;
+      bgHi = ((bgHi << 8) & 0xff00) | ptHi;
+      atLo = latLo ? 0xff : 0;
+      atHi = latHi ? 0xff : 0;
+      latLo = atBits & 1;
+      latHi = atBits >> 1;
+      // Increment coarse X (see _incCoarseX()), and at the end of the
+      // line, Y (_incY()).
+      if ((v & 0x001f) === 31) {
+        v = (v & ~0x001f) ^ 0x0400;
+      } else {
+        v++;
+      }
+      if (dot === 249) {
+        this.vramAddress = v;
+        this._incY();
+        v = this.vramAddress;
+      }
+    }
+
+    this.vramAddress = v;
+    this.bgShiftLo = bgLo;
+    this.bgShiftHi = bgHi;
+    this.attrShiftLo = atLo;
+    this.attrShiftHi = atHi;
+    this.attrLatchLo = latLo;
+    this.attrLatchHi = latHi;
+    this.ntByte = ntByte;
+    this.atBits = atBits;
+    this.ptLo = ptLo;
+    this.ptHi = ptHi;
   }
 
   // Sprite evaluation (for the next line) for dots [from, to).
@@ -1928,6 +2014,7 @@ class PPU {
   ];
 
   toJSON() {
+    this.nes.cpu.flushPpuCycles();
     this.catchUp();
     this._materializeSprites();
     let state = toJSON(this);
@@ -1943,6 +2030,9 @@ class PPU {
     this.dotTarget = 0;
     this.dotsRun = 0;
     this.nextEventDot = 0;
+    const cpu = this.nes.cpu;
+    cpu.ppuCycles = cpu.cycles;
+    cpu.nextEvent = 0;
     // Rebuild derived state.
     for (let i = 0; i < 0x2000; i++) {
       this.patternWrite(i, this.vramMem[i]);

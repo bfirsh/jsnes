@@ -799,6 +799,11 @@ class CPU {
     // CPU cycle is either a "get" cycle or a "put" cycle.
     // See https://www.nesdev.org/wiki/DMA
     this.cycles = 0;
+    // The cycles whose PPU dots have been added to ppu.dotTarget, and the
+    // first cycle that needs the full per-cycle processing. See "Fast and
+    // slow cycles" below.
+    this.ppuCycles = 0;
+    this.nextEvent = 0;
 
     // Tracks the last value on the CPU data bus. When reading from unmapped
     // addresses ("open bus"), the NES returns this value. Updated on every
@@ -865,8 +870,41 @@ class CPU {
   // Bus cycles
   // ==========================================================================
 
+  // --- Fast and slow cycles ---
+  //
+  // Most cycles are reads of RAM or PRG ROM, or writes to RAM, in which
+  // nothing but the CPU is involved: no DMA is waiting, the APU has nothing
+  // to do but count, the PPU has no event the CPU could notice, and the
+  // interrupt lines are quiet. For those, all the per-cycle bookkeeping in
+  // _endCycle() would leave everything as it is (apart from the PPU's dot
+  // count, which is caught up later), so read() and write() skip it.
+  //
+  // nextEvent is the first cycle that can't be done this way. It's worked
+  // out at the end of every slow cycle (_updateNextEvent()), and anything
+  // that changes the state it depends on outside of a slow cycle sets it
+  // to 0, so that the next cycle is a slow one and it gets worked out
+  // again. Setting it to 0 is always safe.
+
   // One CPU read cycle.
   read(addr) {
+    const c = this.cycles + 1;
+    if (c < this.nextEvent) {
+      if (addr < 0x2000) {
+        // Internal RAM, mirrored every 2KB.
+        this.cycles = c;
+        return (this.dataBus = this.mem[addr & 0x7ff]);
+      }
+      if (addr >= 0x8000 && this.directPrgReads) {
+        // PRG ROM (see _readSlow()).
+        this.cycles = c;
+        return (this.dataBus = this.mem[addr]);
+      }
+    }
+    return this._readSlow(addr);
+  }
+
+  // A read cycle, with everything else that happens in the cycle.
+  _readSlow(addr) {
     if (this.dmaNeedHalt) {
       this._runDma(addr);
     }
@@ -911,6 +949,10 @@ class CPU {
   // (the Zapper looks at the screen).
   _syncPpu(addr) {
     const ppu = this.ppu;
+    // The dots of all the cycles before this one are owed.
+    const done = this.cycles - 1;
+    ppu.dotTarget += 3 * (done - this.ppuCycles);
+    this.ppuCycles = done;
     ppu.catchUp();
     if (addr < 0x4000) {
       // A PPU register access can change the PPU's upcoming events (e.g.
@@ -922,6 +964,18 @@ class CPU {
   // One CPU write cycle. Writes are never interrupted by DMA: if a DMA
   // becomes pending during a write, it waits for the next read cycle.
   write(addr, value) {
+    const c = this.cycles + 1;
+    if (c < this.nextEvent && addr < 0x2000) {
+      // Internal RAM (see "Fast and slow cycles" above).
+      this.cycles = c;
+      this.dataBus = value;
+      this.mem[addr & 0x7ff] = value;
+      return;
+    }
+    this._writeSlow(addr, value);
+  }
+
+  _writeSlow(addr, value) {
     if (this.abortedDmaCycle === this.cycles + 1 && this.dmcDmaAbort) {
       // A pending 1-cycle aborted DMC DMA lands on a write: it vanishes.
       this.dmcDmaRunning = false;
@@ -954,7 +1008,9 @@ class CPU {
   // step for that cycle instead. See PPU.catchUp().
   _endCycle() {
     const ppu = this.ppu;
-    ppu.dotTarget += 3;
+    // This cycle's 3 dots, and those of any fast cycles before it.
+    ppu.dotTarget += 3 * (this.cycles - this.ppuCycles);
+    this.ppuCycles = this.cycles;
     let nmi;
     if (ppu.dotTarget > ppu.nextEventDot) {
       // Runs the dots and records the NMI output at the poll point.
@@ -985,6 +1041,44 @@ class CPU {
     this.nmiLine = nmi;
     this.prevRunIrq = this.runIrq;
     this.runIrq = this.irqFlags !== 0 && this.F_INTERRUPT === 0;
+
+    this._updateNextEvent();
+  }
+
+  // Work out the next cycle that has to be a slow one (see "Fast and slow
+  // cycles" above).
+  _updateNextEvent() {
+    const ppu = this.ppu;
+    if (
+      this.dmaNeedHalt ||
+      this.dmcDmaAbort ||
+      this.needNmi ||
+      this.prevNeedNmi ||
+      this.runIrq ||
+      this.prevRunIrq ||
+      (this.irqFlags !== 0 && this.F_INTERRUPT === 0) ||
+      ppu.nmiOutput !== this.nmiLine
+    ) {
+      // A DMA is waiting, or the interrupt lines need sampling every cycle.
+      this.nextEvent = 0;
+      return;
+    }
+    // The APU's next event.
+    let next = this.papu.nextEventCycle;
+    // The PPU's: the first cycle c at the end of which the PPU is owed
+    // more dots than nextEventDot, i.e. dotTarget + 3 * (c - ppuCycles) >
+    // nextEventDot. See _endCycle().
+    const p =
+      this.ppuCycles + Math.floor((ppu.nextEventDot - ppu.dotTarget) / 3) + 1;
+    if (p < next) next = p;
+    this.nextEvent = next;
+  }
+
+  // Give the PPU the dots of the fast cycles since the last slow one, so
+  // that it can be caught up from outside the CPU (e.g. for a save state).
+  flushPpuCycles() {
+    this.ppu.dotTarget += 3 * (this.cycles - this.ppuCycles);
+    this.ppuCycles = this.cycles;
   }
 
   // Read the byte at PC and advance PC.
@@ -1018,6 +1112,7 @@ class CPU {
   // mappers in this codebase use it); IRQ_RESET resets the CPU before the
   // next instruction; IRQ_NMI forces an NMI (used by tests).
   requestIrq(type) {
+    this.nextEvent = 0;
     if (type === this.IRQ_NORMAL) {
       this.irqFlags |= IRQ_SOURCE_MAPPER;
     } else if (type === this.IRQ_NMI) {
@@ -1032,11 +1127,13 @@ class CPU {
   // Release the cartridge IRQ line (mappers call this when the game
   // acknowledges the interrupt).
   clearIrq() {
+    this.nextEvent = 0;
     this.irqFlags &= ~IRQ_SOURCE_MAPPER;
   }
 
   // Assert or release one of the APU's IRQ lines.
   setIrqSource(source, active) {
+    this.nextEvent = 0;
     if (active) {
       this.irqFlags |= source;
     } else {
@@ -1050,6 +1147,7 @@ class CPU {
   }
 
   set irqRequested(value) {
+    this.nextEvent = 0;
     if (!value) {
       this.irqFlags = 0;
       this.resetPending = false;
@@ -1083,6 +1181,7 @@ class CPU {
 
   // Called by the APU when the DMC needs its next sample byte.
   startDmcDma() {
+    this.nextEvent = 0;
     this.dmcDmaRunning = true;
     this.dmcNeedDummy = true;
     this.dmaNeedHalt = true;
@@ -1093,6 +1192,7 @@ class CPU {
   // if it has just halted the CPU it gets aborted (the CPU still loses the
   // halt cycle). See https://www.nesdev.org/wiki/DMA#DMC_DMA_abort
   stopDmcDma() {
+    this.nextEvent = 0;
     if (!this.dmcDmaRunning) return;
     if (this.dmaNeedHalt && !this.oamDmaRunning) {
       this.dmcDmaRunning = false;
@@ -1107,6 +1207,7 @@ class CPU {
   // ChannelDM._requestDma). Unlike a normal DMA, it isn't delayed by write
   // cycles: if the next cycle is a write, it simply doesn't happen.
   startAbortedDmcDma() {
+    this.nextEvent = 0;
     if (this.dmcDmaRunning) return;
     this.dmcDmaRunning = true;
     this.dmcDmaAbort = true;
@@ -1116,6 +1217,7 @@ class CPU {
 
   // Called when the game writes to $4014.
   startOamDma(page) {
+    this.nextEvent = 0;
     this.oamDmaRunning = true;
     this.oamDmaPage = page;
     this.dmaNeedHalt = true;
@@ -1527,6 +1629,7 @@ class CPU {
         // so a pending IRQ is serviced only after the *next* instruction.
         this.read(this.REG_PC);
         this.F_INTERRUPT = 0;
+        this.nextEvent = 0; // the IRQ line may need sampling now
         break;
       }
       case 16: {
@@ -2169,6 +2272,7 @@ class CPU {
   }
 
   setStatus(st) {
+    this.nextEvent = 0; // the I flag may have changed
     this.F_CARRY = st & 1;
     this.F_ZERO = ((st >> 1) & 1) === 1 ? 0 : 1;
     this.F_INTERRUPT = (st >> 2) & 1;
@@ -2184,6 +2288,7 @@ class CPU {
   // 6502 and are ignored when pulling status from the stack.
   // See https://www.nesdev.org/wiki/Status_flags#The_B_flag
   setStatusFromStack(st) {
+    this.nextEvent = 0; // the I flag may have changed
     this.F_CARRY = st & 1;
     this.F_ZERO = ((st >> 1) & 1) === 1 ? 0 : 1;
     this.F_INTERRUPT = (st >> 2) & 1;
@@ -2249,6 +2354,8 @@ class CPU {
 
   fromJSON(s) {
     fromJSON(this, s);
+    this.ppuCycles = this.cycles;
+    this.nextEvent = 0;
   }
 }
 
