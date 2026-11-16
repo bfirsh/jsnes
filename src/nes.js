@@ -83,6 +83,7 @@ class NES {
         cpu.emulate();
       }
       ppu.frameEnded = false;
+      this.papu.flushAudioOutput();
     } catch (e) {
       this.crashed = true;
       throw e;

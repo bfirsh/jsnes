@@ -103,10 +103,8 @@ class PAPU {
     this.frameIrqClearDelay = 0;
     // Counter value at which the frame counter next has something to do.
     this.nextFrameEvent = FRAME_STEPS_4[0];
-    // CPU cycles not yet run through the audio synthesis (_flushAudio), and
-    // how many to accumulate before running them.
+    // CPU cycles not yet run through the audio synthesis (_flushAudio).
     this.pendingAudioCycles = 0;
-    this.audioFlushAt = 1;
     this.accCount = 0;
     this.smpSquare1 = 0;
     this.smpSquare2 = 0;
@@ -319,11 +317,9 @@ class PAPU {
     }
     // Frame counter step.
     let next = last + (this.nextFrameEvent - this.frameCycleCounter);
-    // Audio output sample.
-    if (this.emulateSound) {
-      const a = last + (this.audioFlushAt - this.pendingAudioCycles);
-      if (a < next) next = a;
-    }
+    // (Audio output samples aren't events: the CPU can't see them, so the
+    // synthesis just runs whenever channel state is about to change, and at
+    // the end of each frame. See _flushAudio().)
     // DMC timer expiry: it loses 2 on each even cycle.
     let even = last + 1;
     if (even & 1) even++;
@@ -336,9 +332,7 @@ class PAPU {
   // Clock the APU by one CPU cycle (an event cycle; see catchUp()).
   clockCycle(cycle) {
     // Batched audio synthesis (skipped entirely if sound is off).
-    if (this.emulateSound && ++this.pendingAudioCycles >= this.audioFlushAt) {
-      this._flushAudio();
-    }
+    if (this.emulateSound) this.pendingAudioCycles++;
 
     const dmc = this.dmc;
     // Rarely-active countdowns: the deferred clear of the frame interrupt
@@ -388,9 +382,24 @@ class PAPU {
       this._clockChannels(n);
       nCycles -= n;
     }
-    // Unless something changes channel state first, run the next batch
-    // when the next output sample is due.
-    this.audioFlushAt = this._cyclesToNextSample();
+  }
+
+  // Produce all the audio output samples due by the current CPU cycle.
+  // Called at the end of each frame, so that a frame's samples are all
+  // delivered by the time nes.frame() returns. Cycles after the last
+  // sample stay pending: the triangle channel's output is interpolated at
+  // the end of each batch of cycles (see accSample()), so splitting a
+  // sample's cycles into two batches would change it slightly.
+  flushAudioOutput() {
+    if (!this.emulateSound) return;
+    this.catchUp(this.nes.cpu.cycles);
+    let n;
+    while (this.pendingAudioCycles >= (n = this._cyclesToNextSample())) {
+      this.pendingAudioCycles -= n;
+      this._clockChannels(n);
+    }
+    this._scheduleNextEvent();
+    this.nes.cpu.nextEvent = 0; // (see "Fast and slow cycles" in cpu.js)
   }
 
   // CPU cycles until the next output sample is produced (at least 1).
@@ -1004,7 +1013,6 @@ class PAPU {
     "nextFrameEvent",
     "pendingAudioCycles",
     "lastCycle",
-    "audioFlushAt",
     "startedPlaying",
     "recordOutput",
     "frameCycleCounter",
