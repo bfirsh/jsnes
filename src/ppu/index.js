@@ -721,7 +721,7 @@ class PPU {
         const line = this.line;
         this._renderSpan(line, 1, 257);
         this._spriteFetchSpan(line, 257, 321, false);
-        this._prefetchSpan(line, 321, 341);
+        this._prefetchLine(line);
         this.dotsRun += 341;
         this._nextLine();
       } else if (
@@ -1318,6 +1318,38 @@ class PPU {
       if (dot === 256) this._incY();
       dot++;
     }
+  }
+
+  // All of dots 321-340 of a visible line: _prefetchSpan(line, 321, 341),
+  // without the per-dot loop.
+  _prefetchLine(line) {
+    const mmap = this.nes.mmap;
+    if (mmap.irqClockDot > 320) {
+      // (The mapper's scanline counter is clocked in here.)
+      this._prefetchSpan(line, 321, 341);
+      return;
+    }
+    mmap.onBgRender();
+    // The first two tiles of the next line.
+    for (let t = 0; t < 2; t++) {
+      this._fetchTile();
+      this.bgShiftLo = ((this.bgShiftLo << 8) & 0xff00) | this.ptLo;
+      this.bgShiftHi = ((this.bgShiftHi << 8) & 0xff00) | this.ptHi;
+      this.attrShiftLo = this.attrLatchLo ? 0xff : 0;
+      this.attrShiftHi = this.attrLatchHi ? 0xff : 0;
+      this.attrLatchLo = this.atBits & 1;
+      this.attrLatchHi = this.atBits >> 1;
+      this._incCoarseX();
+    }
+    // The two unused nametable fetches (dots 337 and 339) read the same
+    // byte.
+    this.ntByte = this.mirroredLoad(0x2000 | (this.vramAddress & 0x0fff));
+    // Dot 340: load the sprite X counters for the next line.
+    for (let i = 0; i < 8; i++) {
+      this.sprX[i] = this.sprLatchX[i];
+    }
+    this.sprCount = this.sprFetchCount;
+    this._buildSpriteLine(line + 1);
   }
 
   // The four fetches of a background tile (what _bgFetch() does on dots 1,
