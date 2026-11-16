@@ -829,6 +829,8 @@ class CPU {
     // slow reads, whether skipping is allowed, and a snapshot of the state
     // at the start of the last loop iteration.
     this.sideEffects = 0;
+    this.predictedReads = 0;
+    this.loopPredictedReads = 0;
     this.idleSkip = false;
     this.loopPc = -1;
     this.loopSideEffects = 0;
@@ -945,7 +947,9 @@ class CPU {
 
   // A read cycle, with everything else that happens in the cycle.
   _readSlow(addr) {
-    this.sideEffects++; // (see _idleLoopCheck())
+    // (See _idleLoopCheck(). A $2002 read answered from the PPU's
+    // prediction is undone below.)
+    this.sideEffects++;
     if (this.dmaNeedHalt) {
       this._runDma(addr);
     }
@@ -973,7 +977,15 @@ class CPU {
         // The PPU (or a mapper that watches it) may be involved: bring the
         // PPU up to date first. See PPU.catchUp().
         if ((addr & 0xe007) === 0x2002) {
-          this._syncPpuForStatus();
+          if (
+            this._syncPpuForStatus() &&
+            this.lastDmaEndCycle !== this.cycles - 1
+          ) {
+            // Reading $2002 again with the flags unchanged leaves
+            // everything as it was (see "$2002 polling" in the PPU).
+            this.sideEffects--;
+            this.predictedReads++;
+          }
         } else {
           this._syncPpu(addr);
         }
@@ -1010,12 +1022,14 @@ class CPU {
 
   // _syncPpu() for a $2002 (PPUSTATUS) read, which often doesn't need the
   // PPU to be caught up. See "$2002 polling" in the PPU.
+  // Returns true if the PPU didn't need to be caught up.
   _syncPpuForStatus() {
     const ppu = this.ppu;
     const owed = 3 * (this.cycles - 1 - this.ppuCycles);
-    if (ppu.statusPredicted(ppu.dotTarget + owed)) return;
+    if (ppu.statusPredicted(ppu.dotTarget + owed)) return true;
     this._syncPpu(0x2002);
     ppu.predictStatus();
+    return false;
   }
 
   // One CPU write cycle. Writes are never interrupted by DMA: if a DMA
@@ -2301,7 +2315,15 @@ class CPU {
     ) {
       // The iteration that just finished changed nothing.
       const length = this.cycles - this.loopCycles;
-      const n = Math.floor((this.nextEvent - 1 - this.cycles) / length);
+      let n = Math.floor((this.nextEvent - 1 - this.cycles) / length);
+      if (this.predictedReads !== this.loopPredictedReads) {
+        // It read $2002: only skip while the reads can still be answered
+        // from the PPU's prediction.
+        const last = this.ppu.statusPredLastCycle(this.ppuCycles);
+        const m = Math.floor((last - this.cycles) / length);
+        if (m < n) n = m;
+        this.loopPredictedReads = this.predictedReads;
+      }
       if (n > 0 && n < 0x40000000) {
         this.cycles += n * length;
       }
@@ -2310,6 +2332,7 @@ class CPU {
     }
     this.loopPc = target;
     this.loopSideEffects = this.sideEffects;
+    this.loopPredictedReads = this.predictedReads;
     this.loopCycles = this.cycles;
     this.loopA = this.REG_ACC;
     this.loopX = this.REG_X;

@@ -170,7 +170,6 @@ class PPU {
     this.nextEventDot = 0;
     // Status flag prediction (see predictStatus()).
     this.statusPredValid = false;
-    this.statusPredLine = 0;
     this.statusPredLimit = 0;
     // Set when $2002 is read on the dot just before VBlank would be set,
     // which prevents the flag being set (and the NMI) for that frame.
@@ -810,26 +809,85 @@ class PPU {
   // Can a $2002 read be answered without catching up? `target` is the
   // dotTarget the read would catch up to.
   statusPredicted(target) {
+    return this.statusPredValid && target <= this.statusPredLimit;
+  }
+
+  // The last CPU cycle on which a $2002 read can be answered from the
+  // prediction (see statusPredicted() and CPU._syncPpuForStatus()), or -1.
+  statusPredLastCycle(ppuCycles) {
+    if (!this.statusPredValid) return -1;
     return (
-      this.statusPredValid &&
-      this.line === this.statusPredLine &&
-      this.dot + (target - this.dotsRun) <= this.statusPredLimit
+      ppuCycles + 1 + Math.floor((this.statusPredLimit - this.dotTarget) / 3)
     );
   }
 
-  // Work out the limit (see above) from the current, caught-up, state.
+  // Work out the limit (see above) from the current, caught-up, state. It's
+  // kept in dotsRun units (statusPredLimit).
   predictStatus() {
     this.statusPredValid = false;
+    if (this.maskDelay !== 0) return;
     const line = this.line;
     const dot = this.dot;
-    if (
-      line >= 240 ||
-      !this.renderingOn ||
-      this.maskDelay !== 0 ||
-      this.oamCorruptPending
-    ) {
+    let dots; // how many dots from now the flags are known not to change
+    if (line < 240 && this.renderingOn) {
+      const limit = this._renderingLineLimit();
+      if (limit < 0) return;
+      if (limit < 341) {
+        dots = limit - dot;
+      } else {
+        // Nothing changes the flags on this line. On the next lines,
+        // sprite 0 hit can only happen if sprite 0 is on the line, and the
+        // overflow flag can only be set if at least 8 sprites are (see
+        // _noOverflowPossible(): OAMADDR is reset to 0 on every line). So
+        // look for the first line where either could happen.
+        const height = this.f_spriteSize ? 16 : 8;
+        if (this.oamDirty || this.oamCacheHeight !== height) {
+          this._oamLineCache(height);
+        }
+        const y0 = this.spriteMem[0];
+        let l = line + 1;
+        // If this line's evaluation doesn't start at OAMADDR 0, whichever
+        // sprite it starts with counts as sprite 0 on the next line.
+        const aligned = dot > 64 ? this.evalAligned : this.sramAddress === 0;
+        if (!aligned) l = 240 + 1; // (stop at the next line, below)
+        for (; l < 240; l++) {
+          // (Sprite 0 is found on line l - 1 if it's on line l.)
+          const row = l - 1 - y0;
+          if (this.sprite0HitFlag === 0 && row >= 0 && row < height) break;
+          if (this.spriteOverflowFlag === 0 && this.oamLineCount[l] >= 8) {
+            break;
+          }
+        }
+        if (l > 240) {
+          dots = 341 - dot;
+        } else if (l === 240) {
+          // No line: VBlank starts at line 241, dot 1.
+          dots = this._dotsUntil(241, 0);
+        } else {
+          dots = this._dotsUntil(l, 0);
+        }
+      }
+    } else if (line <= 240) {
+      // With rendering off (it can't be turned on without a $2001 write)
+      // and on the post-render line, nothing changes the flags until
+      // VBlank starts at line 241, dot 1.
+      dots = this._dotsUntil(241, 0);
+    } else if (line < 261 && (line > 241 || dot >= 2)) {
+      // VBlank: only reads change the flags, until they're cleared at line
+      // 261, dot 1.
+      dots = this._dotsUntil(261, 0);
+    } else {
       return;
     }
+    this.statusPredValid = true;
+    this.statusPredLimit = this.dotsRun + dots;
+  }
+
+  // The limit (a dot of the current line, up to 341) for a visible line
+  // with rendering enabled, or -1 if it can't be worked out.
+  _renderingLineLimit() {
+    const dot = this.dot;
+    if (this.oamCorruptPending) return -1;
     const mmap = this.nes.mmap;
     if (
       mmap.bgTileOverride ||
@@ -837,21 +895,21 @@ class PPU {
     ) {
       // The mapper changes the tiles during rendering (MMC2/MMC4/MMC5),
       // which _bgOpaqueAt() doesn't know about.
-      return;
+      return -1;
     }
     // After dot 256 nothing changes the flags until the next line.
     let limit = 341;
     if (dot <= 256) {
       if (this.spriteOverflowFlag === 0 && !this._noOverflowPossible()) {
         // The overflow flag can't be set before dot 66.
-        if (dot >= 66) return;
+        if (dot >= 66) return -1;
         limit = 66;
       }
       if (this.sprite0HitFlag === 0) {
         if (!this.sprLineValid) {
           // Unless there are no sprites at all, the sprite output units
           // are being run dot by dot: don't try.
-          if (this.sprCount !== 0 || this.spriteSkipGlitch) return;
+          if (this.sprCount !== 0 || this.spriteSkipGlitch) return -1;
         } else if (
           this.f_spVisibility === 1 &&
           this.f_bgVisibility === 1 &&
@@ -879,9 +937,7 @@ class PPU {
         }
       }
     }
-    this.statusPredValid = true;
-    this.statusPredLine = line;
-    this.statusPredLimit = limit;
+    return limit;
   }
 
   // True if the sprite overflow flag can't be set on the current line
