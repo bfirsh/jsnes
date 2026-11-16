@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run format` - Auto-format all code (core and web) with Prettier
 - `npm run test:watch` - Run tests in watch mode for development
 - `npm run typecheck` - TypeScript type checking (verifies `.d.ts` files)
-- `node bench.js` - Run performance benchmark (~900 fps on a small cloud VM; compare against `master` on the same machine rather than an absolute number). Run this on major changes or when you suspect a performance regression/improvement. The CPU/PPU/APU inner loops are the hot paths.
+- `node bench.js` - Run performance benchmark (~5500 fps on a small cloud VM; compare against `master` on the same machine rather than an absolute number). Run this on major changes or when you suspect a performance regression/improvement. Note the benchmark ROMs mostly show static, mostly blank screens and spend most of their CPU time in idle loops, so also check busier workloads (lots of tiles, sprites, sound) when optimizing. The PPU background renderer (`_renderTiles()`) is the hottest path.
 
 ## Code Architecture
 
