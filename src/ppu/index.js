@@ -1685,15 +1685,18 @@ class PPU {
     let ptLo = this.ptLo;
     let ptHi = this.ptHi;
 
+    // Where the current nametable is in vramMem (nametables are mirrored
+    // in 1KB blocks, see setMirroring()).
+    let ntBase = mirror[0x2000 | (v & 0x0c00)];
     for (let t = 0; t < n; t++, dot += 8) {
       // The fetches.
-      ntByte = vram[mirror[0x2000 | (v & 0x0fff)]];
-      const at =
-        vram[
-          mirror[0x23c0 | (v & 0x0c00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)]
-        ];
-      // Each attribute byte covers 4x4 tiles; pick the 2x2 quadrant.
-      atBits = (at >> (((v >> 4) & 4) | (v & 2))) & 3;
+      ntByte = vram[ntBase | (v & 0x03ff)];
+      if ((v & 1) === 0 || t === 0 || override) {
+        // Each attribute byte covers 4x4 tiles; pick the 2x2 quadrant.
+        // (Pairs of tiles, from an even coarse X, use the same one.)
+        const at = vram[ntBase | 0x3c0 | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)];
+        atBits = (at >> (((v >> 4) & 4) | (v & 2))) & 3;
+      }
       const addr = ptBase | (ntByte << 4) | (v >> 12);
       ptLo = vram[addr];
       ptHi = vram[addr + 8];
@@ -1766,6 +1769,7 @@ class PPU {
       // line, Y (_incY()).
       if ((v & 0x001f) === 31) {
         v = (v & ~0x001f) ^ 0x0400;
+        ntBase = mirror[0x2000 | (v & 0x0c00)];
       } else {
         v++;
       }
