@@ -639,6 +639,13 @@ const KIND_SPECIAL = 2;
 const OP_INS = new Uint8Array(256).fill(255);
 const OP_MODE = new Uint8Array(256);
 const OP_KIND = new Uint8Array(256);
+// OP_STEP[op] - which case of the addressing switch in emulate() to run:
+// the ADDR_* mode, except STEP_NONE for KIND_SPECIAL, and the indexed
+// modes that differ for KIND_WRITE (they always do the dummy read) get
+// ADDR_* + STEP_WRITE. So one switch does the whole addressing step.
+const OP_STEP = new Uint8Array(256);
+const STEP_NONE = 13;
+const STEP_WRITE = 6; // ADDR_ABSX -> 14, ADDR_ABSY -> 15, ADDR_POSTIDXIND -> 17
 
 for (const key of Object.keys(OPCODE_TABLE)) {
   const op = Number(key);
@@ -691,6 +698,19 @@ for (const key of Object.keys(OPCODE_TABLE)) {
     kind = KIND_SPECIAL;
   }
   OP_KIND[op] = kind;
+  // The case of the addressing switch in emulate() (see OP_STEP below).
+  if (kind === KIND_SPECIAL) {
+    OP_STEP[op] = STEP_NONE;
+  } else if (
+    kind === KIND_WRITE &&
+    (info.mode === ADDR_ABSX ||
+      info.mode === ADDR_ABSY ||
+      info.mode === ADDR_POSTIDXIND)
+  ) {
+    OP_STEP[op] = info.mode + STEP_WRITE;
+  } else {
+    OP_STEP[op] = info.mode;
+  }
 }
 
 // Interrupt vectors (addresses of the 16-bit handler pointers).
@@ -1473,76 +1493,84 @@ class CPU {
       // Whether indexing crossed a page boundary.
       let crossed = false;
 
-      if (OP_KIND[opcode] !== KIND_SPECIAL) {
-        const write = OP_KIND[opcode] === KIND_WRITE;
-        switch (mode) {
-          case 5: {
-            // Immediate: the operand is the byte after the opcode.
-            addr = this.REG_PC;
-            this.REG_PC = (this.REG_PC + 1) & 0xffff;
-            break;
+      const step = OP_STEP[opcode];
+      switch (step) {
+        case 5: {
+          // Immediate: the operand is the byte after the opcode.
+          addr = this.REG_PC;
+          this.REG_PC = (addr + 1) & 0xffff;
+          break;
+        }
+        case 0: {
+          // Zero page.
+          addr = this._fetch();
+          break;
+        }
+        case 6: {
+          // Zero page,X. The CPU reads from the unindexed address while it
+          // adds the index (dummy read), and the result wraps within the
+          // zero page.
+          const base = this._fetch();
+          this.read(base);
+          addr = (base + this.REG_X) & 0xff;
+          break;
+        }
+        case 7: {
+          // Zero page,Y. As zero page,X.
+          const base = this._fetch();
+          this.read(base);
+          addr = (base + this.REG_Y) & 0xff;
+          break;
+        }
+        case 3: {
+          // Absolute.
+          const lo = this._fetch();
+          addr = (this._fetch() << 8) | lo;
+          break;
+        }
+        case 8:
+        case 9:
+        case 8 + STEP_WRITE:
+        case 9 + STEP_WRITE: {
+          // Absolute,X / Absolute,Y. The CPU first adds the index to the low
+          // byte only and reads from that address. If no carry into the high
+          // byte was needed, that read was correct (for read instructions);
+          // otherwise it was a dummy read and the CPU reads again from the
+          // fixed-up address. Stores and read-modify-write instructions
+          // always do the dummy read.
+          const lo = this._fetch();
+          baseHigh = this._fetch();
+          const base = (baseHigh << 8) | lo;
+          addr = (base + ((step & 1) === 0 ? this.REG_X : this.REG_Y)) & 0xffff;
+          crossed = (addr & 0xff00) !== (base & 0xff00);
+          if (crossed || step > 9) {
+            this.read((base & 0xff00) | (addr & 0xff));
           }
-          case 0: {
-            // Zero page.
-            addr = this._fetch();
-            break;
+          break;
+        }
+        case 10: {
+          // (Indirect,X): pointer in zero page at (operand + X).
+          let ptr = this._fetch();
+          this.read(ptr); // dummy read while adding X
+          ptr = (ptr + this.REG_X) & 0xff;
+          const lo = this.read(ptr);
+          addr = (this.read((ptr + 1) & 0xff) << 8) | lo;
+          break;
+        }
+        case 11:
+        case 11 + STEP_WRITE: {
+          // (Indirect),Y: pointer in zero page, then add Y (with the same
+          // page-crossing dummy read as Absolute,Y).
+          const ptr = this._fetch();
+          const lo = this.read(ptr);
+          baseHigh = this.read((ptr + 1) & 0xff);
+          const base = (baseHigh << 8) | lo;
+          addr = (base + this.REG_Y) & 0xffff;
+          crossed = (addr & 0xff00) !== (base & 0xff00);
+          if (crossed || step !== 11) {
+            this.read((base & 0xff00) | (addr & 0xff));
           }
-          case 6:
-          case 7: {
-            // Zero page,X / Zero page,Y. The CPU reads from the unindexed
-            // address while it adds the index (dummy read), and the result
-            // wraps within the zero page.
-            const base = this._fetch();
-            this.read(base);
-            addr = (base + (mode === 6 ? this.REG_X : this.REG_Y)) & 0xff;
-            break;
-          }
-          case 3: {
-            // Absolute.
-            const lo = this._fetch();
-            addr = (this._fetch() << 8) | lo;
-            break;
-          }
-          case 8:
-          case 9: {
-            // Absolute,X / Absolute,Y. The CPU first adds the index to the low
-            // byte only and reads from that address. If no carry into the high
-            // byte was needed, that read was correct (for read instructions);
-            // otherwise it was a dummy read and the CPU reads again from the
-            // fixed-up address.
-            const lo = this._fetch();
-            baseHigh = this._fetch();
-            const base = (baseHigh << 8) | lo;
-            addr = (base + (mode === 8 ? this.REG_X : this.REG_Y)) & 0xffff;
-            crossed = (addr & 0xff00) !== (base & 0xff00);
-            if (crossed || write) {
-              this.read((base & 0xff00) | (addr & 0xff));
-            }
-            break;
-          }
-          case 10: {
-            // (Indirect,X): pointer in zero page at (operand + X).
-            let ptr = this._fetch();
-            this.read(ptr); // dummy read while adding X
-            ptr = (ptr + this.REG_X) & 0xff;
-            const lo = this.read(ptr);
-            addr = (this.read((ptr + 1) & 0xff) << 8) | lo;
-            break;
-          }
-          case 11: {
-            // (Indirect),Y: pointer in zero page, then add Y (with the same
-            // page-crossing dummy read as Absolute,Y).
-            const ptr = this._fetch();
-            const lo = this.read(ptr);
-            baseHigh = this.read((ptr + 1) & 0xff);
-            const base = (baseHigh << 8) | lo;
-            addr = (base + this.REG_Y) & 0xffff;
-            crossed = (addr & 0xff00) !== (base & 0xff00);
-            if (crossed || write) {
-              this.read((base & 0xff00) | (addr & 0xff));
-            }
-            break;
-          }
+          break;
         }
       }
 
