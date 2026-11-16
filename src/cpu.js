@@ -1013,9 +1013,10 @@ class CPU {
     ppu.dotTarget += 3 * (done - this.ppuCycles);
     this.ppuCycles = done;
     ppu.catchUp();
-    if (addr < 0x4000) {
-      // A PPU register access can change the PPU's upcoming events (e.g.
-      // enabling NMI or rendering), so re-check them this cycle.
+    if (addr < 0x4000 && (addr & 7) <= 2) {
+      // $2000-$2002 accesses can change the PPU's upcoming events and its
+      // NMI output (enabling NMI or rendering, clearing the VBlank flag),
+      // so re-check them this cycle. (The other registers can't.)
       ppu.nextEventDot = 0;
     }
   }
