@@ -1,3 +1,4 @@
+import Mapper0 from "../mappers/mapper0.js";
 import Tile from "../tile.js";
 import { fromJSON, toJSON } from "../utils.js";
 import NameTable from "./nametable.js";
@@ -801,9 +802,15 @@ class PPU {
     if (e < d) d = e;
     e = this._dotsUntil(261, 339);
     if (e < d) d = e;
-    if (this.renderingOn) {
+    const mmap = this.nes.mmap;
+    if (
+      this.renderingOn &&
+      mmap &&
+      mmap.clockIrqCounter !== Mapper0.prototype.clockIrqCounter
+    ) {
       // The mapper's scanline counter is clocked once per rendered line.
-      const irqDot = this.nes.mmap ? this.nes.mmap.irqClockDot : 260;
+      // (Most mappers don't have one, and then there's nothing to see.)
+      const irqDot = mmap.irqClockDot;
       const line = this.line;
       let next;
       if (line < 240) {
