@@ -89,6 +89,90 @@ describe("NES", function () {
         { message: "Not a valid NES ROM." },
       );
     });
+
+    it("keeps the current cartridge if the new ROM is invalid", function () {
+      let data = fs.readFileSync("roms/croom/croom.nes").toString("binary");
+      let nes = new NES();
+      nes.loadROM(data);
+      assert.throws(() => nes.loadROM("foo"), {
+        message: "Not a valid NES ROM.",
+      });
+      // reset() power-cycles whatever cartridge is inserted, so it must still
+      // be the old one rather than the ROM that failed to parse.
+      nes.reset();
+      for (let i = 0; i < 10; i++) nes.frame();
+    });
+  });
+
+  describe("#reset()", function () {
+    // Runs `count` frames and returns a copy of each frame buffer.
+    function runFrames(nes, frames, count) {
+      frames.length = 0;
+      for (let i = 0; i < count; i++) nes.frame();
+      return frames.slice();
+    }
+
+    it("does nothing harmful when no ROM is loaded", function () {
+      let nes = new NES();
+      nes.reset();
+      assert.strictEqual(nes.mmap, null);
+      nes.frame();
+    });
+
+    // reset() is a power cycle: it should be indistinguishable from loading
+    // the same ROM again into a fresh emulator. lj65 is a good test because
+    // it uses the reset vector and starts drawing straight away; before this
+    // was fixed, reset() left cpu.mem empty and the CPU ran into zeros
+    // (BRK) and then an invalid opcode.
+    it("power-cycles the cartridge, producing the same frames as loadROM()", function () {
+      let data = fs.readFileSync("roms/lj65/lj65.nes").toString("binary");
+
+      let frames = [];
+      let nes = new NES({ onFrame: (buf) => frames.push(buf.slice()) });
+      nes.loadROM(data);
+      // Play for a while so there's plenty of state to throw away.
+      runFrames(nes, frames, 100);
+      nes.reset();
+      let afterReset = runFrames(nes, frames, 60);
+
+      let freshFrames = [];
+      let fresh = new NES({ onFrame: (buf) => freshFrames.push(buf.slice()) });
+      fresh.loadROM(data);
+      let afterLoad = runFrames(fresh, freshFrames, 60);
+
+      // Make sure the comparison means something: the game has drawn
+      // something other than a single flat colour.
+      let last = afterLoad[afterLoad.length - 1];
+      assert.ok(last.some((pixel) => pixel !== last[0]));
+
+      assert.strictEqual(afterReset.length, afterLoad.length);
+      for (let i = 0; i < afterLoad.length; i++) {
+        assert.deepStrictEqual(afterReset[i], afterLoad[i], `frame ${i}`);
+      }
+    });
+
+    it("recovers a crashed emulator", function () {
+      let data = fs.readFileSync("roms/croom/croom.nes").toString("binary");
+      let nes = new NES();
+      nes.loadROM(data);
+      nes.frame();
+      // Simulate a crash partway through a game.
+      nes.crashed = true;
+      assert.throws(() => nes.frame(), /crashed/);
+      nes.reset();
+      assert.strictEqual(nes.crashed, false);
+      for (let i = 0; i < 10; i++) nes.frame();
+    });
+
+    it("keeps Game Genie codes active", function () {
+      let data = fs.readFileSync("roms/croom/croom.nes").toString("binary");
+      let nes = new NES();
+      nes.loadROM(data);
+      nes.gameGenie.addPatch(0x8000, 0x00);
+      nes.reset();
+      assert.strictEqual(nes.cpu._gameGenieActive, true);
+      assert.strictEqual(nes.cpu.directPrgReads, false);
+    });
   });
 
   describe("#frame() with invalid opcode", function () {
@@ -191,6 +275,36 @@ describe("NES", function () {
       assert.strictEqual(nes2.cpu.REG_PC, nes.cpu.REG_PC);
       assert.strictEqual(nes2.cpu.cycles, nes.cpu.cycles);
       nes2.frame();
+    });
+
+    // fromJSON() power-cycles via reset() and then overwrites the fresh
+    // state, so the restored emulator must carry on exactly where the saved
+    // one left off.
+    it("continues with the same frames as the saved emulator", function () {
+      let data = fs.readFileSync("roms/lj65/lj65.nes").toString("binary");
+      let frames = [];
+      let nes = new NES({ onFrame: (buf) => frames.push(buf.slice()) });
+      nes.loadROM(data);
+      for (let i = 0; i < 60; i++) nes.frame();
+      let state = JSON.parse(JSON.stringify(nes.toJSON()));
+      frames.length = 0;
+      for (let i = 0; i < 30; i++) nes.frame();
+
+      let restoredFrames = [];
+      let nes2 = new NES({
+        onFrame: (buf) => restoredFrames.push(buf.slice()),
+      });
+      nes2.loadROM(data);
+      for (let i = 0; i < 10; i++) nes2.frame();
+      nes2.fromJSON(state);
+      restoredFrames.length = 0;
+      for (let i = 0; i < 30; i++) nes2.frame();
+
+      // The fast PRG read path is set up again for the restored mapper.
+      assert.strictEqual(nes2.cpu.directPrgReads, true);
+      for (let i = 0; i < frames.length; i++) {
+        assert.deepStrictEqual(restoredFrames[i], frames[i], `frame ${i}`);
+      }
     });
 
     it("rejects states from incompatible versions", function () {

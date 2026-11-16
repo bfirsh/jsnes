@@ -39,12 +39,26 @@ class NES {
     };
 
     this.fpsFrameCount = 0;
+    this.rom = null;
     this.romData = null;
 
     this.ui.updateStatus("Ready to load a ROM.");
   }
 
-  // Resets the system
+  // Power-cycles the console: switches it off and on again with the same
+  // cartridge inserted. Every component (CPU, PPU, APU and the cartridge's
+  // mapper) is rebuilt in its power-on state, and the ROM's PRG/CHR banks
+  // are copied into the fresh memory, so this is equivalent to calling
+  // loadROM() again with the same ROM data. It's also how to recover after
+  // the emulator has crashed (see `crashed`).
+  //
+  // This is *not* the console's reset button, which only resets the CPU and
+  // a few registers and leaves RAM, the PPU and the cartridge's state alone.
+  // See https://www.nesdev.org/wiki/CPU_power_up_state
+  //
+  // Cartridge RAM at $6000-$7FFF (including battery-backed save RAM) is
+  // cleared too, as it is by loadROM(). Hosts that persist save RAM do so
+  // through the onBatteryRamWrite callback.
   reset() {
     this.cpu = new CPU(this);
     this.ppu = new PPU(this);
@@ -52,8 +66,18 @@ class NES {
     this.cpu.ppu = this.ppu;
     this.cpu.papu = this.papu;
 
-    if (this.mmap !== null) {
+    this.mmap = null;
+    if (this.rom !== null) {
+      // The mapper copies the initial PRG-ROM banks into cpu.mem and the
+      // CHR banks into PPU memory, and requests the reset interrupt so the
+      // CPU starts at the address in the reset vector ($FFFC).
       this.mmap = this.rom.createMapper();
+      this.mmap.loadROM();
+      // The CPU reads PRG-ROM straight out of cpu.mem when it can; that
+      // depends on the mapper and on whether Game Genie codes are active,
+      // both of which belong to the new CPU.
+      this.cpu._updateCartridgeLoader();
+      this.ppu.setMirroring(this.rom.getMirroringType());
     }
 
     this.lastFpsTime = null;
@@ -131,19 +155,17 @@ class NES {
     }
   }
 
-  // Loads a ROM file into the CPU and PPU.
-  // The ROM file is validated first.
+  // Inserts a cartridge and powers the console on. The ROM file is parsed
+  // and validated first, so an invalid file throws and leaves the current
+  // cartridge (if any) in place.
   loadROM(data) {
-    // Load ROM file:
-    this.rom = new ROM(this);
-    this.rom.load(data);
+    const rom = new ROM(this);
+    rom.load(data);
 
-    this.reset();
-    this.mmap = this.rom.createMapper();
-    this.mmap.loadROM();
-    this.cpu._updatePrgReadPath();
-    this.ppu.setMirroring(this.rom.getMirroringType());
+    this.rom = rom;
     this.romData = data;
+    // reset() builds the mapper for this.rom and loads it into memory.
+    this.reset();
   }
 
   // Adjust audio sample timing for a non-standard host frame rate. At the
@@ -181,6 +203,8 @@ class NES {
     // this.romData = s.romData;
     this.cpu.fromJSON(s.cpu);
     this.mmap.fromJSON(s.mmap);
+    // Recompute the CPU's PRG read path now the mapper state is restored.
+    this.cpu._updateCartridgeLoader();
     this.ppu.fromJSON(s.ppu);
     this.papu.fromJSON(s.papu);
     if (s.controllers) {
