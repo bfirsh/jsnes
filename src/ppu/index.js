@@ -84,6 +84,11 @@ class PPU {
     // OAM ("Object Attribute Memory"): 64 sprites x 4 bytes (Y, tile,
     // attributes, X).
     this.spriteMem = new Uint8Array(0x100);
+    // Which sprites are on each line (see _oamLineCache()).
+    this.oamLineList = new Uint8Array(240 * 8);
+    this.oamLineCount = new Uint8Array(240);
+    this.oamDirty = true;
+    this.oamCacheHeight = 0;
     // Secondary OAM: the up-to-8 sprites found for the next scanline.
     this.secondaryOAM = new Uint8Array(32).fill(0xff);
 
@@ -546,6 +551,7 @@ class PPU {
       value &= 0xe3;
     }
     this.spriteMem[this.sramAddress] = value;
+    this.oamDirty = true;
     this.sramAddress = (this.sramAddress + 1) & 0xff;
   }
 
@@ -1894,28 +1900,35 @@ class PPU {
       // OAM is full, at which point the overflow logic (with its
       // misaligned reads) takes over in the loop below. Even with 8
       // sprites found that's at most 64 + 3 * 8 = 88 of the 96 steps.
-      let n = 0; // sprites found
-      let steps = 0;
-      let i = 0;
-      while (i < 64) {
-        const y = oam[i << 2];
-        const row = line - y;
-        if (row >= 0 && row < height) {
-          if (i === 0) this.sprite0Next = true;
-          const b = n << 2;
-          const a = i << 2;
-          sec[b] = y;
-          sec[b + 1] = oam[a + 1];
-          sec[b + 2] = oam[a + 2];
-          sec[b + 3] = latch = oam[a + 3];
-          steps += 4;
-          i++;
-          if (++n === 8) break;
-        } else {
-          sec[n << 2] = latch = y;
-          steps++;
-          i++;
-        }
+      //
+      // _oamLineCache() lists the sprites on each line, so we only need to
+      // look at those. (The Y coordinates of the sprites that aren't on the
+      // line also get written to secondary OAM, each overwriting the last,
+      // until the next sprite that is gets copied there.)
+      if (this.oamDirty || this.oamCacheHeight !== height) {
+        this._oamLineCache(height);
+      }
+      const list = this.oamLineList;
+      const base = line << 3;
+      const n = this.oamLineCount[line]; // sprites found (up to 8)
+      for (let k = 0; k < n; k++) {
+        const a = list[base + k] << 2;
+        const b = k << 2;
+        sec[b] = oam[a];
+        sec[b + 1] = oam[a + 1];
+        sec[b + 2] = oam[a + 2];
+        sec[b + 3] = oam[a + 3];
+      }
+      if (n !== 0 && list[base] === 0) this.sprite0Next = true;
+      let i; // sprites visited
+      let steps;
+      if (n === 8) {
+        i = list[base + 7] + 1;
+        steps = i + 3 * 8;
+      } else {
+        i = 64;
+        steps = 64 + 3 * n;
+        if (n === 0 || list[base + n - 1] !== 63) sec[n << 2] = oam[252];
       }
       addr = i << 2;
       dot = 66 + 2 * steps;
@@ -2075,6 +2088,31 @@ class PPU {
     this.oamLatch = latch;
   }
 
+  // For each visible line, list (in oamLineList[line * 8 + k]) the first 8
+  // sprites whose Y coordinate puts them on the line, and count them (up
+  // to 8) in oamLineCount. Only redone when OAM changes (oamDirty) or the
+  // sprite height does.
+  _oamLineCache(height) {
+    this.oamDirty = false;
+    this.oamCacheHeight = height;
+    const count = this.oamLineCount;
+    const list = this.oamLineList;
+    const oam = this.spriteMem;
+    count.fill(0);
+    for (let i = 0; i < 64; i++) {
+      const y = oam[i << 2];
+      let end = y + height;
+      if (end > 240) end = 240;
+      for (let l = y; l < end; l++) {
+        const c = count[l];
+        if (c < 8) {
+          list[(l << 3) + c] = i;
+          count[l] = c + 1;
+        }
+      }
+    }
+  }
+
   // Fetch sprite slot `slot` (0-7) from secondary OAM into the sprite output
   // unit. `line` is the line used for the in-range check; on the pre-render
   // line that's 261 & 255 = 5, which is how stale secondary OAM data can
@@ -2156,6 +2194,7 @@ class PPU {
     for (let i = 0; i < 8; i++) {
       this.spriteMem[base + i] = this.spriteMem[i];
     }
+    this.oamDirty = true;
     this.secondaryOAM[this.oamCorruptRow] = this.secondaryOAM[0];
   }
 
@@ -2282,6 +2321,7 @@ class PPU {
     this.dotTarget = 0;
     this.dotsRun = 0;
     this.nextEventDot = 0;
+    this.oamDirty = true;
     const cpu = this.nes.cpu;
     cpu.ppuCycles = cpu.cycles;
     cpu.nextEvent = 0;
