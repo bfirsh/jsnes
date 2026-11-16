@@ -1400,6 +1400,68 @@ class CPU {
     this._endCycle();
   }
 
+  // An OAM DMA in one go, in the usual case where nothing else can happen
+  // during it: the CPU was halted reading RAM or ROM (so its repeated reads
+  // have no side effects), the source is RAM or ROM, there's no DMC DMA,
+  // no interrupt or catch-up event can happen before the end, and the PPU
+  // isn't rendering (so OAM writes simply go to OAM[OAMADDR++]). Returns
+  // false, having done nothing, if any of that isn't so. The result is the
+  // same as the cycle-by-cycle loop in _runDmaCycles().
+  _quickOamDma(addr) {
+    if (!this.oamDmaRunning || this.dmcDmaRunning || this.dmcDmaAbort) {
+      return false;
+    }
+    const direct = this.directPrgReads;
+    if (!(addr < 0x2000 || (addr >= 0x8000 && direct))) return false;
+    const page = this.oamDmaPage;
+    if (!(page < 0x20 || (page >= 0x80 && direct))) return false;
+    const ppu = this.ppu;
+    if (
+      this.needNmi ||
+      this.prevNeedNmi ||
+      this.runIrq ||
+      this.prevRunIrq ||
+      (this.irqFlags !== 0 && this.F_INTERRUPT === 0) ||
+      ppu.nmiOutput !== this.nmiLine
+    ) {
+      return false;
+    }
+    // Halt cycle, an alignment cycle if the next one is a put (odd) cycle,
+    // then 256 get/put pairs.
+    const start = this.cycles;
+    const total = ((start + 2) & 1) === 0 ? 513 : 514;
+    const end = start + total;
+    if (this.papu.nextEventCycle <= end) return false;
+    const owed = ppu.dotTarget + 3 * (start - this.ppuCycles);
+    if (ppu.nextEventDot < owed + 3 * total) return false;
+    // Is the PPU (once caught up) somewhere it won't render?
+    this.flushPpuCycles();
+    ppu.catchUp();
+    const notRendering =
+      (!ppu.renderingOn && ppu.maskDelay === 0) ||
+      (ppu.line >= 240 &&
+        ppu.line < 261 &&
+        ppu._dotsUntil(261, 0) > 3 * (total + 1));
+    if (!notRendering) return false;
+
+    const mem = this.mem;
+    const mmap = this.nes.mmap;
+    const base = page << 8;
+    let value = 0;
+    for (let i = 0; i < 256; i++) {
+      const a = base | i;
+      value = mem[a < 0x2000 ? a & 0x7ff : a];
+      mmap.write(0x2004, value);
+    }
+    ppu.statusPredValid = false; // (see _syncPpu())
+    this._lastDmaReadAddr = base | 0xff;
+    this.dataBus = value;
+    this.cycles = end;
+    this.oamDmaRunning = false;
+    this.sideEffects++;
+    return true;
+  }
+
   // Run any pending DMA. Called at the start of a CPU read cycle when a DMA
   // has requested a halt. `addr` is the address the CPU was about to read;
   // the halted CPU keeps putting it on the bus during idle DMA cycles.
@@ -1411,6 +1473,7 @@ class CPU {
   _runDmaCycles(addr) {
     this.dmaNeedHalt = false;
     this._lastDmaReadAddr = addr;
+    if (this._quickOamDma(addr)) return;
 
     const isController = addr === 0x4016 || addr === 0x4017;
     // On an NES (as opposed to an original Famicom), the controller only
