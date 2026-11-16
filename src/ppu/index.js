@@ -235,6 +235,9 @@ class PPU {
     this.sprLineValid = false;
     this.sprLineFor = -1;
     this.sprTileMask = 0;
+    // The palette indexes of the background pixels of each tile of the
+    // current line (see _renderTiles()).
+    this.tileIdx = new Int32Array(32);
 
     // --- Output ---
     this.buffer = new Uint32Array(256 * 240);
@@ -1659,7 +1662,6 @@ class PPU {
     const mirror = this.vramMirrorTable;
     const buffer = this.buffer;
     const pixColors = this.pixColors;
-    const sprLine = this.sprLine;
     const mmap = this.nes.mmap;
     const override = mmap.bgTileOverride;
     const ptBase = this.f_bgPatternTable << 12;
@@ -1669,9 +1671,7 @@ class PPU {
     const sh = 8 - this.fineX;
     const showBg = this.f_bgVisibility === 1;
     const bgLeft = this.f_bgClipping === 1;
-    const sprMask =
-      this.sprLineValid && this.f_spVisibility === 1 ? this.sprTileMask : 0;
-    const spLeft = this.f_spClipping === 1;
+    const tileIdx = this.tileIdx;
     const rowBase = line << 8;
     let v = this.vramAddress;
     let bgLo = this.bgShiftLo;
@@ -1726,35 +1726,16 @@ class PPU {
         idx |= SPREAD[(bgLo >> sh) & 0xff] | (SPREAD[(bgHi >> sh) & 0xff] << 1);
       }
       const out = rowBase | x0;
-      if ((sprMask & (1 << (x0 >> 3))) === 0) {
-        // No sprite pixels in this tile.
-        buffer[out] = pixColors[idx >>> 28];
-        buffer[out + 1] = pixColors[(idx >>> 24) & 15];
-        buffer[out + 2] = pixColors[(idx >>> 20) & 15];
-        buffer[out + 3] = pixColors[(idx >>> 16) & 15];
-        buffer[out + 4] = pixColors[(idx >>> 12) & 15];
-        buffer[out + 5] = pixColors[(idx >>> 8) & 15];
-        buffer[out + 6] = pixColors[(idx >>> 4) & 15];
-        buffer[out + 7] = pixColors[idx & 15];
-      } else {
-        for (let k = 0; k < 8; k++) {
-          const x = x0 + k;
-          let colorIndex = (idx >>> (28 - 4 * k)) & 15;
-          const spr = sprLine[x];
-          if (spr !== 0 && (x >= 8 || spLeft)) {
-            const opaque = (colorIndex & 3) !== 0;
-            if (spr & 0x200 && opaque && x !== 255) {
-              this.sprite0HitFlag = 1;
-            }
-            // Sprites are drawn in front of the background unless their
-            // priority bit says otherwise (and the background is opaque).
-            if (!opaque || (spr & 0x100) === 0) {
-              colorIndex = spr & 0x1f;
-            }
-          }
-          buffer[out + k] = pixColors[colorIndex];
-        }
-      }
+      buffer[out] = pixColors[idx >>> 28];
+      buffer[out + 1] = pixColors[(idx >>> 24) & 15];
+      buffer[out + 2] = pixColors[(idx >>> 20) & 15];
+      buffer[out + 3] = pixColors[(idx >>> 16) & 15];
+      buffer[out + 4] = pixColors[(idx >>> 12) & 15];
+      buffer[out + 5] = pixColors[(idx >>> 8) & 15];
+      buffer[out + 6] = pixColors[(idx >>> 4) & 15];
+      buffer[out + 7] = pixColors[idx & 15];
+      // Sprites are drawn over the tile afterwards (see below).
+      tileIdx[x0 >> 3] = idx;
 
       // After 8 shifts the old tile is gone, the next tile is in the high
       // half, and the attribute shifters are full of their latch bits.
@@ -1791,6 +1772,49 @@ class PPU {
     this.atBits = atBits;
     this.ptLo = ptLo;
     this.ptHi = ptHi;
+
+    // Draw the sprite pixels in these tiles over the background.
+    if (this.sprLineValid && this.f_spVisibility === 1) {
+      // (dot is now just past the last tile; note 1 << 32 is 1 in JS.)
+      const start = ((dot - 1) >> 3) - n;
+      const run = n >= 32 ? -1 : ((1 << n) - 1) << start;
+      const mask = this.sprTileMask & run;
+      if (mask !== 0) this._drawSpriteTiles(line, mask);
+    }
+  }
+
+  // Draw the sprite pixels (from the sprite line buffer) in the tiles in
+  // `mask` (bit k = x from 8k to 8k + 7), over the background pixels
+  // _renderTiles() has just drawn there, whose palette indexes are in
+  // tileIdx. Also detects sprite 0 hits.
+  _drawSpriteTiles(line, mask) {
+    const buffer = this.buffer;
+    const pixColors = this.pixColors;
+    const sprLine = this.sprLine;
+    const tileIdx = this.tileIdx;
+    const spLeft = this.f_spClipping === 1;
+    const rowBase = line << 8;
+    for (let tile = 0; tile < 32; tile++) {
+      if ((mask & (1 << tile)) === 0) continue;
+      const idx = tileIdx[tile];
+      const x0 = tile << 3;
+      for (let k = 0; k < 8; k++) {
+        const x = x0 + k;
+        const spr = sprLine[x];
+        if (spr !== 0 && (x >= 8 || spLeft)) {
+          const colorIndex = (idx >>> (28 - 4 * k)) & 15;
+          const opaque = (colorIndex & 3) !== 0;
+          if (spr & 0x200 && opaque && x !== 255) {
+            this.sprite0HitFlag = 1;
+          }
+          // Sprites are drawn in front of the background unless their
+          // priority bit says otherwise (and the background is opaque).
+          if (!opaque || (spr & 0x100) === 0) {
+            buffer[rowBase | x] = pixColors[spr & 0x1f];
+          }
+        }
+      }
+    }
   }
 
   // Sprite evaluation (for the next line) for dots [from, to).
