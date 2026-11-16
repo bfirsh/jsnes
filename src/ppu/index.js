@@ -707,6 +707,21 @@ class PPU {
     while (this.dotsRun < target) {
       const dot = this.dot;
       if (
+        dot === 0 &&
+        this.line < 240 &&
+        target - this.dotsRun >= 341 &&
+        this.renderingOn &&
+        this.maskDelay === 0 &&
+        !this.oamCorruptPending
+      ) {
+        // Fast path: a whole visible line (the same as the spans below).
+        const line = this.line;
+        this._renderSpan(line, 1, 257);
+        this._spriteFetchSpan(line, 257, 321, false);
+        this._prefetchSpan(line, 321, 341);
+        this.dotsRun += 341;
+        this._nextLine();
+      } else if (
         this.line < 240 &&
         dot >= 1 &&
         dot <= 256 &&
@@ -1294,7 +1309,17 @@ class PPU {
   // takes over.
   _buildSpriteLine(forLine) {
     const sprLine = this.sprLine;
-    sprLine.fill(0);
+    // Clear it: only the tiles of the last line's sprites need it.
+    let old = this.sprTileMask;
+    if (old === -1) {
+      sprLine.fill(0);
+    } else {
+      while (old !== 0) {
+        const tile = 31 - Math.clz32(old);
+        old &= ~(1 << tile);
+        for (let x = tile << 3, end = x + 8; x < end; x++) sprLine[x] = 0;
+      }
+    }
     this.sprLineFor = forLine;
     this.sprLineValid = true;
     // Bit k of sprTileMask is set if any sprite pixel falls in x = 8k to
