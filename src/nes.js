@@ -39,6 +39,10 @@ class NES {
     };
 
     this.fpsFrameCount = 0;
+    // How often the host calls frame(), per second. See setFramerate(). This
+    // is a host setting rather than console state, so it lives here and is
+    // applied again to every new PAPU.
+    this.frameRate = 60;
     this.rom = null;
     this.romData = null;
 
@@ -65,6 +69,8 @@ class NES {
     this.papu = new PAPU(this);
     this.cpu.ppu = this.ppu;
     this.cpu.papu = this.papu;
+    // The new PAPU starts with 60fps sample timing; apply the host's rate.
+    this.papu.setFrameRate(this.frameRate);
 
     this.mmap = null;
     if (this.rom !== null) {
@@ -172,7 +178,11 @@ class NES {
   // default 60fps each frame() produces ~800 samples at 48kHz. If the host
   // calls frame() less often (e.g. 30fps), the sample timer must fire more
   // frequently per CPU cycle so each frame still fills the audio buffer.
+  //
+  // The rate is remembered and applied again whenever the PAPU is rebuilt
+  // (reset(), loadROM()) or restored from a save state (fromJSON()).
   setFramerate(rate) {
+    this.frameRate = rate;
     this.papu.setFrameRate(rate);
   }
 
@@ -207,6 +217,11 @@ class NES {
     this.cpu._updateCartridgeLoader();
     this.ppu.fromJSON(s.ppu);
     this.papu.fromJSON(s.papu);
+    // The save state carries the sample timing of the host that saved it.
+    // The sample rate and frame rate are this host's audio output settings,
+    // not console state, so put them back.
+    this.papu.sampleRate = this.opts.sampleRate;
+    this.papu.setFrameRate(this.frameRate);
     if (s.controllers) {
       if (s.controllers[1]) this.controllers[1].fromJSON(s.controllers[1]);
       if (s.controllers[2]) this.controllers[2].fromJSON(s.controllers[2]);

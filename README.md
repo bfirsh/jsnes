@@ -148,7 +148,7 @@ var nes = new jsnes.NES(options);
 | `nes.reset()` | Power-cycle the console with the current ROM, as if it had been loaded again with `loadROM()` (cartridge RAM is cleared). Also recovers the emulator after a crash. |
 | `nes.reloadROM()` | Reload the current ROM from scratch. |
 | `nes.getFPS()` | Get the current frames-per-second count. |
-| `nes.setFramerate(rate)` | Change the target frame rate. |
+| `nes.setFramerate(rate)` | Tell the emulator how many times per second you call `frame()` (default 60), so each frame produces the right amount of audio. Kept across `reset()`, `loadROM()` and `fromJSON()`. |
 | `nes.toJSON()` | Serialize emulator state (for save states). |
 | `nes.fromJSON(data)` | Restore emulator state from a previous `toJSON()` call. Throws if the state was saved by an incompatible version of JSNES. |
 | `nes.zapperMove(x, y)` | Move the Zapper light gun to the given pixel coordinates. |

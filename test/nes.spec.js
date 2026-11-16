@@ -317,6 +317,70 @@ describe("NES", function () {
     });
   });
 
+  describe("#setFramerate()", function () {
+    const romData = () =>
+      fs.readFileSync("roms/croom/croom.nes").toString("binary");
+
+    // Counts the audio samples produced over `count` frames. At 48kHz and
+    // 60fps that's ~800 per frame; at 30fps the sample timer fires twice as
+    // often per CPU cycle, so ~1600 per frame.
+    function samplesPerFrame(nes, counter, count) {
+      counter.n = 0;
+      for (let i = 0; i < count; i++) nes.frame();
+      return counter.n / count;
+    }
+
+    function makeNES() {
+      let counter = { n: 0 };
+      let nes = new NES({ onAudioSample: () => counter.n++ });
+      return { nes, counter };
+    }
+
+    it("scales the number of audio samples per frame", function () {
+      let { nes, counter } = makeNES();
+      nes.loadROM(romData());
+      let at60 = samplesPerFrame(nes, counter, 10);
+      nes.setFramerate(30);
+      let at30 = samplesPerFrame(nes, counter, 10);
+      assert.ok(Math.abs(at60 - 800) < 5, `${at60} samples/frame at 60fps`);
+      assert.ok(Math.abs(at30 - 1600) < 10, `${at30} samples/frame at 30fps`);
+    });
+
+    // reset() and loadROM() build a new PAPU, and fromJSON() restores the
+    // saving host's sample timer, but the frame rate is a setting of this
+    // host, so it has to survive all three.
+    for (const [name, action] of [
+      ["reset()", (nes) => nes.reset()],
+      ["loadROM()", (nes) => nes.loadROM(romData())],
+      [
+        "fromJSON() of a state saved at 60fps",
+        (nes) => {
+          let other = new NES();
+          other.loadROM(romData());
+          other.frame();
+          nes.fromJSON(JSON.parse(JSON.stringify(other.toJSON())));
+        },
+      ],
+    ]) {
+      it(`is kept across ${name}`, function () {
+        let expected = new NES();
+        expected.loadROM(romData());
+        expected.setFramerate(30);
+
+        let { nes, counter } = makeNES();
+        nes.loadROM(romData());
+        nes.setFramerate(30);
+        action(nes);
+        assert.strictEqual(
+          nes.papu.sampleTimerMax,
+          expected.papu.sampleTimerMax,
+        );
+        let perFrame = samplesPerFrame(nes, counter, 10);
+        assert.ok(Math.abs(perFrame - 1600) < 10, `${perFrame} samples/frame`);
+      });
+    }
+  });
+
   describe("#getFPS()", function () {
     let nes = new NES();
     before(function () {
