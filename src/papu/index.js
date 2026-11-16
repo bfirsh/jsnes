@@ -452,27 +452,27 @@ class PAPU {
     let square2 = this.square2;
     let noise = this.noise;
 
-    // Clock Triangle channel Prog timer:
+    // Clock the triangle channel's timer. Each time it expires (every
+    // progTimerMax + 1 cycles), the waveform steps, if the linear and
+    // length counters allow it. Only the final step matters for the output
+    // value, so the steps are counted rather than run one at a time.
     if (triangle.progTimerMax > 0) {
-      triangle.progTimerCount -= nCycles;
-      while (triangle.progTimerCount <= 0) {
-        triangle.progTimerCount += triangle.progTimerMax + 1;
+      let count = triangle.progTimerCount - nCycles;
+      if (count <= 0) {
+        const period = triangle.progTimerMax + 1;
+        const steps = Math.floor(-count / period) + 1;
+        count += steps * period;
         if (triangle.linearCounter > 0 && triangle.lengthCounter > 0) {
-          triangle.triangleCounter++;
-          triangle.triangleCounter &= 0x1f;
-
+          const counter = (triangle.triangleCounter + steps) & 0x1f;
+          triangle.triangleCounter = counter;
           if (triangle.isEnabled) {
-            if (triangle.triangleCounter >= 0x10) {
-              // Normal value.
-              triangle.sampleValue = triangle.triangleCounter & 0xf;
-            } else {
-              // Inverted value.
-              triangle.sampleValue = 0xf - (triangle.triangleCounter & 0xf);
-            }
-            triangle.sampleValue <<= 4;
+            // The first half of the sequence counts down, the second up.
+            triangle.sampleValue =
+              (counter >= 0x10 ? counter & 0xf : 0xf - (counter & 0xf)) << 4;
           }
         }
       }
+      triangle.progTimerCount = count;
     }
 
     // Clock the square channels. Their output is accumulated exactly (each
@@ -788,71 +788,64 @@ class PAPU {
 
   // Samples the channels, mixes the output together, then writes to buffer.
   sample() {
-    let sq_index, tnd_index;
-
-    if (this.accCount > 0) {
-      this.smpSquare1 <<= 4;
-      this.smpSquare1 = Math.floor(this.smpSquare1 / this.accCount);
-
-      this.smpSquare2 <<= 4;
-      this.smpSquare2 = Math.floor(this.smpSquare2 / this.accCount);
-
-      this.smpTriangle = Math.floor(this.smpTriangle / this.accCount);
-
-      this.smpDmc <<= 4;
-      this.smpDmc = Math.floor(this.smpDmc / this.accCount);
-
+    let square1, square2, triangle, dmc;
+    const n = this.accCount;
+    if (n > 0) {
+      // The average of each channel's output since the last sample.
+      square1 = Math.floor((this.smpSquare1 << 4) / n);
+      square2 = Math.floor((this.smpSquare2 << 4) / n);
+      triangle = Math.floor(this.smpTriangle / n);
+      dmc = Math.floor((this.smpDmc << 4) / n);
       this.accCount = 0;
     } else {
-      this.smpSquare1 = this.square1.sampleValue << 4;
-      this.smpSquare2 = this.square2.sampleValue << 4;
-      this.smpTriangle = this.triangle.sampleValue;
-      this.smpDmc = this.dmc.sample << 4;
+      square1 = this.square1.sampleValue << 4;
+      square2 = this.square2.sampleValue << 4;
+      triangle = this.triangle.sampleValue;
+      dmc = this.dmc.sample << 4;
     }
 
-    let smpNoise = Math.floor((this.noise.accValue << 4) / this.noise.accCount);
-    this.noise.accValue = smpNoise >> 4;
-    this.noise.accCount = 1;
+    const noiseChannel = this.noise;
+    const noise = Math.floor(
+      (noiseChannel.accValue << 4) / noiseChannel.accCount,
+    );
+    noiseChannel.accValue = noise >> 4;
+    noiseChannel.accCount = 1;
 
-    // Stereo sound.
+    // Stereo sound: mix each side through the DAC lookup tables.
+    const squareTable = this.square_table;
+    const tndTable = this.tnd_table;
+    const squareMax = squareTable.length - 1;
+    const tndMax = tndTable.length - 1;
+    const triangle3 = 3 * triangle;
+    const noise2 = noise << 1;
 
     // Left channel:
-    sq_index =
-      (this.smpSquare1 * this.stereoPosLSquare1 +
-        this.smpSquare2 * this.stereoPosLSquare2) >>
+    let sq_index =
+      (square1 * this.stereoPosLSquare1 + square2 * this.stereoPosLSquare2) >>
       8;
-    tnd_index =
-      (3 * this.smpTriangle * this.stereoPosLTriangle +
-        (smpNoise << 1) * this.stereoPosLNoise +
-        this.smpDmc * this.stereoPosLDMC) >>
+    let tnd_index =
+      (triangle3 * this.stereoPosLTriangle +
+        noise2 * this.stereoPosLNoise +
+        dmc * this.stereoPosLDMC) >>
       8;
-    if (sq_index >= this.square_table.length) {
-      sq_index = this.square_table.length - 1;
-    }
-    if (tnd_index >= this.tnd_table.length) {
-      tnd_index = this.tnd_table.length - 1;
-    }
+    if (sq_index > squareMax) sq_index = squareMax;
+    if (tnd_index > tndMax) tnd_index = tndMax;
     let sampleValueL =
-      this.square_table[sq_index] + this.tnd_table[tnd_index] - this.dcValue;
+      squareTable[sq_index] + tndTable[tnd_index] - this.dcValue;
 
     // Right channel:
     sq_index =
-      (this.smpSquare1 * this.stereoPosRSquare1 +
-        this.smpSquare2 * this.stereoPosRSquare2) >>
+      (square1 * this.stereoPosRSquare1 + square2 * this.stereoPosRSquare2) >>
       8;
     tnd_index =
-      (3 * this.smpTriangle * this.stereoPosRTriangle +
-        (smpNoise << 1) * this.stereoPosRNoise +
-        this.smpDmc * this.stereoPosRDMC) >>
+      (triangle3 * this.stereoPosRTriangle +
+        noise2 * this.stereoPosRNoise +
+        dmc * this.stereoPosRDMC) >>
       8;
-    if (sq_index >= this.square_table.length) {
-      sq_index = this.square_table.length - 1;
-    }
-    if (tnd_index >= this.tnd_table.length) {
-      tnd_index = this.tnd_table.length - 1;
-    }
+    if (sq_index > squareMax) sq_index = squareMax;
+    if (tnd_index > tndMax) tnd_index = tndMax;
     let sampleValueR =
-      this.square_table[sq_index] + this.tnd_table[tnd_index] - this.dcValue;
+      squareTable[sq_index] + tndTable[tnd_index] - this.dcValue;
 
     // Remove DC from left channel:
     let smpDiffL = sampleValueL - this.prevSampleL;
@@ -1015,8 +1008,8 @@ class PAPU {
     let max_sqr = 0;
     let max_tnd = 0;
 
-    this.square_table = new Array(32 * 16);
-    this.tnd_table = new Array(204 * 16);
+    this.square_table = new Int32Array(32 * 16);
+    this.tnd_table = new Int32Array(204 * 16);
 
     for (i = 0; i < 32 * 16; i++) {
       value = 95.52 / (8128.0 / (i / 16.0) + 100.0);
