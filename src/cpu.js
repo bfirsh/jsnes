@@ -931,7 +931,11 @@ class CPU {
       ) {
         // The PPU (or a mapper that watches it) may be involved: bring the
         // PPU up to date first. See PPU.catchUp().
-        this._syncPpu(addr);
+        if ((addr & 0xe007) === 0x2002) {
+          this._syncPpuForStatus();
+        } else {
+          this._syncPpu(addr);
+        }
       }
       value = this.nes.mmap.load(addr);
       if (this._gameGenieActive && addr >= 0x8000) {
@@ -949,6 +953,8 @@ class CPU {
   // (the Zapper looks at the screen).
   _syncPpu(addr) {
     const ppu = this.ppu;
+    // Anything but a $2002 read might change the rendering.
+    ppu.statusPredValid = false;
     // The dots of all the cycles before this one are owed.
     const done = this.cycles - 1;
     ppu.dotTarget += 3 * (done - this.ppuCycles);
@@ -959,6 +965,16 @@ class CPU {
       // enabling NMI or rendering), so re-check them this cycle.
       ppu.nextEventDot = 0;
     }
+  }
+
+  // _syncPpu() for a $2002 (PPUSTATUS) read, which often doesn't need the
+  // PPU to be caught up. See "$2002 polling" in the PPU.
+  _syncPpuForStatus() {
+    const ppu = this.ppu;
+    const owed = 3 * (this.cycles - 1 - this.ppuCycles);
+    if (ppu.statusPredicted(ppu.dotTarget + owed)) return;
+    this._syncPpu(0x2002);
+    ppu.predictStatus();
   }
 
   // One CPU write cycle. Writes are never interrupted by DMA: if a DMA

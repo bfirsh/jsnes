@@ -163,6 +163,10 @@ class PPU {
     this.dotTarget = 0;
     this.dotsRun = 0;
     this.nextEventDot = 0;
+    // Status flag prediction (see predictStatus()).
+    this.statusPredValid = false;
+    this.statusPredLine = 0;
+    this.statusPredLimit = 0;
     // Set when $2002 is read on the dot just before VBlank would be set,
     // which prevents the flag being set (and the NMI) for that frame.
     this.nmiSuppressed = false;
@@ -204,6 +208,9 @@ class PPU {
     this.evalOvfStep = 0; // Progress through a sprite in overflow mode
     this.sprite0Next = false; // Sprite 0 found for the next line
     this.sprite0Line = false; // Sprite 0 is in slot 0 on this line
+    // Evaluation on this line started with OAMADDR = 0 and it hasn't been
+    // written since (see _noOverflowPossible()).
+    this.evalAligned = false;
     // OAM corruption: see _renderingDisabled().
     this.oamCorruptPending = false;
     this.oamCorruptRow = 0;
@@ -494,6 +501,7 @@ class PPU {
   // $2003 (OAMADDR) write.
   writeSRAMAddress(address) {
     this.sramAddress = address;
+    this.evalAligned = false; // (see _noOverflowPossible())
   }
 
   // True on the lines where the rendering pipeline is active (the visible
@@ -525,6 +533,7 @@ class PPU {
 
   // $2004 (OAMDATA) write.
   sramWrite(value) {
+    this.evalAligned = false; // (see _noOverflowPossible())
     if (this._isRenderingLine()) {
       // During rendering, writes don't go to OAM; instead they bump the OAM
       // address the way sprite evaluation would (+4, aligned).
@@ -769,6 +778,157 @@ class PPU {
         this.dotsRun++;
       }
     }
+  }
+
+  // --- $2002 polling ---
+  //
+  // Games often wait for the sprite 0 hit flag by reading $2002 in a tight
+  // loop during rendering. Catching up to every read would split each line
+  // into lots of tiny spans. But during the visible lines, the only status
+  // flags that can change are sprite 0 hit and sprite overflow, and only at
+  // predictable dots: so when the CPU reads $2002, we work out the first
+  // dot of the current line on which either could next be set (the
+  // "limit"). Reads that happen before the PPU reaches the limit can then
+  // be answered without catching up, as the flags will still be as they
+  // are now. (Reading $2002 also clears the VBlank flag, which is already
+  // clear on these lines, and the write toggle, which rendering doesn't
+  // use.)
+  //
+  // The prediction assumes nothing changes the rendering in the meantime,
+  // so the CPU throws it away (statusPredValid = false) on any other PPU
+  // register or cartridge access.
+
+  // Can a $2002 read be answered without catching up? `target` is the
+  // dotTarget the read would catch up to.
+  statusPredicted(target) {
+    return (
+      this.statusPredValid &&
+      this.line === this.statusPredLine &&
+      this.dot + (target - this.dotsRun) <= this.statusPredLimit
+    );
+  }
+
+  // Work out the limit (see above) from the current, caught-up, state.
+  predictStatus() {
+    this.statusPredValid = false;
+    const line = this.line;
+    const dot = this.dot;
+    if (
+      line >= 240 ||
+      !this.renderingOn ||
+      this.maskDelay !== 0 ||
+      this.oamCorruptPending
+    ) {
+      return;
+    }
+    const mmap = this.nes.mmap;
+    if (
+      mmap.bgTileOverride ||
+      mmap.latchAccess !== Mapper0.prototype.latchAccess
+    ) {
+      // The mapper changes the tiles during rendering (MMC2/MMC4/MMC5),
+      // which _bgOpaqueAt() doesn't know about.
+      return;
+    }
+    // After dot 256 nothing changes the flags until the next line.
+    let limit = 341;
+    if (dot <= 256) {
+      if (this.spriteOverflowFlag === 0 && !this._noOverflowPossible()) {
+        // The overflow flag can't be set before dot 66.
+        if (dot >= 66) return;
+        limit = 66;
+      }
+      if (this.sprite0HitFlag === 0) {
+        if (!this.sprLineValid) {
+          // Unless there are no sprites at all, the sprite output units
+          // are being run dot by dot: don't try.
+          if (this.sprCount !== 0 || this.spriteSkipGlitch) return;
+        } else if (
+          this.f_spVisibility === 1 &&
+          this.f_bgVisibility === 1 &&
+          this.sprite0Line
+        ) {
+          // The first pixel of sprite 0 (see _buildSpriteLine()) that's
+          // still to be drawn and is over an opaque background pixel.
+          const cur = dot === 0 ? 1 : dot; // dot 0 is idle
+          let x = this.sprX[0];
+          if (x < cur - 1) x = cur - 1;
+          let end = this.sprX[0] + 8;
+          if (end > 255) end = 255; // no hit at x = 255
+          for (; x < end; x++) {
+            if (
+              (this.sprLine[x] & 0x200) !== 0 &&
+              (x >= 8 ||
+                (this.f_spClipping === 1 && this.f_bgClipping === 1)) &&
+              this._bgOpaqueAt(x, cur)
+            ) {
+              // The hit flag is set when dot x + 1 is processed.
+              if (x + 1 < limit) limit = x + 1;
+              break;
+            }
+          }
+        }
+      }
+    }
+    this.statusPredValid = true;
+    this.statusPredLine = line;
+    this.statusPredLimit = limit;
+  }
+
+  // True if the sprite overflow flag can't be set on the current line
+  // (when dot <= 256). The flag is only set after secondary OAM is full,
+  // and when evaluation starts with OAMADDR = 0 it simply checks each
+  // sprite's Y coordinate in turn, so it can only fill up if at least 8
+  // sprites are on the next line.
+  _noOverflowPossible() {
+    if (this.dot > 64) {
+      if (!this.evalAligned) return false;
+      if (this.evalDone) return true;
+      if (this.secFull) return false;
+    } else if (this.sramAddress !== 0) {
+      return false;
+    }
+    const oam = this.spriteMem;
+    const height = this.f_spriteSize ? 16 : 8;
+    const line = this.line;
+    let n = 0;
+    for (let i = 0; i < 256; i += 4) {
+      const row = line - oam[i];
+      if (row >= 0 && row < height && ++n === 8) return false;
+    }
+    return true;
+  }
+
+  // Will the background pixel at x (on the current line, x >= cur - 1) be
+  // opaque? `cur` (1-256) is the next dot to be run. Works out which tile
+  // the pixel comes from and looks at the pattern: that's either already in
+  // the shift registers or still to be fetched (from where v will be).
+  //
+  // Tiles are numbered in the order they're fetched: tiles 0 and 1 are
+  // fetched at the end of the previous line, and tile t + 2 during the
+  // t-th 8-dot group of this line. At the start of group g the shift
+  // registers hold tile g (high byte) and g + 1 (low byte), and pixel x
+  // comes from column (x + fineX) & 7 of tile (x + fineX) >> 3.
+  _bgOpaqueAt(x, cur) {
+    if (x < 8 && this.f_bgClipping !== 1) return false;
+    const g = (cur - 1) >> 3; // current group
+    const shifted = (cur - 1) & 7; // shifts done so far in this group
+    const t = (x + this.fineX) >> 3;
+    const c = (x + this.fineX) & 7;
+    if (t <= g + 1) {
+      const b = 15 - ((t - g) << 3) - c + shifted;
+      return (((this.bgShiftLo | this.bgShiftHi) >> b) & 1) !== 0;
+    }
+    // v points at tile g + 2 until the end of the group.
+    let v = this.vramAddress;
+    for (let i = g + 2; i < t; i++) {
+      v = (v & 0x001f) === 31 ? (v & ~0x001f) ^ 0x0400 : v + 1;
+    }
+    const nt = this.vramMem[this.vramMirrorTable[0x2000 | (v & 0x0fff)]];
+    const addr = (this.f_bgPatternTable << 12) | (nt << 4) | (v >> 12);
+    return (
+      (((this.vramMem[addr] | this.vramMem[addr + 8]) >> (7 - c)) & 1) !== 0
+    );
   }
 
   // Run the current CPU cycle's 3 dots exactly in step with the CPU, then
@@ -1709,6 +1869,7 @@ class PPU {
   // AccuracyCoin "Misaligned OAM Behavior" test for the details.
 
   _startEvaluation() {
+    this.evalAligned = this.sramAddress === 0;
     this.secIdx = 0;
     this.secFull = false;
     this.evalDone = false;
