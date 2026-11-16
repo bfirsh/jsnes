@@ -221,6 +221,7 @@ class PPU {
     this.sprLine = new Uint16Array(256);
     this.sprLineValid = false;
     this.sprLineFor = -1;
+    this.sprTileMask = 0;
 
     // --- Output ---
     this.buffer = new Uint32Array(256 * 240);
@@ -705,6 +706,36 @@ class PPU {
         this.dotsRun += end - dot;
         this.dot = end;
       } else if (
+        dot >= 321 &&
+        (this.line < 240 || (this.line === 261 && dot < 339)) &&
+        this.renderingOn &&
+        this.maskDelay === 0 &&
+        !this.oamCorruptPending
+      ) {
+        // Fast path: the end of a visible or pre-render line (the first
+        // two tiles of the next line are fetched). The odd-frame skip at
+        // the end of the pre-render line is left to _tick().
+        let end = dot + (target - this.dotsRun);
+        const limit = this.line === 261 ? 339 : 341;
+        if (end > limit) end = limit;
+        this._prefetchSpan(this.line, dot, end);
+        this.dotsRun += end - dot;
+        if (end === 341) {
+          this._nextLine();
+        } else {
+          this.dot = end;
+        }
+      } else if (
+        dot === 0 &&
+        (this.line < 240 || this.line === 261) &&
+        this.renderingOn &&
+        this.maskDelay === 0 &&
+        !this.oamCorruptPending
+      ) {
+        // Dot 0 of a rendered line is idle.
+        this.dotsRun++;
+        this.dot = 1;
+      } else if (
         this.line >= 240 &&
         this.line <= 260 &&
         (this.line !== 241 || dot >= 2) &&
@@ -933,6 +964,77 @@ class PPU {
     }
   }
 
+  // Dots [from, to) of 321-340 of a visible or pre-render line, with
+  // rendering enabled: the same work as _renderingDot() does for them, but
+  // with whole tiles fetched at once.
+  _prefetchSpan(line, from, to) {
+    const mmap = this.nes.mmap;
+    const irqDot = mmap.irqClockDot;
+    let dot = from;
+    while (dot < to) {
+      if (dot === irqDot) {
+        // See _renderingDot().
+        mmap.clockIrqCounter();
+      }
+      if (dot <= 336) {
+        if (dot === 321) mmap.onBgRender();
+        if (
+          (dot & 7) === 1 &&
+          dot + 8 <= to &&
+          (irqDot <= dot || irqDot >= dot + 8)
+        ) {
+          // A whole tile: 8 shifts, the 4 fetches, then the reload.
+          this._fetchTile();
+          this.bgShiftLo = ((this.bgShiftLo << 8) & 0xff00) | this.ptLo;
+          this.bgShiftHi = ((this.bgShiftHi << 8) & 0xff00) | this.ptHi;
+          this.attrShiftLo = this.attrLatchLo ? 0xff : 0;
+          this.attrShiftHi = this.attrLatchHi ? 0xff : 0;
+          this.attrLatchLo = this.atBits & 1;
+          this.attrLatchHi = this.atBits >> 1;
+          this._incCoarseX();
+          dot += 8;
+          continue;
+        }
+        this._shiftBg();
+        this._bgFetch(dot);
+      } else if (dot === 337 || dot === 339) {
+        // Unused nametable fetches.
+        this.ntByte = this.mirroredLoad(0x2000 | (this.vramAddress & 0x0fff));
+      } else if (dot === 340) {
+        // Load the sprite X counters for the next line.
+        for (let i = 0; i < 8; i++) {
+          this.sprX[i] = this.sprLatchX[i];
+        }
+        this.sprCount = this.sprFetchCount;
+        this._buildSpriteLine(line === 261 ? 0 : line + 1);
+      }
+      dot++;
+    }
+  }
+
+  // The four fetches of a background tile (what _bgFetch() does on dots 1,
+  // 3, 5 and 7 of a tile), all at once. They only fill latches.
+  _fetchTile() {
+    const v = this.vramAddress;
+    const vram = this.vramMem;
+    const mirror = this.vramMirrorTable;
+    const ntByte = vram[mirror[0x2000 | (v & 0x0fff)]];
+    const at =
+      vram[
+        mirror[0x23c0 | (v & 0x0c00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)]
+      ];
+    this.ntByte = ntByte;
+    this.atBits = (at >> (((v >> 4) & 4) | (v & 2))) & 3;
+    const addr = (this.f_bgPatternTable << 12) | (ntByte << 4) | (v >> 12);
+    this.ptLo = vram[addr];
+    this.ptHi = vram[addr + 8];
+    const mmap = this.nes.mmap;
+    mmap.latchAccess(addr + 8);
+    if (mmap.bgTileOverride) {
+      this._mapperBgOverride();
+    }
+  }
+
   // --- Sprite line buffer ---
   //
   // Running the 8 sprite output units on every pixel is slow, and as long
@@ -952,6 +1054,9 @@ class PPU {
     sprLine.fill(0);
     this.sprLineFor = forLine;
     this.sprLineValid = true;
+    // Bit k of sprTileMask is set if any sprite pixel falls in x = 8k to
+    // 8k + 7, so the renderer can skip the sprite checks for the others.
+    let mask = 0;
     // Lower slots have priority, so draw from the highest slot down.
     for (let i = this.sprCount - 1; i >= 0; i--) {
       let lo = this.sprLo[i];
@@ -970,9 +1075,11 @@ class PPU {
         hi = (hi << 1) & 0xff;
         if (p !== 0) {
           sprLine[x0 + b] = flags | p;
+          mask |= 1 << ((x0 + b) >> 3);
         }
       }
     }
+    this.sprTileMask = mask;
   }
 
   // Convert the sprite line buffer back into the state of the sprite
@@ -1186,8 +1293,6 @@ class PPU {
     const showSprites = this.f_spVisibility === 1;
     const spLeft = this.f_spClipping === 1;
     const rowBase = line << 8;
-    const vram = this.vramMem;
-    const mirror = this.vramMirrorTable;
 
     let dot = from;
     while (dot < to) {
@@ -1199,27 +1304,7 @@ class PPU {
         // The four fetches (the same as _bgFetch() does on dots 1, 3, 5 and
         // 7 of the group) only fill latches, which the pixels of this group
         // don't use, so do them first.
-        {
-          const v = this.vramAddress;
-          const ntByte = vram[mirror[0x2000 | (v & 0x0fff)]];
-          const at =
-            vram[
-              mirror[
-                0x23c0 | (v & 0x0c00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07)
-              ]
-            ];
-          this.ntByte = ntByte;
-          this.atBits = (at >> (((v >> 4) & 4) | (v & 2))) & 3;
-          const addr =
-            (this.f_bgPatternTable << 12) | (ntByte << 4) | (v >> 12);
-          this.ptLo = vram[addr];
-          this.ptHi = vram[addr + 8];
-          const mmap = this.nes.mmap;
-          mmap.latchAccess(addr + 8);
-          if (mmap.bgTileOverride) {
-            this._mapperBgOverride();
-          }
-        }
+        this._fetchTile();
 
         // Pixel k of the group is the bit that would be at the top of the
         // shift registers after k shifts, i.e. bit (15 - fineX - k) of
@@ -1241,7 +1326,12 @@ class PPU {
             (((((atHi << 8) | (latHi ? 0xff : 0)) >> sh) & 0xff) << 8) |
               ((((atLo << 8) | (latLo ? 0xff : 0)) >> sh) & 0xff)
           ];
-        if (!this.sprLineValid) {
+        if (
+          !this.sprLineValid ||
+          !showSprites ||
+          (this.sprTileMask & (1 << (x0 >> 3))) === 0
+        ) {
+          // No sprite pixels in this tile.
           for (let k = 0; k < 8; k++) {
             const s2 = 14 - 2 * k;
             const p = (pix >> s2) & 3;
@@ -1350,6 +1440,14 @@ class PPU {
 
   // Sprite evaluation (for the next line) for dots [from, to).
   _evaluateSpan(line, from, to) {
+    if (from === 1 && to === 257) {
+      // The span covers the whole line: clear secondary OAM in one go (the
+      // same as the per-dot loop below does for dots 1-64), then evaluate.
+      this.secondaryOAM.fill(0xff);
+      this._startEvaluation();
+      this._evaluateWindow(line);
+      return;
+    }
     for (let dot = from; dot < to; dot++) {
       if (dot === 65 && to === 257) {
         // The span covers the whole evaluation: use the faster loop.
@@ -1452,7 +1550,48 @@ class PPU {
     let done = this.evalDone;
     let ovfStep = this.evalOvfStep;
     let latch = this.oamLatch;
-    for (let dot = 66; dot <= 256; dot += 2) {
+    let dot = 66;
+    if (addr === 0) {
+      // Fast path for the usual case of OAMADDR starting at 0: the state
+      // machine below then simply visits the 64 sprites in order, taking
+      // one step (2 dots) for a sprite that isn't on the line and four
+      // (copying its 4 bytes) for one that is. That holds until secondary
+      // OAM is full, at which point the overflow logic (with its
+      // misaligned reads) takes over in the loop below. Even with 8
+      // sprites found that's at most 64 + 3 * 8 = 88 of the 96 steps.
+      let n = 0; // sprites found
+      let steps = 0;
+      let i = 0;
+      while (i < 64) {
+        const y = oam[i << 2];
+        const row = line - y;
+        if (row >= 0 && row < height) {
+          if (i === 0) this.sprite0Next = true;
+          const b = n << 2;
+          const a = i << 2;
+          sec[b] = y;
+          sec[b + 1] = oam[a + 1];
+          sec[b + 2] = oam[a + 2];
+          sec[b + 3] = latch = oam[a + 3];
+          steps += 4;
+          i++;
+          if (++n === 8) break;
+        } else {
+          sec[n << 2] = latch = y;
+          steps++;
+          i++;
+        }
+      }
+      addr = i << 2;
+      dot = 66 + 2 * steps;
+      secIdx = (n << 2) & 0x1f;
+      if (n === 8) secFull = true;
+      if (addr > 0xff) {
+        done = true;
+        addr &= 0xff;
+      }
+    }
+    for (; dot <= 256; dot += 2) {
       if (done) {
         // All sprites checked: OAMADDR just steps by 4 per 2 dots.
         const steps = ((256 - dot) >> 1) + 1;
