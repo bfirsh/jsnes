@@ -227,6 +227,11 @@ class PPU {
     this.buffer = new Uint32Array(256 * 240);
     // RGB color for each of the 32 palette RAM entries.
     this.palColors = new Uint32Array(32);
+    // The same, except that entries 0, 4, 8, ... 28 (the "transparent"
+    // index of each palette) all hold the backdrop color, palColors[0].
+    // The renderer looks up pixel colors here so that it doesn't have to
+    // check for transparent pixels.
+    this.pixColors = new Uint32Array(32);
 
     this.palTable = new PaletteTable();
     this.palTable.loadNTSCPalette();
@@ -375,7 +380,13 @@ class PPU {
       // Greyscale: only keep the brightness bits.
       value &= 0x30;
     }
-    this.palColors[index] = this.palTable.getEntry(value);
+    const color = this.palTable.getEntry(value);
+    this.palColors[index] = color;
+    if (index === 0) {
+      for (let i = 0; i < 32; i += 4) this.pixColors[i] = color;
+    } else if ((index & 3) !== 0) {
+      this.pixColors[index] = color;
+    }
   }
 
   updatePalettes() {
@@ -1288,6 +1299,7 @@ class PPU {
     const showBg = this.f_bgVisibility === 1;
     const bgLeft = this.f_bgClipping === 1;
     const palColors = this.palColors;
+    const pixColors = this.pixColors;
     const buffer = this.buffer;
     const sprLine = this.sprLine;
     const showSprites = this.f_spVisibility === 1;
@@ -1316,47 +1328,51 @@ class PPU {
         // k of this group uses. The attribute windows continue into the
         // latch bits once the shifter's own bits have been used up.
         const sh = 8 - fineX;
-        let pix = 0;
-        if (showBg && (x0 >= 8 || bgLeft)) {
-          pix =
-            DECODE_PLANES[(((bgHi >> sh) & 0xff) << 8) | ((bgLo >> sh) & 0xff)];
-        }
-        const pal =
-          DECODE_PLANES[
+        // NIBBLES packs the 8 pixels' 2-bit values into the nibbles of a
+        // 32-bit word (pixel k in bits 28-4k to 31-4k). Adding the
+        // attribute bits two places up gives each pixel's 4-bit palette
+        // index, which pixColors turns into a color (index 0, 4, 8 or 12
+        // means a transparent pixel, i.e. the backdrop color).
+        let idx =
+          NIBBLES[
             (((((atHi << 8) | (latHi ? 0xff : 0)) >> sh) & 0xff) << 8) |
               ((((atLo << 8) | (latLo ? 0xff : 0)) >> sh) & 0xff)
-          ];
+          ] << 2;
+        if (showBg && (x0 >= 8 || bgLeft)) {
+          idx |= NIBBLES[(((bgHi >> sh) & 0xff) << 8) | ((bgLo >> sh) & 0xff)];
+        }
+        const out = rowBase | x0;
         if (
           !this.sprLineValid ||
           !showSprites ||
           (this.sprTileMask & (1 << (x0 >> 3))) === 0
         ) {
           // No sprite pixels in this tile.
-          for (let k = 0; k < 8; k++) {
-            const s2 = 14 - 2 * k;
-            const p = (pix >> s2) & 3;
-            buffer[rowBase | (x0 + k)] =
-              palColors[p === 0 ? 0 : p | (((pal >> s2) & 3) << 2)];
-          }
+          buffer[out] = pixColors[idx >>> 28];
+          buffer[out + 1] = pixColors[(idx >>> 24) & 15];
+          buffer[out + 2] = pixColors[(idx >>> 20) & 15];
+          buffer[out + 3] = pixColors[(idx >>> 16) & 15];
+          buffer[out + 4] = pixColors[(idx >>> 12) & 15];
+          buffer[out + 5] = pixColors[(idx >>> 8) & 15];
+          buffer[out + 6] = pixColors[(idx >>> 4) & 15];
+          buffer[out + 7] = pixColors[idx & 15];
         } else {
           for (let k = 0; k < 8; k++) {
             const x = x0 + k;
-            const s2 = 14 - 2 * k;
-            const p = (pix >> s2) & 3;
-            const bgPixel = p === 0 ? 0 : p | (((pal >> s2) & 3) << 2);
-            let colorIndex = bgPixel;
+            let colorIndex = (idx >>> (28 - 4 * k)) & 15;
             const spr = sprLine[x];
-            if (spr !== 0 && showSprites && (x >= 8 || spLeft)) {
-              if (spr & 0x200 && bgPixel !== 0 && x !== 255) {
+            if (spr !== 0 && (x >= 8 || spLeft)) {
+              const opaque = (colorIndex & 3) !== 0;
+              if (spr & 0x200 && opaque && x !== 255) {
                 this.sprite0HitFlag = 1;
               }
               // Sprites are drawn in front of the background unless their
               // priority bit says otherwise (and the background is opaque).
-              if (bgPixel === 0 || (spr & 0x100) === 0) {
+              if (!opaque || (spr & 0x100) === 0) {
                 colorIndex = spr & 0x1f;
               }
             }
-            buffer[rowBase | x] = palColors[colorIndex];
+            buffer[out + k] = pixColors[colorIndex];
           }
         }
 
@@ -1947,19 +1963,19 @@ for (let n = 1; n <= 64; n++) {
   SEC_IDX_STEPS[n] = SEC_IDX_STEPS[n - 1] + (phase <= 2 || phase === 7 ? 1 : 0);
 }
 
-// DECODE_PLANES[(hi << 8) | lo] packs the 8 two-bit pixels of a pair of
-// bit planes, leftmost pixel in bits 14-15: pixel k is
-// (DECODE_PLANES[...] >> (14 - 2 * k)) & 3.
-const DECODE_PLANES = new Uint16Array(65536);
+// NIBBLES[(hi << 8) | lo] packs the 8 two-bit pixels of a pair of bit
+// planes into the nibbles of a 32-bit word, leftmost pixel in the top
+// nibble: pixel k is (NIBBLES[...] >>> (28 - 4 * k)) & 3.
+const NIBBLES = new Int32Array(65536);
 for (let v = 0; v < 65536; v++) {
   const lo = v & 0xff;
   const hi = v >> 8;
   let packed = 0;
   for (let k = 0; k < 8; k++) {
     const p = ((lo >> (7 - k)) & 1) | (((hi >> (7 - k)) & 1) << 1);
-    packed |= p << (14 - 2 * k);
+    packed |= p << (28 - 4 * k);
   }
-  DECODE_PLANES[v] = packed;
+  NIBBLES[v] = packed;
 }
 
 // Bit-reversed bytes, for horizontally flipped sprites.
