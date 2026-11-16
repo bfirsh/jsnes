@@ -1294,6 +1294,110 @@ class PPU {
   // (shift registers and tile fetches). The shift registers are kept in
   // local variables.
   _renderBackgroundSpan(line, from, to) {
+    if (!this.sprLineValid && (this.sprCount !== 0 || this.spriteSkipGlitch)) {
+      // The sprite output units have to be run dot by dot.
+      this._renderBackgroundDots(line, from, to);
+      return;
+    }
+    let dot = from;
+    while (dot < to) {
+      if ((dot & 7) === 1 && dot + 8 <= to) {
+        // A run of whole tiles.
+        const n = (to - dot) >> 3;
+        this._renderTiles(line, dot, n);
+        dot += n << 3;
+      } else {
+        // Part of a tile.
+        let end = ((dot - 1) | 7) + 2; // just after the tile's last dot
+        if (end > to) end = to;
+        this._renderPartialTile(line, dot, end);
+        dot = end;
+      }
+    }
+  }
+
+  // Dots [from, to) of one tile (8-dot group), when the sprites can be
+  // drawn from the sprite line buffer (or there are none). Like
+  // _renderTiles(), but the shift registers may already have been shifted
+  // for the dots of the tile before `from`.
+  _renderPartialTile(line, from, to) {
+    const n = to - from;
+    const x0 = from - 1;
+    const sh = 8 - this.fineX;
+    let bgLo = this.bgShiftLo;
+    let bgHi = this.bgShiftHi;
+    let atLo = this.attrShiftLo;
+    let atHi = this.attrShiftHi;
+    const latLo = this.attrLatchLo;
+    const latHi = this.attrLatchHi;
+    // See _renderTiles(). (All the pixels are in the same 8-pixel column.)
+    let idx =
+      NIBBLES[
+        (((((atHi << 8) | (latHi ? 0xff : 0)) >> sh) & 0xff) << 8) |
+          ((((atLo << 8) | (latLo ? 0xff : 0)) >> sh) & 0xff)
+      ] << 2;
+    if (this.f_bgVisibility === 1 && (x0 >= 8 || this.f_bgClipping === 1)) {
+      idx |= NIBBLES[(((bgHi >> sh) & 0xff) << 8) | ((bgLo >> sh) & 0xff)];
+    }
+    const buffer = this.buffer;
+    const pixColors = this.pixColors;
+    const out = (line << 8) | x0;
+    if (
+      !this.sprLineValid ||
+      this.f_spVisibility !== 1 ||
+      (this.sprTileMask & (1 << (x0 >> 3))) === 0
+    ) {
+      for (let k = 0; k < n; k++) {
+        buffer[out + k] = pixColors[(idx >>> (28 - 4 * k)) & 15];
+      }
+    } else {
+      const sprLine = this.sprLine;
+      const spLeft = this.f_spClipping === 1;
+      for (let k = 0; k < n; k++) {
+        const x = x0 + k;
+        let colorIndex = (idx >>> (28 - 4 * k)) & 15;
+        const spr = sprLine[x];
+        if (spr !== 0 && (x >= 8 || spLeft)) {
+          const opaque = (colorIndex & 3) !== 0;
+          if (spr & 0x200 && opaque && x !== 255) {
+            this.sprite0HitFlag = 1;
+          }
+          if (!opaque || (spr & 0x100) === 0) {
+            colorIndex = spr & 0x1f;
+          }
+        }
+        buffer[out + k] = pixColors[colorIndex];
+      }
+    }
+
+    // Shift the registers n times (see _shiftBg()).
+    const ones = (1 << n) - 1;
+    bgLo = (bgLo << n) & 0xffff;
+    bgHi = ((bgHi << n) | ones) & 0xffff;
+    atLo = ((atLo << n) | (latLo ? ones : 0)) & 0xff;
+    atHi = ((atHi << n) | (latHi ? ones : 0)) & 0xff;
+
+    // The fetches on the odd dots, and at the end of the tile, the reload.
+    for (let dot = from | 1; dot < to; dot += 2) {
+      this._bgFetch(dot);
+    }
+    if ((to & 7) === 1) {
+      bgLo = (bgLo & 0xff00) | this.ptLo;
+      bgHi = (bgHi & 0xff00) | this.ptHi;
+      this.attrLatchLo = this.atBits & 1;
+      this.attrLatchHi = this.atBits >> 1;
+      this._incCoarseX();
+      if (to === 257) this._incY();
+    }
+    this.bgShiftLo = bgLo;
+    this.bgShiftHi = bgHi;
+    this.attrShiftLo = atLo;
+    this.attrShiftHi = atHi;
+  }
+
+  // _renderBackgroundSpan(), one dot at a time, with the sprite output
+  // units run on every dot (see _spritePixel()).
+  _renderBackgroundDots(line, from, to) {
     let bgLo = this.bgShiftLo;
     let bgHi = this.bgShiftHi;
     let atLo = this.attrShiftLo;
@@ -1314,30 +1418,6 @@ class PPU {
 
     let dot = from;
     while (dot < to) {
-      const spritesSimple =
-        this.sprLineValid || (this.sprCount === 0 && !this.spriteSkipGlitch);
-
-      if ((dot & 7) === 1 && dot + 8 <= to && spritesSimple) {
-        // --- Fast path: a run of whole tiles ---
-        const n = (to - dot) >> 3;
-        this.bgShiftLo = bgLo;
-        this.bgShiftHi = bgHi;
-        this.attrShiftLo = atLo;
-        this.attrShiftHi = atHi;
-        this.attrLatchLo = latLo;
-        this.attrLatchHi = latHi;
-        this._renderTiles(line, dot, n);
-        bgLo = this.bgShiftLo;
-        bgHi = this.bgShiftHi;
-        atLo = this.attrShiftLo;
-        atHi = this.attrShiftHi;
-        latLo = this.attrLatchLo;
-        latHi = this.attrLatchHi;
-        dot += n << 3;
-        continue;
-      }
-
-      // --- One dot at a time ---
       // Output the pixel for x = dot - 1.
       const x = dot - 1;
       let bgPixel = 0;
@@ -1557,28 +1637,23 @@ class PPU {
       this._evaluateWindow(line);
       return;
     }
-    for (let dot = from; dot < to; dot++) {
-      if (dot === 65 && to === 257) {
-        // The span covers the whole evaluation: use the faster loop.
-        this._evaluateWindow(line);
-        return;
-      }
-      if (dot <= 64) {
-        // Clear secondary OAM, one byte every 2 dots.
-        if ((dot & 1) === 0) {
-          this.secondaryOAM[(dot >> 1) - 1] = 0xff;
-          this.secIdx = (dot >> 1) & 0x1f;
-          if (dot === 64) {
-            this._startEvaluation();
-          }
+    let dot = from;
+    for (; dot < to && dot <= 64; dot++) {
+      // Clear secondary OAM, one byte every 2 dots.
+      if ((dot & 1) === 0) {
+        this.secondaryOAM[(dot >> 1) - 1] = 0xff;
+        this.secIdx = (dot >> 1) & 0x1f;
+        if (dot === 64) {
+          this._startEvaluation();
         }
-      } else if ((dot & 1) === 1) {
-        // Odd dots: read OAM.
-        this.oamLatch = this.spriteMem[this.sramAddress];
-      } else {
-        // Even dots: process the byte read.
-        this._evaluateSprites(line, dot);
       }
+    }
+    if (dot >= to) return;
+    if (dot === 65 && to === 257) {
+      // The span covers the whole evaluation: use the faster loop.
+      this._evaluateWindow(line);
+    } else {
+      this._evaluateRange(line, dot, to);
     }
   }
 
@@ -1641,14 +1716,8 @@ class PPU {
     this.sprite0Next = false;
   }
 
-  // Is the byte `y` (read as a Y coordinate) in range for the next line?
-  _inRange(line, y) {
-    const row = line - y;
-    return row >= 0 && row < (this.f_spriteSize ? 16 : 8);
-  }
-
   // The whole of sprite evaluation (dots 65-256) in one go: the same state
-  // machine as _evaluateSprites(), with the state in local variables.
+  // machine as _evaluateRange(), with shortcuts.
   _evaluateWindow(line) {
     const oam = this.spriteMem;
     const sec = this.secondaryOAM;
@@ -1762,72 +1831,91 @@ class PPU {
     this.oamLatch = latch;
   }
 
-  // Process the OAM byte read on the previous (odd) dot. Called on the even
-  // dots 66-256.
-  _evaluateSprites(line, dot) {
-    const s = this.oamLatch;
+  // Sprite evaluation for dots [from, to) (65 <= from < to <= 257). On odd
+  // dots the PPU reads OAM[OAMADDR] into a latch; on even dots it
+  // processes the byte read.
+  _evaluateRange(line, from, to) {
+    const oam = this.spriteMem;
+    const sec = this.secondaryOAM;
+    const height = this.f_spriteSize ? 16 : 8;
     let addr = this.sramAddress;
-
-    if (this.evalDone) {
-      // All sprites checked: the PPU keeps stepping through OAM, failing to
-      // copy into secondary OAM.
-      addr += 4;
-    } else if (!this.secFull) {
-      // Copy mode: there's still room in secondary OAM.
-      const step = this.secIdx & 3;
-      this.secondaryOAM[this.secIdx] = s;
-      if (step === 0) {
-        // Y coordinate.
-        if (this._inRange(line, s)) {
-          if (dot === 66) this.sprite0Next = true;
-          this.secIdx++;
+    let secIdx = this.secIdx;
+    let secFull = this.secFull;
+    let done = this.evalDone;
+    let ovfStep = this.evalOvfStep;
+    let latch = this.oamLatch;
+    for (let dot = from; dot < to; dot++) {
+      if ((dot & 1) === 1) {
+        latch = oam[addr];
+        continue;
+      }
+      const s = latch;
+      // Is s, read as a Y coordinate, in range for the next line?
+      const row = line - s;
+      const inRange = row >= 0 && row < height;
+      if (done) {
+        // All sprites checked: the PPU keeps stepping through OAM, failing
+        // to copy into secondary OAM.
+        addr += 4;
+      } else if (!secFull) {
+        // Copy mode: there's still room in secondary OAM.
+        const step = secIdx & 3;
+        sec[secIdx] = s;
+        if (step === 0) {
+          // Y coordinate.
+          if (inRange) {
+            if (dot === 66) this.sprite0Next = true;
+            secIdx++;
+            addr++;
+          } else {
+            // Skip to the next sprite (and realign OAMADDR).
+            addr = (addr + 4) & ~3;
+          }
+        } else if (step < 3) {
+          // Tile and attributes.
+          secIdx++;
           addr++;
         } else {
-          // Skip to the next sprite (and realign OAMADDR).
-          addr = (addr + 4) & ~3;
+          // X coordinate. The hardware applies the same "in range" check
+          // to it; if that fails, OAMADDR is realigned.
+          secIdx++;
+          addr = inRange ? addr + 1 : (addr + 1) & ~3;
         }
-      } else if (step < 3) {
-        // Tile and attributes.
-        this.secIdx++;
-        addr++;
-      } else {
-        // X coordinate. The hardware applies the same "in range" check to
-        // it; if that fails, OAMADDR is realigned.
-        this.secIdx++;
-        addr = this._inRange(line, s) ? addr + 1 : (addr + 1) & ~3;
-      }
-      if (this.secIdx === 32) {
-        this.secFull = true;
-        this.secIdx = 0;
-      }
-    } else {
-      // Secondary OAM is full: look for a 9th sprite to set the overflow
-      // flag. Writes to secondary OAM become reads.
-      if (this.evalOvfStep === 0) {
-        if (this._inRange(line, s)) {
+        if (secIdx === 32) {
+          secFull = true;
+          secIdx = 0;
+        }
+      } else if (ovfStep === 0) {
+        // Secondary OAM is full: look for a 9th sprite to set the overflow
+        // flag. Writes to secondary OAM become reads.
+        if (inRange) {
           this.spriteOverflowFlag = 1;
-          this.evalOvfStep = 1;
+          ovfStep = 1;
           addr++;
         } else {
           // Hardware bug: both the sprite index and the byte index are
           // incremented, so the next "Y" read is really some other byte.
           addr += 5;
         }
-      } else if (this.evalOvfStep < 3) {
-        this.evalOvfStep++;
+      } else if (ovfStep < 3) {
+        ovfStep++;
         addr++;
       } else {
-        this.evalOvfStep = 0;
-        addr = this._inRange(line, s) ? addr + 1 : addr + 5;
+        ovfStep = 0;
+        addr = inRange ? addr + 1 : addr + 5;
+      }
+      if (addr > 0xff) {
+        // Wrapped around the end of OAM.
+        done = true;
+        addr &= 0xff;
       }
     }
-
-    if (addr > 0xff) {
-      // Wrapped around the end of OAM.
-      this.evalDone = true;
-      addr &= 0xff;
-    }
     this.sramAddress = addr;
+    this.secIdx = secIdx;
+    this.secFull = secFull;
+    this.evalDone = done;
+    this.evalOvfStep = ovfStep;
+    this.oamLatch = latch;
   }
 
   // Fetch sprite slot `slot` (0-7) from secondary OAM into the sprite output
