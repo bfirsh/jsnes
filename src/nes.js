@@ -180,6 +180,9 @@ class NES {
     // this.romData = s.romData;
     this.cpu.fromJSON(s.cpu);
     this.mmap.fromJSON(s.mmap);
+    // reset() made a new CPU: let it read PRG ROM directly again (much
+    // faster; see CPU._updatePrgReadPath()).
+    this.cpu._updatePrgReadPath();
     this.ppu.fromJSON(s.ppu);
     this.papu.fromJSON(s.papu);
     if (s.controllers) {
