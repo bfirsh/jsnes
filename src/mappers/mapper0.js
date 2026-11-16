@@ -563,6 +563,21 @@ class Mapper0 {
     // Does nothing. This is used by the MMC3 mapper.
   }
 
+  // True if this mapper has a scanline counter (overrides
+  // clockIrqCounter()).
+  countsScanlines() {
+    return this.clockIrqCounter !== Mapper0.prototype.clockIrqCounter;
+  }
+
+  // How many more clockIrqCounter() calls until one might raise an IRQ
+  // (Infinity if none will). The PPU only has to run in step with the CPU
+  // for that one; the others can happen whenever it catches up. Mappers
+  // with a scanline counter should override this; by default every call
+  // might.
+  irqClocksUntilIrq() {
+    return this.countsScanlines() ? 1 : Infinity;
+  }
+
   // eslint-disable-next-line no-unused-vars
   latchAccess(address) {
     // Does nothing. This is used by MMC2.

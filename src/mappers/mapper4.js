@@ -217,6 +217,13 @@ class Mapper4 extends Mapper0 {
     this.nes.cpu.requestIrq(this.nes.cpu.IRQ_RESET);
   }
 
+  // See Mapper0.irqClocksUntilIrq(). The counter only counts while IRQs
+  // are enabled, and the IRQ fires when it goes below 0.
+  irqClocksUntilIrq() {
+    if (this.irqEnable !== 1) return Infinity;
+    return this.irqCounter > 0 ? this.irqCounter + 1 : 1;
+  }
+
   clockIrqCounter() {
     if (this.irqEnable === 1) {
       this.irqCounter--;

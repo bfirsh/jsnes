@@ -1045,13 +1045,11 @@ class PPU {
     e = this._dotsUntil(261, 339);
     if (e < d) d = e;
     const mmap = this.nes.mmap;
-    if (
-      this.renderingOn &&
-      mmap &&
-      mmap.clockIrqCounter !== Mapper0.prototype.clockIrqCounter
-    ) {
-      // The mapper's scanline counter is clocked once per rendered line.
-      // (Most mappers don't have one, and then there's nothing to see.)
+    const clocks = this.renderingOn && mmap ? mmap.irqClocksUntilIrq() : 0;
+    if (clocks < Infinity && clocks > 0) {
+      // The mapper's scanline counter is clocked once per rendered line,
+      // and on the clock-th one it might raise an IRQ. (Most mappers don't
+      // have a counter, and then there's nothing to see.)
       const irqDot = mmap.irqClockDot;
       const line = this.line;
       let next;
@@ -1063,8 +1061,15 @@ class PPU {
       } else {
         next = 261;
       }
-      e = this._dotsUntil(next, irqDot);
-      if (e < d) d = e;
+      // The rendered lines after that: up to line 239 at most, as the
+      // VBlank event (above) comes first anyway.
+      for (let i = 1; i < clocks && next !== 240; i++) {
+        next = next === 261 ? 0 : next + 1;
+      }
+      if (next !== 240) {
+        e = this._dotsUntil(next, irqDot);
+        if (e < d) d = e;
+      }
     }
     if (this.maskDelay !== 0 && this.maskDelay - 1 < d) {
       // A $2001 write is about to take effect.

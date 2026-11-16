@@ -901,6 +901,7 @@ class CPU {
     // instead of going through the mapper. See _updatePrgReadPath().
     this.directPrgReads = false;
     this.directReadStart = 0x10000;
+    this.scanlineMapper = false;
 
     // Shortcuts to the PPU and APU, which are advanced on every cycle.
     // (The NES sets these again once it has created all its components.)
@@ -1067,6 +1068,12 @@ class CPU {
         this._syncPpu(addr);
       }
       this.nes.mmap.write(addr, value);
+      if (addr >= 0x8000 && this.scanlineMapper) {
+        // Writing a mapper register can change when its scanline counter
+        // raises an IRQ (see Mapper0.irqClocksUntilIrq()), which is one of
+        // the PPU's events: re-check them this cycle.
+        this.ppu.nextEventDot = 0;
+      }
     }
     this._endCycle();
   }
@@ -2538,6 +2545,8 @@ class CPU {
       !this._gameGenieActive && !!mmap && mmap.readsPrgFromCpuMem();
     // The fast path in read() covers addresses from here up.
     this.directReadStart = this.directPrgReads ? 0x8000 : 0x10000;
+    // See _writeSlow().
+    this.scanlineMapper = !!mmap && mmap.countsScanlines();
   }
 
   static JSON_PROPERTIES = [
