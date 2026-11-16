@@ -513,10 +513,20 @@ class PAPU {
       if (count > remaining) {
         square.progTimerCount = count - remaining;
       } else {
-        const rest = remaining - count;
-        const steps = 1 + Math.floor(rest / period);
+        let rest = remaining - count;
+        let steps = 1;
+        if (rest < 4 * period) {
+          // (Usually just a step or two: avoid the slow division.)
+          while (rest >= period) {
+            rest -= period;
+            steps++;
+          }
+        } else {
+          steps += Math.floor(rest / period);
+          rest %= period;
+        }
         square.squareCounter = (square.squareCounter + steps) & 0x7;
-        square.progTimerCount = period - (rest % period);
+        square.progTimerCount = period - rest;
         square.sampleValue = 0;
       }
       return 0;
@@ -792,10 +802,15 @@ class PAPU {
     const n = this.accCount;
     if (n > 0) {
       // The average of each channel's output since the last sample.
-      square1 = Math.floor((this.smpSquare1 << 4) / n);
-      square2 = Math.floor((this.smpSquare2 << 4) / n);
-      triangle = Math.floor(this.smpTriangle / n);
-      dmc = Math.floor((this.smpDmc << 4) / n);
+      // (Divisions are slow, and silent channels are common.)
+      const s1 = this.smpSquare1;
+      const s2 = this.smpSquare2;
+      const t = this.smpTriangle;
+      const d = this.smpDmc;
+      square1 = s1 === 0 ? 0 : Math.floor((s1 << 4) / n);
+      square2 = s2 === 0 ? 0 : Math.floor((s2 << 4) / n);
+      triangle = t === 0 ? 0 : Math.floor(t / n);
+      dmc = d === 0 ? 0 : Math.floor((d << 4) / n);
       this.accCount = 0;
     } else {
       square1 = this.square1.sampleValue << 4;
@@ -805,9 +820,9 @@ class PAPU {
     }
 
     const noiseChannel = this.noise;
-    const noise = Math.floor(
-      (noiseChannel.accValue << 4) / noiseChannel.accCount,
-    );
+    const noiseAcc = noiseChannel.accValue;
+    const noise =
+      noiseAcc === 0 ? 0 : Math.floor((noiseAcc << 4) / noiseChannel.accCount);
     noiseChannel.accValue = noise >> 4;
     noiseChannel.accCount = 1;
 
