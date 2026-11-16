@@ -738,6 +738,21 @@ class PPU {
         this.dotsRun += end - dot;
         this.dot = end;
       } else if (
+        this.line === 261 &&
+        dot >= 2 &&
+        dot <= 256 &&
+        this.renderingOn &&
+        this.maskDelay === 0 &&
+        !this.oamCorruptPending
+      ) {
+        // Fast path: the background fetches of the pre-render line. (Dot 1
+        // is left to _tick(), as it clears the status flags.)
+        let end = dot + (target - this.dotsRun);
+        if (end > 257) end = 257;
+        this._preRenderSpan(dot, end);
+        this.dotsRun += end - dot;
+        this.dot = end;
+      } else if (
         dot >= 257 &&
         dot <= 320 &&
         (this.line < 240 || this.line === 261) &&
@@ -1273,6 +1288,33 @@ class PPU {
         this.sprCount = this.sprFetchCount;
         this._buildSpriteLine(line === 261 ? 0 : line + 1);
       }
+      dot++;
+    }
+  }
+
+  // Dots [from, to) of 1-256 of the pre-render line, with rendering
+  // enabled: the background fetches happen as on a visible line (see
+  // _renderingDot()), but no pixels are output.
+  _preRenderSpan(from, to) {
+    let dot = from;
+    while (dot < to) {
+      if ((dot & 7) === 1 && dot + 8 <= to) {
+        // A whole tile: 8 shifts, the 4 fetches, then the reload.
+        this._fetchTile();
+        this.bgShiftLo = ((this.bgShiftLo << 8) & 0xff00) | this.ptLo;
+        this.bgShiftHi = ((this.bgShiftHi << 8) & 0xff00) | this.ptHi;
+        this.attrShiftLo = this.attrLatchLo ? 0xff : 0;
+        this.attrShiftHi = this.attrLatchHi ? 0xff : 0;
+        this.attrLatchLo = this.atBits & 1;
+        this.attrLatchHi = this.atBits >> 1;
+        this._incCoarseX();
+        if (dot === 249) this._incY();
+        dot += 8;
+        continue;
+      }
+      this._shiftBg();
+      this._bgFetch(dot);
+      if (dot === 256) this._incY();
       dot++;
     }
   }
