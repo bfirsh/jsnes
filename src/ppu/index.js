@@ -1492,12 +1492,10 @@ class PPU {
     const latHi = this.attrLatchHi;
     // See _renderTiles(). (All the pixels are in the same 8-pixel column.)
     let idx =
-      NIBBLES[
-        (((((atHi << 8) | (latHi ? 0xff : 0)) >> sh) & 0xff) << 8) |
-          ((((atLo << 8) | (latLo ? 0xff : 0)) >> sh) & 0xff)
-      ] << 2;
+      (SPREAD[(((atLo << 8) | (latLo ? 0xff : 0)) >> sh) & 0xff] << 2) |
+      (SPREAD[(((atHi << 8) | (latHi ? 0xff : 0)) >> sh) & 0xff] << 3);
     if (this.f_bgVisibility === 1 && (x0 >= 8 || this.f_bgClipping === 1)) {
-      idx |= NIBBLES[(((bgHi >> sh) & 0xff) << 8) | ((bgLo >> sh) & 0xff)];
+      idx |= SPREAD[(bgLo >> sh) & 0xff] | (SPREAD[(bgHi >> sh) & 0xff] << 1);
     }
     const buffer = this.buffer;
     const pixColors = this.pixColors;
@@ -1706,19 +1704,17 @@ class PPU {
         atBits = this.atBits;
       }
 
-      // The pixels. NIBBLES packs a tile row's 8 pixels' 2-bit values into
-      // the nibbles of a 32-bit word (pixel k in bits 28-4k to 31-4k).
-      // Adding the attribute bits two places up gives each pixel's 4-bit
-      // palette index, which pixColors turns into a color (index 0, 4, 8
-      // or 12 means a transparent pixel, i.e. the backdrop color).
+      // The pixels. Each pixel's 4-bit palette index (2 bits from the
+      // pattern, 2 from the attribute) is put together in a nibble of a
+      // 32-bit word, pixel k in bits 28-4k to 31-4k (see SPREAD), and
+      // pixColors turns it into a color (index 0, 4, 8 or 12 means a
+      // transparent pixel, i.e. the backdrop color).
       const x0 = dot - 1;
       let idx =
-        NIBBLES[
-          (((((atHi << 8) | (latHi ? 0xff : 0)) >> sh) & 0xff) << 8) |
-            ((((atLo << 8) | (latLo ? 0xff : 0)) >> sh) & 0xff)
-        ] << 2;
+        (SPREAD[(((atLo << 8) | (latLo ? 0xff : 0)) >> sh) & 0xff] << 2) |
+        (SPREAD[(((atHi << 8) | (latHi ? 0xff : 0)) >> sh) & 0xff] << 3);
       if (showBg && (x0 >= 8 || bgLeft)) {
-        idx |= NIBBLES[(((bgHi >> sh) & 0xff) << 8) | ((bgLo >> sh) & 0xff)];
+        idx |= SPREAD[(bgLo >> sh) & 0xff] | (SPREAD[(bgHi >> sh) & 0xff] << 1);
       }
       const out = rowBase | x0;
       if ((sprMask & (1 << (x0 >> 3))) === 0) {
@@ -2309,19 +2305,16 @@ for (let n = 1; n <= 64; n++) {
   SEC_IDX_STEPS[n] = SEC_IDX_STEPS[n - 1] + (phase <= 2 || phase === 7 ? 1 : 0);
 }
 
-// NIBBLES[(hi << 8) | lo] packs the 8 two-bit pixels of a pair of bit
-// planes into the nibbles of a 32-bit word, leftmost pixel in the top
-// nibble: pixel k is (NIBBLES[...] >>> (28 - 4 * k)) & 3.
-const NIBBLES = new Int32Array(65536);
-for (let v = 0; v < 65536; v++) {
-  const lo = v & 0xff;
-  const hi = v >> 8;
-  let packed = 0;
+// SPREAD[b] spreads the 8 bits of a byte out to one bit per nibble of a
+// 32-bit word: bit 7 - k of b goes to bit 28 - 4k. Used to put together 8
+// pixels' palette indexes at once from the bit planes of a tile row.
+const SPREAD = new Int32Array(256);
+for (let b = 0; b < 256; b++) {
+  let spread = 0;
   for (let k = 0; k < 8; k++) {
-    const p = ((lo >> (7 - k)) & 1) | (((hi >> (7 - k)) & 1) << 1);
-    packed |= p << (28 - 4 * k);
+    if (b & (0x80 >> k)) spread |= 1 << (28 - 4 * k);
   }
-  NIBBLES[v] = packed;
+  SPREAD[b] = spread;
 }
 
 // Bit-reversed bytes, for horizontally flipped sprites.

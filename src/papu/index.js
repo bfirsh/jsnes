@@ -511,30 +511,43 @@ class PAPU {
     let count = noise.progTimerCount;
     if (count < 1) count = 1;
     let remaining = nCycles;
+    if (count > remaining) {
+      // The timer doesn't reach 0.
+      noise.progTimerCount = count - remaining;
+      noise.accValue += noise.sampleValue * remaining;
+      return;
+    }
+    // The state is kept in locals for the loop. The channel's volume can't
+    // change in here.
+    const period = noise.progTimerMax;
+    const shift = noise.randomMode === 0 ? 1 : 6;
+    const volume =
+      noise.isEnabled && noise.lengthCounter > 0 ? noise.masterVolume : 0;
+    let shiftReg = noise.shiftReg;
+    let sampleValue = noise.sampleValue;
+    let tmp = 0;
     let sum = 0;
     while (count <= remaining) {
-      sum += noise.sampleValue * (count - 1);
+      sum += sampleValue * (count - 1);
       remaining -= count;
       // Step the 15-bit shift register (the "random" bit generator).
-      noise.shiftReg <<= 1;
-      noise.tmp =
-        ((noise.shiftReg << (noise.randomMode === 0 ? 1 : 6)) ^
-          noise.shiftReg) &
-        0x8000;
-      if (noise.tmp !== 0) {
-        noise.shiftReg |= 0x01;
-        noise.randomBit = 0;
-        noise.sampleValue = 0;
+      shiftReg <<= 1;
+      tmp = ((shiftReg << shift) ^ shiftReg) & 0x8000;
+      if (tmp !== 0) {
+        shiftReg |= 0x01;
+        sampleValue = 0;
       } else {
-        noise.randomBit = 1;
-        noise.sampleValue =
-          noise.isEnabled && noise.lengthCounter > 0 ? noise.masterVolume : 0;
+        sampleValue = volume;
       }
-      sum += noise.sampleValue;
-      count = noise.progTimerMax;
+      sum += sampleValue;
+      count = period;
     }
+    noise.shiftReg = shiftReg;
+    noise.tmp = tmp;
+    noise.randomBit = tmp !== 0 ? 0 : 1;
+    noise.sampleValue = sampleValue;
     noise.progTimerCount = count - remaining;
-    noise.accValue += sum + noise.sampleValue * remaining;
+    noise.accValue += sum + sampleValue * remaining;
   }
 
   // Set or clear the frame interrupt flag, updating the CPU's IRQ line.
