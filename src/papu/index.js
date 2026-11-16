@@ -22,6 +22,42 @@ const FRAME_STEPS_5 = [7457, 14913, 22371, 29829, 37281];
 const FRAME_PERIOD_4 = 29830; // Total CPU cycles for 4-step sequence
 const FRAME_PERIOD_5 = 37282; // Total CPU cycles for 5-step sequence
 
+// --- Noise shift register ---
+//
+// The noise channel's output comes from a 15-bit linear feedback shift
+// register: each step shifts it left one place, shifting in the XOR of
+// bits 14 and 13 (mode 0) or 14 and 8 (mode 1, the "short" mode). The
+// output is on (the channel's volume) when the bit shifted in is 0.
+// See https://www.nesdev.org/wiki/APU_Noise
+function noiseStep(state, mode) {
+  const feedback = ((state >> 14) ^ (state >> (mode === 0 ? 13 : 8))) & 1;
+  return ((state << 1) & 0x7fff) | feedback;
+}
+
+// Tables to run the shift register 8 steps at once: for each state, the
+// state 8 steps later (next8) and how many of those 8 steps turned the
+// output on (ones8). Built when first needed.
+const NOISE_TABLES = [null, null];
+function noiseTables(mode) {
+  let tables = NOISE_TABLES[mode];
+  if (tables === null) {
+    const next8 = new Uint16Array(0x8000);
+    const ones8 = new Uint8Array(0x8000);
+    for (let s = 0; s < 0x8000; s++) {
+      let t = s;
+      let ones = 0;
+      for (let i = 0; i < 8; i++) {
+        t = noiseStep(t, mode);
+        ones += (t & 1) ^ 1;
+      }
+      next8[s] = t;
+      ones8[s] = ones;
+    }
+    tables = NOISE_TABLES[mode] = { next8, ones8 };
+  }
+  return tables;
+}
+
 class PAPU {
   constructor(nes) {
     this.nes = nes;
@@ -517,37 +553,52 @@ class PAPU {
       noise.accValue += noise.sampleValue * remaining;
       return;
     }
-    // The state is kept in locals for the loop. The channel's volume can't
-    // change in here.
+    // The timer reaches 0 on cycle `count`, and then every `period` cycles.
+    // Each time, the shift register steps and the output becomes `volume`
+    // or 0 (the channel's volume can't change in here). The output on a
+    // step's cycle is already the new one.
     const period = noise.progTimerMax;
-    const shift = noise.randomMode === 0 ? 1 : 6;
+    const mode = noise.randomMode === 0 ? 0 : 1;
     const volume =
       noise.isEnabled && noise.lengthCounter > 0 ? noise.masterVolume : 0;
-    let shiftReg = noise.shiftReg;
-    let sampleValue = noise.sampleValue;
-    let tmp = 0;
-    let sum = 0;
-    while (count <= remaining) {
-      sum += sampleValue * (count - 1);
-      remaining -= count;
-      // Step the 15-bit shift register (the "random" bit generator).
-      shiftReg <<= 1;
-      tmp = ((shiftReg << shift) ^ shiftReg) & 0x8000;
-      if (tmp !== 0) {
-        shiftReg |= 0x01;
-        sampleValue = 0;
-      } else {
-        sampleValue = volume;
+    // The output so far, until the first step.
+    let sum = noise.sampleValue * (count - 1);
+    remaining -= count;
+    let state = noiseStep(noise.shiftReg & 0x7fff, mode);
+    const firstBit = (state & 1) ^ 1; // 1 = output on (see noiseStep())
+    // k more steps.
+    const k = (remaining / period) | 0;
+    remaining -= k * period;
+    let ones = 0; // number of those steps with the output on
+    let j = k;
+    if (j >= 8) {
+      const tables = noiseTables(mode);
+      const next8 = tables.next8;
+      const ones8 = tables.ones8;
+      while (j >= 8) {
+        ones += ones8[state];
+        state = next8[state];
+        j -= 8;
       }
-      sum += sampleValue;
-      count = period;
     }
-    noise.shiftReg = shiftReg;
-    noise.tmp = tmp;
-    noise.randomBit = tmp !== 0 ? 0 : 1;
-    noise.sampleValue = sampleValue;
-    noise.progTimerCount = count - remaining;
-    noise.accValue += sum + sampleValue * remaining;
+    for (; j > 0; j--) {
+      state = noiseStep(state, mode);
+      ones += (state & 1) ^ 1;
+    }
+    const lastBit = (state & 1) ^ 1;
+    // Each step's output lasts `period` cycles, except the last one's,
+    // which lasts 1 + remaining.
+    sum +=
+      volume *
+      ((period - 1) * (firstBit + ones - lastBit) +
+        (firstBit + ones) +
+        lastBit * remaining);
+    noise.shiftReg = state;
+    noise.tmp = lastBit ? 0 : 0x8000;
+    noise.randomBit = lastBit;
+    noise.sampleValue = lastBit * volume;
+    noise.progTimerCount = period - remaining;
+    noise.accValue += sum;
   }
 
   // Set or clear the frame interrupt flag, updating the CPU's IRQ line.
