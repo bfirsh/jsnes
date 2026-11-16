@@ -1800,23 +1800,39 @@ class PPU {
       // pixColors turns it into a color (index 0, 4, 8 or 12 means a
       // transparent pixel, i.e. the backdrop color).
       const x0 = dot - 1;
-      let idx =
-        (SPREAD[(((atLo << 8) | (latLo ? 0xff : 0)) >> sh) & 0xff] << 2) |
-        (SPREAD[(((atHi << 8) | (latHi ? 0xff : 0)) >> sh) & 0xff] << 3);
-      if (showBg && (x0 >= 8 || bgLeft)) {
-        idx |= SPREAD[(bgLo >> sh) & 0xff] | (SPREAD[(bgHi >> sh) & 0xff] << 1);
-      }
       const out = rowBase | x0;
-      buffer[out] = pixColors[idx >>> 28];
-      buffer[out + 1] = pixColors[(idx >>> 24) & 15];
-      buffer[out + 2] = pixColors[(idx >>> 20) & 15];
-      buffer[out + 3] = pixColors[(idx >>> 16) & 15];
-      buffer[out + 4] = pixColors[(idx >>> 12) & 15];
-      buffer[out + 5] = pixColors[(idx >>> 8) & 15];
-      buffer[out + 6] = pixColors[(idx >>> 4) & 15];
-      buffer[out + 7] = pixColors[idx & 15];
-      // Sprites are drawn over the tile afterwards (see below).
-      tileIdx[x0 >> 3] = idx;
+      const lo = (bgLo >> sh) & 0xff;
+      const hi = (bgHi >> sh) & 0xff;
+      if ((lo | hi) === 0 || !showBg || (x0 < 8 && !bgLeft)) {
+        // All 8 pixels are transparent: the backdrop color. (Common, and
+        // the palette indexes don't matter for the sprites drawn over it.)
+        const backdrop = pixColors[0];
+        buffer[out] = backdrop;
+        buffer[out + 1] = backdrop;
+        buffer[out + 2] = backdrop;
+        buffer[out + 3] = backdrop;
+        buffer[out + 4] = backdrop;
+        buffer[out + 5] = backdrop;
+        buffer[out + 6] = backdrop;
+        buffer[out + 7] = backdrop;
+        tileIdx[x0 >> 3] = 0;
+      } else {
+        const idx =
+          (SPREAD[(((atLo << 8) | (latLo ? 0xff : 0)) >> sh) & 0xff] << 2) |
+          (SPREAD[(((atHi << 8) | (latHi ? 0xff : 0)) >> sh) & 0xff] << 3) |
+          SPREAD[lo] |
+          (SPREAD[hi] << 1);
+        buffer[out] = pixColors[idx >>> 28];
+        buffer[out + 1] = pixColors[(idx >>> 24) & 15];
+        buffer[out + 2] = pixColors[(idx >>> 20) & 15];
+        buffer[out + 3] = pixColors[(idx >>> 16) & 15];
+        buffer[out + 4] = pixColors[(idx >>> 12) & 15];
+        buffer[out + 5] = pixColors[(idx >>> 8) & 15];
+        buffer[out + 6] = pixColors[(idx >>> 4) & 15];
+        buffer[out + 7] = pixColors[idx & 15];
+        // Sprites are drawn over the tile afterwards (see below).
+        tileIdx[x0 >> 3] = idx;
+      }
 
       // After 8 shifts the old tile is gone, the next tile is in the high
       // half, and the attribute shifters are full of their latch bits.
