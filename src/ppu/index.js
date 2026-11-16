@@ -2211,15 +2211,20 @@ class PPU {
 
     if (this.clipToTvSize) {
       // Most TVs don't show the outer 8 pixels on each side. Clip them.
-      for (y = 0; y < 240; y++) {
-        buffer.fill(0, y << 8, (y << 8) + 8);
-        buffer.fill(0, (y << 8) + 248, (y << 8) + 256);
+      // (Plain loops: fill() has a high fixed cost for 8 pixels.)
+      for (y = 8; y < 232; y++) {
+        const row = y << 8;
+        for (let x = 0; x < 8; x++) {
+          buffer[row + x] = 0;
+          buffer[row + 248 + x] = 0;
+        }
       }
       buffer.fill(0, 0, 8 << 8);
       buffer.fill(0, 232 << 8, 240 << 8);
     } else if (this.f_bgClipping === 0 || this.f_spClipping === 0) {
       for (y = 0; y < 240; y++) {
-        buffer.fill(0, y << 8, (y << 8) + 8);
+        const row = y << 8;
+        for (let x = 0; x < 8; x++) buffer[row + x] = 0;
       }
     }
 
