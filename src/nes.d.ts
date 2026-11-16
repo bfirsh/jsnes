@@ -22,6 +22,7 @@ export interface NESOptions {
 export class NES {
   constructor(opts: NESOptions);
   gameGenie: GameGenie;
+  /** Power-cycles the console with the loaded ROM (like loading it again). */
   reset: () => void;
   frame: () => void;
   buttonDown: (controller: ControllerId, button: ButtonKey) => void;
