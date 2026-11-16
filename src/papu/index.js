@@ -338,7 +338,16 @@ class PAPU {
     this.frameCycleCounter += n;
     // The DMC timer counts on even cycles (see clockCycle()).
     const a = this.lastCycle;
-    this.dmc.timer -= 2 * (((a + n) >> 1) - (a >> 1));
+    const dmc = this.dmc;
+    const even = ((a + n) >> 1) - (a >> 1);
+    const timer = dmc.timer - 2 * even;
+    if (timer > 0) {
+      dmc.timer = timer;
+    } else {
+      // The timer expired, which isn't an event while the DMC is idle
+      // (see _scheduleNextEvent()): the output unit just counts.
+      dmc.idleTimer(even);
+    }
   }
 
   // Work out the next cycle (after lastCycle) on which clockCycle() has
@@ -356,12 +365,16 @@ class PAPU {
     // (Audio output samples aren't events: the CPU can't see them, so the
     // synthesis just runs whenever channel state is about to change, and at
     // the end of each frame. See _flushAudio().)
-    // DMC timer expiry: it loses 2 on each even cycle.
-    let even = last + 1;
-    if (even & 1) even++;
-    const steps = (dmc.timer + 1) >> 1;
-    const d = steps > 1 ? even + 2 * (steps - 1) : even;
-    if (d < next) next = d;
+    // DMC timer expiry: it loses 2 on each even cycle. While the DMC is
+    // idle (silent with an empty sample buffer) nothing the CPU can see
+    // happens then, so it's not an event (see _advance()).
+    if (!(dmc.silence && dmc.bufferEmpty)) {
+      let even = last + 1;
+      if (even & 1) even++;
+      const steps = (dmc.timer + 1) >> 1;
+      const d = steps > 1 ? even + 2 * (steps - 1) : even;
+      if (d < next) next = d;
+    }
     this.nextEventCycle = next > last ? next : last + 1;
   }
 

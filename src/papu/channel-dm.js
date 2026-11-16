@@ -125,6 +125,24 @@ class ChannelDM {
     }
   }
 
+  // Run the timer for `even` APU (even CPU) cycles while the DMC is idle:
+  // silent, with an empty sample buffer. Then each output unit step just
+  // shifts the (unused) shift register, and each new output cycle stays
+  // silent and requests nothing. (The timer and periods are always even.)
+  idleTimer(even) {
+    const first = this.timer >> 1; // cycles until the first expiry
+    if (even < first) {
+      this.timer -= 2 * even;
+      return;
+    }
+    const half = this.period >> 1;
+    const after = even - first;
+    const steps = 1 + Math.floor(after / half);
+    this.timer = this.period - 2 * (after % half);
+    this.shiftRegister = steps >= 8 ? 0 : this.shiftRegister >> steps;
+    this.bitsRemaining = ((((this.bitsRemaining - 1 - steps) % 8) + 8) % 8) + 1;
+  }
+
   _updateSample() {
     this.papu._flushAudio();
     this.sample = this.outputLevel;
@@ -152,8 +170,20 @@ class ChannelDM {
 
   // Called by the CPU's DMA unit with the byte it read from currentAddress.
   dmaComplete(value) {
-    this.lastFetchCycle = this.papu.nes.cpu.cycles;
+    const papu = this.papu;
+    const cpu = papu.nes.cpu;
+    this.lastFetchCycle = cpu.cycles;
     if (this.bytesRemaining === 0) return;
+    // Filling the buffer ends the DMC being idle, which changes the APU's
+    // events (see PAPU._scheduleNextEvent()): bring the APU up to date
+    // first, then work them out again.
+    papu.catchUp(cpu.cycles);
+    this._fillBuffer(value);
+    papu._scheduleNextEvent();
+    cpu.nextEvent = 0; // (see "Fast and slow cycles" in cpu.js)
+  }
+
+  _fillBuffer(value) {
     this.buffer = value;
     this.bufferEmpty = false;
     // The address wraps from $FFFF to $8000.
