@@ -227,6 +227,8 @@ class PPU {
     this.sprX = new Uint8Array(8); // X down-counters
     this.sprLatchX = new Uint8Array(8); // X positions read during fetch
     this.sprFetchCount = 0; // Slots fetched for the next line
+    // The mapper doesn't watch pattern fetches (see _fetchSprite()).
+    this._plainLatch = false;
     // Odd-frame quirk, see the end of _tick().
     this.spriteSkipGlitch = false;
     // Precomputed sprite pixels for one line; see _buildSpriteLine().
@@ -1382,6 +1384,9 @@ class PPU {
   // and its pattern is fetched.
   _spriteFetchSpan(line, from, to, isPreRender) {
     if (from === 257) {
+      // (See _fetchSprite().)
+      this._plainLatch =
+        this.nes.mmap.latchAccess === Mapper0.prototype.latchAccess;
       // Copy the horizontal scroll bits from t to v.
       this.vramAddress =
         (this.vramAddress & 0x7be0) | (this.vramTmpAddress & 0x041f);
@@ -2251,6 +2256,15 @@ class PPU {
     const height = this.f_spriteSize ? 16 : 8;
     let row = line - y;
     const inRange = row >= 0 && row < height;
+    if (!inRange && this._plainLatch) {
+      // Not on the line (e.g. an empty slot): the pattern fetch happens,
+      // but nothing can see it.
+      this.sprLo[slot] = 0;
+      this.sprHi[slot] = 0;
+      this.sprAttr[slot] = attr;
+      this.sprLatchX[slot] = x;
+      return;
+    }
     if (attr & 0x80) {
       row = height - 1 - row; // vertical flip
     }
