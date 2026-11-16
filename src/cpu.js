@@ -859,6 +859,7 @@ class CPU {
     // True when PRG ROM reads ($8000-$FFFF) can come straight from cpu.mem
     // instead of going through the mapper. See _updatePrgReadPath().
     this.directPrgReads = false;
+    this.directReadStart = 0x10000;
 
     // Shortcuts to the PPU and APU, which are advanced on every cycle.
     // (The NES sets these again once it has created all its components.)
@@ -889,15 +890,15 @@ class CPU {
   read(addr) {
     const c = this.cycles + 1;
     if (c < this.nextEvent) {
+      if (addr >= this.directReadStart) {
+        // PRG ROM (see _updatePrgReadPath()).
+        this.cycles = c;
+        return (this.dataBus = this.mem[addr]);
+      }
       if (addr < 0x2000) {
         // Internal RAM, mirrored every 2KB.
         this.cycles = c;
         return (this.dataBus = this.mem[addr & 0x7ff]);
-      }
-      if (addr >= 0x8000 && this.directPrgReads) {
-        // PRG ROM (see _readSlow()).
-        this.cycles = c;
-        return (this.dataBus = this.mem[addr]);
       }
     }
     return this._readSlow(addr);
@@ -1099,9 +1100,9 @@ class CPU {
 
   // Read the byte at PC and advance PC.
   _fetch() {
-    const v = this.read(this.REG_PC);
-    this.REG_PC = (this.REG_PC + 1) & 0xffff;
-    return v;
+    const pc = this.REG_PC;
+    this.REG_PC = (pc + 1) & 0xffff;
+    return this.read(pc);
   }
 
   push(value) {
@@ -2332,6 +2333,8 @@ class CPU {
     const mmap = this.nes.mmap;
     this.directPrgReads =
       !this._gameGenieActive && !!mmap && mmap.readsPrgFromCpuMem();
+    // The fast path in read() covers addresses from here up.
+    this.directReadStart = this.directPrgReads ? 0x8000 : 0x10000;
   }
 
   static JSON_PROPERTIES = [
