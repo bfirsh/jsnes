@@ -79,9 +79,7 @@ class NES {
     const ppu = this.ppu;
     try {
       if (this.mmap === null) return;
-      while (!ppu.frameEnded) {
-        cpu.emulate();
-      }
+      if (!ppu.frameEnded) cpu.emulate(true);
       ppu.frameEnded = false;
       this.papu.flushAudioOutput();
     } catch (e) {

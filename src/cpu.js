@@ -1444,688 +1444,693 @@ class CPU {
 
   // Executes one instruction (plus any interrupt that follows it, and any
   // DMA that interrupts it). Returns the number of CPU cycles that elapsed.
-  emulate() {
+  // If untilFrameEnd is true, keeps going until the PPU has finished the
+  // frame (see NES.frame()); doing that in here saves a call per
+  // instruction.
+  emulate(untilFrameEnd = false) {
     const startCycles = this.cycles;
 
-    if (this.resetPending) {
-      this.resetPending = false;
-      this._interruptSequence(VECTOR_RESET);
-      return this.cycles - startCycles;
-    }
+    do {
+      if (this.resetPending) {
+        this.resetPending = false;
+        this._interruptSequence(VECTOR_RESET);
+        continue;
+      }
 
-    const opcode = this._fetch();
-    const ins = OP_INS[opcode];
-    const mode = OP_MODE[opcode];
+      const opcode = this._fetch();
+      const ins = OP_INS[opcode];
+      const mode = OP_MODE[opcode];
 
-    // ------------------------------------------------------------------
-    // Addressing: compute the effective address for memory operands,
-    // performing the bus cycles that the real CPU performs to do so.
-    // ------------------------------------------------------------------
-    let addr = 0;
-    // High byte of the base address before indexing, needed by the SHx
-    // unofficial instructions.
-    let baseHigh = 0;
-    // Whether indexing crossed a page boundary.
-    let crossed = false;
+      // ------------------------------------------------------------------
+      // Addressing: compute the effective address for memory operands,
+      // performing the bus cycles that the real CPU performs to do so.
+      // ------------------------------------------------------------------
+      let addr = 0;
+      // High byte of the base address before indexing, needed by the SHx
+      // unofficial instructions.
+      let baseHigh = 0;
+      // Whether indexing crossed a page boundary.
+      let crossed = false;
 
-    if (OP_KIND[opcode] !== KIND_SPECIAL) {
-      const write = OP_KIND[opcode] === KIND_WRITE;
-      switch (mode) {
-        case 5: {
-          // Immediate: the operand is the byte after the opcode.
-          addr = this.REG_PC;
-          this.REG_PC = (this.REG_PC + 1) & 0xffff;
-          break;
+      if (OP_KIND[opcode] !== KIND_SPECIAL) {
+        const write = OP_KIND[opcode] === KIND_WRITE;
+        switch (mode) {
+          case 5: {
+            // Immediate: the operand is the byte after the opcode.
+            addr = this.REG_PC;
+            this.REG_PC = (this.REG_PC + 1) & 0xffff;
+            break;
+          }
+          case 0: {
+            // Zero page.
+            addr = this._fetch();
+            break;
+          }
+          case 6:
+          case 7: {
+            // Zero page,X / Zero page,Y. The CPU reads from the unindexed
+            // address while it adds the index (dummy read), and the result
+            // wraps within the zero page.
+            const base = this._fetch();
+            this.read(base);
+            addr = (base + (mode === 6 ? this.REG_X : this.REG_Y)) & 0xff;
+            break;
+          }
+          case 3: {
+            // Absolute.
+            const lo = this._fetch();
+            addr = (this._fetch() << 8) | lo;
+            break;
+          }
+          case 8:
+          case 9: {
+            // Absolute,X / Absolute,Y. The CPU first adds the index to the low
+            // byte only and reads from that address. If no carry into the high
+            // byte was needed, that read was correct (for read instructions);
+            // otherwise it was a dummy read and the CPU reads again from the
+            // fixed-up address.
+            const lo = this._fetch();
+            baseHigh = this._fetch();
+            const base = (baseHigh << 8) | lo;
+            addr = (base + (mode === 8 ? this.REG_X : this.REG_Y)) & 0xffff;
+            crossed = (addr & 0xff00) !== (base & 0xff00);
+            if (crossed || write) {
+              this.read((base & 0xff00) | (addr & 0xff));
+            }
+            break;
+          }
+          case 10: {
+            // (Indirect,X): pointer in zero page at (operand + X).
+            let ptr = this._fetch();
+            this.read(ptr); // dummy read while adding X
+            ptr = (ptr + this.REG_X) & 0xff;
+            const lo = this.read(ptr);
+            addr = (this.read((ptr + 1) & 0xff) << 8) | lo;
+            break;
+          }
+          case 11: {
+            // (Indirect),Y: pointer in zero page, then add Y (with the same
+            // page-crossing dummy read as Absolute,Y).
+            const ptr = this._fetch();
+            const lo = this.read(ptr);
+            baseHigh = this.read((ptr + 1) & 0xff);
+            const base = (baseHigh << 8) | lo;
+            addr = (base + this.REG_Y) & 0xffff;
+            crossed = (addr & 0xff00) !== (base & 0xff00);
+            if (crossed || write) {
+              this.read((base & 0xff00) | (addr & 0xff));
+            }
+            break;
+          }
         }
+      }
+
+      // ------------------------------------------------------------------
+      // Execute. The case labels are raw integers (matching the INS_*
+      // constants) so V8 compiles the switch to a jump table.
+      // ------------------------------------------------------------------
+      let temp;
+      let value;
+      switch (ins) {
         case 0: {
-          // Zero page.
-          addr = this._fetch();
+          // ADC
+          this._adc(this.read(addr));
           break;
         }
-        case 6:
-        case 7: {
-          // Zero page,X / Zero page,Y. The CPU reads from the unindexed
-          // address while it adds the index (dummy read), and the result
-          // wraps within the zero page.
-          const base = this._fetch();
-          this.read(base);
-          addr = (base + (mode === 6 ? this.REG_X : this.REG_Y)) & 0xff;
+        case 1: {
+          // AND
+          this.REG_ACC &= this.read(addr);
+          this.F_SIGN = this.REG_ACC >> 7;
+          this.F_ZERO = this.REG_ACC;
+          break;
+        }
+        case 2: {
+          // ASL
+          if (mode === ADDR_ACC) {
+            this.read(this.REG_PC);
+            this.REG_ACC = this._asl(this.REG_ACC);
+          } else {
+            value = this.read(addr);
+            this.write(addr, value); // dummy write of the original value
+            this.write(addr, this._asl(value));
+          }
           break;
         }
         case 3: {
-          // Absolute.
-          const lo = this._fetch();
-          addr = (this._fetch() << 8) | lo;
+          // BCC
+          this._branch(this.F_CARRY === 0);
           break;
         }
-        case 8:
+        case 4: {
+          // BCS
+          this._branch(this.F_CARRY !== 0);
+          break;
+        }
+        case 5: {
+          // BEQ
+          this._branch(this.F_ZERO === 0);
+          break;
+        }
+        case 6: {
+          // BIT
+          value = this.read(addr);
+          this.F_SIGN = (value >> 7) & 1;
+          this.F_OVERFLOW = (value >> 6) & 1;
+          this.F_ZERO = value & this.REG_ACC;
+          break;
+        }
+        case 7: {
+          // BMI
+          this._branch(this.F_SIGN !== 0);
+          break;
+        }
+        case 8: {
+          // BNE
+          this._branch(this.F_ZERO !== 0);
+          break;
+        }
         case 9: {
-          // Absolute,X / Absolute,Y. The CPU first adds the index to the low
-          // byte only and reads from that address. If no carry into the high
-          // byte was needed, that read was correct (for read instructions);
-          // otherwise it was a dummy read and the CPU reads again from the
-          // fixed-up address.
-          const lo = this._fetch();
-          baseHigh = this._fetch();
-          const base = (baseHigh << 8) | lo;
-          addr = (base + (mode === 8 ? this.REG_X : this.REG_Y)) & 0xffff;
-          crossed = (addr & 0xff00) !== (base & 0xff00);
-          if (crossed || write) {
-            this.read((base & 0xff00) | (addr & 0xff));
-          }
+          // BPL
+          this._branch(this.F_SIGN === 0);
           break;
         }
         case 10: {
-          // (Indirect,X): pointer in zero page at (operand + X).
-          let ptr = this._fetch();
-          this.read(ptr); // dummy read while adding X
-          ptr = (ptr + this.REG_X) & 0xff;
-          const lo = this.read(ptr);
-          addr = (this.read((ptr + 1) & 0xff) << 8) | lo;
+          // BRK: a software interrupt. The byte after the opcode is read and
+          // skipped ("padding byte"), then it behaves like an IRQ except that
+          // the pushed status has the B flag set.
+          this._fetch();
+          this._interruptSequence(VECTOR_IRQ, true);
           break;
         }
         case 11: {
-          // (Indirect),Y: pointer in zero page, then add Y (with the same
-          // page-crossing dummy read as Absolute,Y).
-          const ptr = this._fetch();
-          const lo = this.read(ptr);
-          baseHigh = this.read((ptr + 1) & 0xff);
-          const base = (baseHigh << 8) | lo;
-          addr = (base + this.REG_Y) & 0xffff;
-          crossed = (addr & 0xff00) !== (base & 0xff00);
-          if (crossed || write) {
-            this.read((base & 0xff00) | (addr & 0xff));
+          // BVC
+          this._branch(this.F_OVERFLOW === 0);
+          break;
+        }
+        case 12: {
+          // BVS
+          this._branch(this.F_OVERFLOW !== 0);
+          break;
+        }
+        case 13: {
+          // CLC
+          this.read(this.REG_PC);
+          this.F_CARRY = 0;
+          break;
+        }
+        case 14: {
+          // CLD
+          this.read(this.REG_PC);
+          this.F_DECIMAL = 0;
+          break;
+        }
+        case 15: {
+          // CLI. The flag changes after this instruction's interrupt polling,
+          // so a pending IRQ is serviced only after the *next* instruction.
+          this.read(this.REG_PC);
+          this.F_INTERRUPT = 0;
+          this.nextEvent = 0; // the IRQ line may need sampling now
+          break;
+        }
+        case 16: {
+          // CLV
+          this.read(this.REG_PC);
+          this.F_OVERFLOW = 0;
+          break;
+        }
+        case 17: {
+          // CMP
+          this._compare(this.REG_ACC, this.read(addr));
+          break;
+        }
+        case 18: {
+          // CPX
+          this._compare(this.REG_X, this.read(addr));
+          break;
+        }
+        case 19: {
+          // CPY
+          this._compare(this.REG_Y, this.read(addr));
+          break;
+        }
+        case 20: {
+          // DEC
+          value = this.read(addr);
+          this.write(addr, value);
+          value = (value - 1) & 0xff;
+          this.F_SIGN = value >> 7;
+          this.F_ZERO = value;
+          this.write(addr, value);
+          break;
+        }
+        case 21: {
+          // DEX
+          this.read(this.REG_PC);
+          this.REG_X = (this.REG_X - 1) & 0xff;
+          this.F_SIGN = this.REG_X >> 7;
+          this.F_ZERO = this.REG_X;
+          break;
+        }
+        case 22: {
+          // DEY
+          this.read(this.REG_PC);
+          this.REG_Y = (this.REG_Y - 1) & 0xff;
+          this.F_SIGN = this.REG_Y >> 7;
+          this.F_ZERO = this.REG_Y;
+          break;
+        }
+        case 23: {
+          // EOR
+          this.REG_ACC ^= this.read(addr);
+          this.F_SIGN = this.REG_ACC >> 7;
+          this.F_ZERO = this.REG_ACC;
+          break;
+        }
+        case 24: {
+          // INC
+          value = this.read(addr);
+          this.write(addr, value);
+          value = (value + 1) & 0xff;
+          this.F_SIGN = value >> 7;
+          this.F_ZERO = value;
+          this.write(addr, value);
+          break;
+        }
+        case 25: {
+          // INX
+          this.read(this.REG_PC);
+          this.REG_X = (this.REG_X + 1) & 0xff;
+          this.F_SIGN = this.REG_X >> 7;
+          this.F_ZERO = this.REG_X;
+          break;
+        }
+        case 26: {
+          // INY
+          this.read(this.REG_PC);
+          this.REG_Y = (this.REG_Y + 1) & 0xff;
+          this.F_SIGN = this.REG_Y >> 7;
+          this.F_ZERO = this.REG_Y;
+          break;
+        }
+        case 27: {
+          // JMP
+          if (mode === ADDR_INDABS) {
+            // JMP (indirect). The famous 6502 bug: the pointer's high byte is
+            // read from the same page as its low byte, so JMP ($10FF) reads
+            // $10FF and $1000.
+            const lo = this._fetch();
+            const hi = this._fetch();
+            const ptr = (hi << 8) | lo;
+            const pcl = this.read(ptr);
+            const pch = this.read((ptr & 0xff00) | ((ptr + 1) & 0xff));
+            this.REG_PC = (pch << 8) | pcl;
+          } else {
+            this.REG_PC = addr;
           }
           break;
         }
-      }
-    }
-
-    // ------------------------------------------------------------------
-    // Execute. The case labels are raw integers (matching the INS_*
-    // constants) so V8 compiles the switch to a jump table.
-    // ------------------------------------------------------------------
-    let temp;
-    let value;
-    switch (ins) {
-      case 0: {
-        // ADC
-        this._adc(this.read(addr));
-        break;
-      }
-      case 1: {
-        // AND
-        this.REG_ACC &= this.read(addr);
-        this.F_SIGN = this.REG_ACC >> 7;
-        this.F_ZERO = this.REG_ACC;
-        break;
-      }
-      case 2: {
-        // ASL
-        if (mode === ADDR_ACC) {
-          this.read(this.REG_PC);
-          this.REG_ACC = this._asl(this.REG_ACC);
-        } else {
-          value = this.read(addr);
-          this.write(addr, value); // dummy write of the original value
-          this.write(addr, this._asl(value));
-        }
-        break;
-      }
-      case 3: {
-        // BCC
-        this._branch(this.F_CARRY === 0);
-        break;
-      }
-      case 4: {
-        // BCS
-        this._branch(this.F_CARRY !== 0);
-        break;
-      }
-      case 5: {
-        // BEQ
-        this._branch(this.F_ZERO === 0);
-        break;
-      }
-      case 6: {
-        // BIT
-        value = this.read(addr);
-        this.F_SIGN = (value >> 7) & 1;
-        this.F_OVERFLOW = (value >> 6) & 1;
-        this.F_ZERO = value & this.REG_ACC;
-        break;
-      }
-      case 7: {
-        // BMI
-        this._branch(this.F_SIGN !== 0);
-        break;
-      }
-      case 8: {
-        // BNE
-        this._branch(this.F_ZERO !== 0);
-        break;
-      }
-      case 9: {
-        // BPL
-        this._branch(this.F_SIGN === 0);
-        break;
-      }
-      case 10: {
-        // BRK: a software interrupt. The byte after the opcode is read and
-        // skipped ("padding byte"), then it behaves like an IRQ except that
-        // the pushed status has the B flag set.
-        this._fetch();
-        this._interruptSequence(VECTOR_IRQ, true);
-        break;
-      }
-      case 11: {
-        // BVC
-        this._branch(this.F_OVERFLOW === 0);
-        break;
-      }
-      case 12: {
-        // BVS
-        this._branch(this.F_OVERFLOW !== 0);
-        break;
-      }
-      case 13: {
-        // CLC
-        this.read(this.REG_PC);
-        this.F_CARRY = 0;
-        break;
-      }
-      case 14: {
-        // CLD
-        this.read(this.REG_PC);
-        this.F_DECIMAL = 0;
-        break;
-      }
-      case 15: {
-        // CLI. The flag changes after this instruction's interrupt polling,
-        // so a pending IRQ is serviced only after the *next* instruction.
-        this.read(this.REG_PC);
-        this.F_INTERRUPT = 0;
-        this.nextEvent = 0; // the IRQ line may need sampling now
-        break;
-      }
-      case 16: {
-        // CLV
-        this.read(this.REG_PC);
-        this.F_OVERFLOW = 0;
-        break;
-      }
-      case 17: {
-        // CMP
-        this._compare(this.REG_ACC, this.read(addr));
-        break;
-      }
-      case 18: {
-        // CPX
-        this._compare(this.REG_X, this.read(addr));
-        break;
-      }
-      case 19: {
-        // CPY
-        this._compare(this.REG_Y, this.read(addr));
-        break;
-      }
-      case 20: {
-        // DEC
-        value = this.read(addr);
-        this.write(addr, value);
-        value = (value - 1) & 0xff;
-        this.F_SIGN = value >> 7;
-        this.F_ZERO = value;
-        this.write(addr, value);
-        break;
-      }
-      case 21: {
-        // DEX
-        this.read(this.REG_PC);
-        this.REG_X = (this.REG_X - 1) & 0xff;
-        this.F_SIGN = this.REG_X >> 7;
-        this.F_ZERO = this.REG_X;
-        break;
-      }
-      case 22: {
-        // DEY
-        this.read(this.REG_PC);
-        this.REG_Y = (this.REG_Y - 1) & 0xff;
-        this.F_SIGN = this.REG_Y >> 7;
-        this.F_ZERO = this.REG_Y;
-        break;
-      }
-      case 23: {
-        // EOR
-        this.REG_ACC ^= this.read(addr);
-        this.F_SIGN = this.REG_ACC >> 7;
-        this.F_ZERO = this.REG_ACC;
-        break;
-      }
-      case 24: {
-        // INC
-        value = this.read(addr);
-        this.write(addr, value);
-        value = (value + 1) & 0xff;
-        this.F_SIGN = value >> 7;
-        this.F_ZERO = value;
-        this.write(addr, value);
-        break;
-      }
-      case 25: {
-        // INX
-        this.read(this.REG_PC);
-        this.REG_X = (this.REG_X + 1) & 0xff;
-        this.F_SIGN = this.REG_X >> 7;
-        this.F_ZERO = this.REG_X;
-        break;
-      }
-      case 26: {
-        // INY
-        this.read(this.REG_PC);
-        this.REG_Y = (this.REG_Y + 1) & 0xff;
-        this.F_SIGN = this.REG_Y >> 7;
-        this.F_ZERO = this.REG_Y;
-        break;
-      }
-      case 27: {
-        // JMP
-        if (mode === ADDR_INDABS) {
-          // JMP (indirect). The famous 6502 bug: the pointer's high byte is
-          // read from the same page as its low byte, so JMP ($10FF) reads
-          // $10FF and $1000.
+        case 28: {
+          // JSR. Cycle order: fetch low byte of target, dummy read of the
+          // stack, push return address (high, low), then fetch the high byte
+          // of the target. The high byte fetch is the last bus operation, so
+          // it's what's left on the data bus when the subroutine starts.
           const lo = this._fetch();
-          const hi = this._fetch();
-          const ptr = (hi << 8) | lo;
-          const pcl = this.read(ptr);
-          const pch = this.read((ptr & 0xff00) | ((ptr + 1) & 0xff));
+          this.read(0x100 | this.REG_SP);
+          this.push(this.REG_PC >> 8);
+          this.push(this.REG_PC & 0xff);
+          const hi = this.read(this.REG_PC);
+          this.REG_PC = (hi << 8) | lo;
+          break;
+        }
+        case 29: {
+          // LDA
+          this.REG_ACC = this.F_ZERO = this.read(addr);
+          this.F_SIGN = this.REG_ACC >> 7;
+          break;
+        }
+        case 30: {
+          // LDX
+          this.REG_X = this.F_ZERO = this.read(addr);
+          this.F_SIGN = this.REG_X >> 7;
+          break;
+        }
+        case 31: {
+          // LDY
+          this.REG_Y = this.F_ZERO = this.read(addr);
+          this.F_SIGN = this.REG_Y >> 7;
+          break;
+        }
+        case 32: {
+          // LSR
+          if (mode === ADDR_ACC) {
+            this.read(this.REG_PC);
+            this.REG_ACC = this._lsr(this.REG_ACC);
+          } else {
+            value = this.read(addr);
+            this.write(addr, value);
+            this.write(addr, this._lsr(value));
+          }
+          break;
+        }
+        case 33: {
+          // NOP (implied)
+          this.read(this.REG_PC);
+          break;
+        }
+        case 34: {
+          // ORA
+          this.REG_ACC |= this.read(addr);
+          this.F_SIGN = this.REG_ACC >> 7;
+          this.F_ZERO = this.REG_ACC;
+          break;
+        }
+        case 35: {
+          // PHA
+          this.read(this.REG_PC);
+          this.push(this.REG_ACC);
+          break;
+        }
+        case 36: {
+          // PHP. The pushed copy always has bits 4 (B) and 5 set.
+          this.read(this.REG_PC);
+          this.push(this.getStatus() | 0x30);
+          break;
+        }
+        case 37: {
+          // PLA
+          this.read(this.REG_PC);
+          this.read(0x100 | this.REG_SP); // dummy read while incrementing SP
+          this.REG_ACC = this.F_ZERO = this.pull();
+          this.F_SIGN = this.REG_ACC >> 7;
+          break;
+        }
+        case 38: {
+          // PLP. Like CLI/SEI, the new I flag only takes effect for interrupt
+          // polling after this instruction.
+          this.read(this.REG_PC);
+          this.read(0x100 | this.REG_SP);
+          this.setStatusFromStack(this.pull());
+          break;
+        }
+        case 39: {
+          // ROL
+          if (mode === ADDR_ACC) {
+            this.read(this.REG_PC);
+            this.REG_ACC = this._rol(this.REG_ACC);
+          } else {
+            value = this.read(addr);
+            this.write(addr, value);
+            this.write(addr, this._rol(value));
+          }
+          break;
+        }
+        case 40: {
+          // ROR
+          if (mode === ADDR_ACC) {
+            this.read(this.REG_PC);
+            this.REG_ACC = this._ror(this.REG_ACC);
+          } else {
+            value = this.read(addr);
+            this.write(addr, value);
+            this.write(addr, this._ror(value));
+          }
+          break;
+        }
+        case 41: {
+          // RTI. The status is restored before the last two cycles, so unlike
+          // CLI/PLP, a newly cleared I flag takes effect immediately.
+          this.read(this.REG_PC);
+          this.read(0x100 | this.REG_SP);
+          this.setStatusFromStack(this.pull());
+          const pcl = this.pull();
+          const pch = this.pull();
           this.REG_PC = (pch << 8) | pcl;
-        } else {
-          this.REG_PC = addr;
+          break;
         }
-        break;
-      }
-      case 28: {
-        // JSR. Cycle order: fetch low byte of target, dummy read of the
-        // stack, push return address (high, low), then fetch the high byte
-        // of the target. The high byte fetch is the last bus operation, so
-        // it's what's left on the data bus when the subroutine starts.
-        const lo = this._fetch();
-        this.read(0x100 | this.REG_SP);
-        this.push(this.REG_PC >> 8);
-        this.push(this.REG_PC & 0xff);
-        const hi = this.read(this.REG_PC);
-        this.REG_PC = (hi << 8) | lo;
-        break;
-      }
-      case 29: {
-        // LDA
-        this.REG_ACC = this.F_ZERO = this.read(addr);
-        this.F_SIGN = this.REG_ACC >> 7;
-        break;
-      }
-      case 30: {
-        // LDX
-        this.REG_X = this.F_ZERO = this.read(addr);
-        this.F_SIGN = this.REG_X >> 7;
-        break;
-      }
-      case 31: {
-        // LDY
-        this.REG_Y = this.F_ZERO = this.read(addr);
-        this.F_SIGN = this.REG_Y >> 7;
-        break;
-      }
-      case 32: {
-        // LSR
-        if (mode === ADDR_ACC) {
+        case 42: {
+          // RTS
           this.read(this.REG_PC);
-          this.REG_ACC = this._lsr(this.REG_ACC);
-        } else {
+          this.read(0x100 | this.REG_SP);
+          const pcl = this.pull();
+          const pch = this.pull();
+          this.REG_PC = (pch << 8) | pcl;
+          this.read(this.REG_PC); // dummy read while incrementing PC
+          this.REG_PC = (this.REG_PC + 1) & 0xffff;
+          break;
+        }
+        case 43: {
+          // SBC
+          this._adc(this.read(addr) ^ 0xff);
+          break;
+        }
+        case 44: {
+          // SEC
+          this.read(this.REG_PC);
+          this.F_CARRY = 1;
+          break;
+        }
+        case 45: {
+          // SED
+          this.read(this.REG_PC);
+          this.F_DECIMAL = 1;
+          break;
+        }
+        case 46: {
+          // SEI
+          this.read(this.REG_PC);
+          this.F_INTERRUPT = 1;
+          break;
+        }
+        case 47: {
+          // STA
+          this.write(addr, this.REG_ACC);
+          break;
+        }
+        case 48: {
+          // STX
+          this.write(addr, this.REG_X);
+          break;
+        }
+        case 49: {
+          // STY
+          this.write(addr, this.REG_Y);
+          break;
+        }
+        case 50: {
+          // TAX
+          this.read(this.REG_PC);
+          this.REG_X = this.F_ZERO = this.REG_ACC;
+          this.F_SIGN = this.REG_ACC >> 7;
+          break;
+        }
+        case 51: {
+          // TAY
+          this.read(this.REG_PC);
+          this.REG_Y = this.F_ZERO = this.REG_ACC;
+          this.F_SIGN = this.REG_ACC >> 7;
+          break;
+        }
+        case 52: {
+          // TSX
+          this.read(this.REG_PC);
+          this.REG_X = this.F_ZERO = this.REG_SP;
+          this.F_SIGN = this.REG_SP >> 7;
+          break;
+        }
+        case 53: {
+          // TXA
+          this.read(this.REG_PC);
+          this.REG_ACC = this.F_ZERO = this.REG_X;
+          this.F_SIGN = this.REG_X >> 7;
+          break;
+        }
+        case 54: {
+          // TXS (doesn't affect flags)
+          this.read(this.REG_PC);
+          this.REG_SP = this.REG_X;
+          break;
+        }
+        case 55: {
+          // TYA
+          this.read(this.REG_PC);
+          this.REG_ACC = this.F_ZERO = this.REG_Y;
+          this.F_SIGN = this.REG_Y >> 7;
+          break;
+        }
+
+        // ---------------- Unofficial opcodes ----------------
+        case 56: {
+          // ALR (ASR): AND immediate, then LSR A.
+          this.REG_ACC = this._lsr(this.REG_ACC & this.read(addr));
+          break;
+        }
+        case 57: {
+          // ANC: AND immediate, then copy bit 7 of the result into carry.
+          this.REG_ACC &= this.read(addr);
+          this.F_SIGN = this.F_CARRY = this.REG_ACC >> 7;
+          this.F_ZERO = this.REG_ACC;
+          break;
+        }
+        case 58: {
+          // ARR: AND immediate, then ROR A, with C and V set from bits 6 and
+          // 5 of the result in a peculiar way (a side effect of the decimal
+          // mode adder hardware).
+          temp = this.REG_ACC & this.read(addr);
+          this.REG_ACC = ((temp >> 1) | (this.F_CARRY << 7)) & 0xff;
+          this.F_ZERO = this.REG_ACC;
+          this.F_SIGN = this.REG_ACC >> 7;
+          this.F_CARRY = (this.REG_ACC >> 6) & 1;
+          this.F_OVERFLOW = ((this.REG_ACC >> 6) ^ (this.REG_ACC >> 5)) & 1;
+          break;
+        }
+        case 59: {
+          // AXS (SBX): X = (A & X) - immediate, setting flags like CMP.
+          temp = (this.REG_ACC & this.REG_X) - this.read(addr);
+          this.F_CARRY = temp >= 0 ? 1 : 0;
+          this.REG_X = this.F_ZERO = temp & 0xff;
+          this.F_SIGN = this.REG_X >> 7;
+          break;
+        }
+        case 60: {
+          // LAX: load A and X.
+          this.REG_ACC = this.REG_X = this.F_ZERO = this.read(addr);
+          this.F_SIGN = this.REG_ACC >> 7;
+          break;
+        }
+        case 61: {
+          // SAX: store A & X.
+          this.write(addr, this.REG_ACC & this.REG_X);
+          break;
+        }
+        case 62: {
+          // DCP: DEC memory, then CMP with A.
           value = this.read(addr);
           this.write(addr, value);
-          this.write(addr, this._lsr(value));
+          value = (value - 1) & 0xff;
+          this.write(addr, value);
+          this._compare(this.REG_ACC, value);
+          break;
         }
-        break;
-      }
-      case 33: {
-        // NOP (implied)
-        this.read(this.REG_PC);
-        break;
-      }
-      case 34: {
-        // ORA
-        this.REG_ACC |= this.read(addr);
-        this.F_SIGN = this.REG_ACC >> 7;
-        this.F_ZERO = this.REG_ACC;
-        break;
-      }
-      case 35: {
-        // PHA
-        this.read(this.REG_PC);
-        this.push(this.REG_ACC);
-        break;
-      }
-      case 36: {
-        // PHP. The pushed copy always has bits 4 (B) and 5 set.
-        this.read(this.REG_PC);
-        this.push(this.getStatus() | 0x30);
-        break;
-      }
-      case 37: {
-        // PLA
-        this.read(this.REG_PC);
-        this.read(0x100 | this.REG_SP); // dummy read while incrementing SP
-        this.REG_ACC = this.F_ZERO = this.pull();
-        this.F_SIGN = this.REG_ACC >> 7;
-        break;
-      }
-      case 38: {
-        // PLP. Like CLI/SEI, the new I flag only takes effect for interrupt
-        // polling after this instruction.
-        this.read(this.REG_PC);
-        this.read(0x100 | this.REG_SP);
-        this.setStatusFromStack(this.pull());
-        break;
-      }
-      case 39: {
-        // ROL
-        if (mode === ADDR_ACC) {
-          this.read(this.REG_PC);
-          this.REG_ACC = this._rol(this.REG_ACC);
-        } else {
+        case 63: {
+          // ISC: INC memory, then SBC.
           value = this.read(addr);
           this.write(addr, value);
-          this.write(addr, this._rol(value));
+          value = (value + 1) & 0xff;
+          this.write(addr, value);
+          this._adc(value ^ 0xff);
+          break;
         }
-        break;
-      }
-      case 40: {
-        // ROR
-        if (mode === ADDR_ACC) {
-          this.read(this.REG_PC);
-          this.REG_ACC = this._ror(this.REG_ACC);
-        } else {
+        case 64: {
+          // RLA: ROL memory, then AND with A.
           value = this.read(addr);
           this.write(addr, value);
-          this.write(addr, this._ror(value));
+          value = this._rol(value);
+          this.write(addr, value);
+          this.REG_ACC &= value;
+          this.F_SIGN = this.REG_ACC >> 7;
+          this.F_ZERO = this.REG_ACC;
+          break;
         }
-        break;
-      }
-      case 41: {
-        // RTI. The status is restored before the last two cycles, so unlike
-        // CLI/PLP, a newly cleared I flag takes effect immediately.
-        this.read(this.REG_PC);
-        this.read(0x100 | this.REG_SP);
-        this.setStatusFromStack(this.pull());
-        const pcl = this.pull();
-        const pch = this.pull();
-        this.REG_PC = (pch << 8) | pcl;
-        break;
-      }
-      case 42: {
-        // RTS
-        this.read(this.REG_PC);
-        this.read(0x100 | this.REG_SP);
-        const pcl = this.pull();
-        const pch = this.pull();
-        this.REG_PC = (pch << 8) | pcl;
-        this.read(this.REG_PC); // dummy read while incrementing PC
-        this.REG_PC = (this.REG_PC + 1) & 0xffff;
-        break;
-      }
-      case 43: {
-        // SBC
-        this._adc(this.read(addr) ^ 0xff);
-        break;
-      }
-      case 44: {
-        // SEC
-        this.read(this.REG_PC);
-        this.F_CARRY = 1;
-        break;
-      }
-      case 45: {
-        // SED
-        this.read(this.REG_PC);
-        this.F_DECIMAL = 1;
-        break;
-      }
-      case 46: {
-        // SEI
-        this.read(this.REG_PC);
-        this.F_INTERRUPT = 1;
-        break;
-      }
-      case 47: {
-        // STA
-        this.write(addr, this.REG_ACC);
-        break;
-      }
-      case 48: {
-        // STX
-        this.write(addr, this.REG_X);
-        break;
-      }
-      case 49: {
-        // STY
-        this.write(addr, this.REG_Y);
-        break;
-      }
-      case 50: {
-        // TAX
-        this.read(this.REG_PC);
-        this.REG_X = this.F_ZERO = this.REG_ACC;
-        this.F_SIGN = this.REG_ACC >> 7;
-        break;
-      }
-      case 51: {
-        // TAY
-        this.read(this.REG_PC);
-        this.REG_Y = this.F_ZERO = this.REG_ACC;
-        this.F_SIGN = this.REG_ACC >> 7;
-        break;
-      }
-      case 52: {
-        // TSX
-        this.read(this.REG_PC);
-        this.REG_X = this.F_ZERO = this.REG_SP;
-        this.F_SIGN = this.REG_SP >> 7;
-        break;
-      }
-      case 53: {
-        // TXA
-        this.read(this.REG_PC);
-        this.REG_ACC = this.F_ZERO = this.REG_X;
-        this.F_SIGN = this.REG_X >> 7;
-        break;
-      }
-      case 54: {
-        // TXS (doesn't affect flags)
-        this.read(this.REG_PC);
-        this.REG_SP = this.REG_X;
-        break;
-      }
-      case 55: {
-        // TYA
-        this.read(this.REG_PC);
-        this.REG_ACC = this.F_ZERO = this.REG_Y;
-        this.F_SIGN = this.REG_Y >> 7;
-        break;
+        case 65: {
+          // RRA: ROR memory, then ADC.
+          value = this.read(addr);
+          this.write(addr, value);
+          value = this._ror(value);
+          this.write(addr, value);
+          this._adc(value);
+          break;
+        }
+        case 66: {
+          // SLO: ASL memory, then ORA with A.
+          value = this.read(addr);
+          this.write(addr, value);
+          value = this._asl(value);
+          this.write(addr, value);
+          this.REG_ACC |= value;
+          this.F_SIGN = this.REG_ACC >> 7;
+          this.F_ZERO = this.REG_ACC;
+          break;
+        }
+        case 67: {
+          // SRE: LSR memory, then EOR with A.
+          value = this.read(addr);
+          this.write(addr, value);
+          value = this._lsr(value);
+          this.write(addr, value);
+          this.REG_ACC ^= value;
+          this.F_SIGN = this.REG_ACC >> 7;
+          this.F_ZERO = this.REG_ACC;
+          break;
+        }
+        case 68: {
+          // SKB: 2-byte NOP that reads its immediate operand.
+          this.read(addr);
+          break;
+        }
+        case 69: {
+          // IGN: NOP that reads from memory using its addressing mode.
+          this.read(addr);
+          break;
+        }
+        case 71: {
+          // SHA (AHX): store A & X & (H+1).
+          this._shx(addr, this.REG_ACC & this.REG_X, baseHigh, crossed);
+          break;
+        }
+        case 72: {
+          // SHS (TAS): SP = A & X, then store SP & (H+1).
+          this.REG_SP = this.REG_ACC & this.REG_X;
+          this._shx(addr, this.REG_SP, baseHigh, crossed);
+          break;
+        }
+        case 73: {
+          // SHY: store Y & (H+1).
+          this._shx(addr, this.REG_Y, baseHigh, crossed);
+          break;
+        }
+        case 74: {
+          // SHX: store X & (H+1).
+          this._shx(addr, this.REG_X, baseHigh, crossed);
+          break;
+        }
+        case 75: {
+          // LAE (LAS): A = X = SP = memory & SP.
+          temp = this.read(addr) & this.REG_SP;
+          this.REG_ACC = this.REG_X = this.REG_SP = this.F_ZERO = temp;
+          this.F_SIGN = temp >> 7;
+          break;
+        }
+        case 76: {
+          // ANE (XAA): A = (A | magic) & X & immediate. The "magic" constant
+          // varies between chips; $FF is the most common value.
+          this.REG_ACC = this.F_ZERO =
+            (this.REG_ACC | 0xff) & this.REG_X & this.read(addr);
+          this.F_SIGN = this.REG_ACC >> 7;
+          break;
+        }
+        case 77: {
+          // LXA: A = X = (A | magic) & immediate.
+          this.REG_ACC =
+            this.REG_X =
+            this.F_ZERO =
+              (this.REG_ACC | 0xff) & this.read(addr);
+          this.F_SIGN = this.REG_ACC >> 7;
+          break;
+        }
+        default: {
+          // KIL/JAM opcodes lock up a real 6502.
+          throw new Error(
+            `Game crashed, invalid opcode at address $${((this.REG_PC - 1) & 0xffff).toString(16)}`,
+          );
+        }
       }
 
-      // ---------------- Unofficial opcodes ----------------
-      case 56: {
-        // ALR (ASR): AND immediate, then LSR A.
-        this.REG_ACC = this._lsr(this.REG_ACC & this.read(addr));
-        break;
+      // Service an interrupt if one was pending as of the second-to-last
+      // cycle of the instruction.
+      if (this.prevNeedNmi || this.prevRunIrq) {
+        this._interruptSequence(VECTOR_IRQ, false);
       }
-      case 57: {
-        // ANC: AND immediate, then copy bit 7 of the result into carry.
-        this.REG_ACC &= this.read(addr);
-        this.F_SIGN = this.F_CARRY = this.REG_ACC >> 7;
-        this.F_ZERO = this.REG_ACC;
-        break;
-      }
-      case 58: {
-        // ARR: AND immediate, then ROR A, with C and V set from bits 6 and
-        // 5 of the result in a peculiar way (a side effect of the decimal
-        // mode adder hardware).
-        temp = this.REG_ACC & this.read(addr);
-        this.REG_ACC = ((temp >> 1) | (this.F_CARRY << 7)) & 0xff;
-        this.F_ZERO = this.REG_ACC;
-        this.F_SIGN = this.REG_ACC >> 7;
-        this.F_CARRY = (this.REG_ACC >> 6) & 1;
-        this.F_OVERFLOW = ((this.REG_ACC >> 6) ^ (this.REG_ACC >> 5)) & 1;
-        break;
-      }
-      case 59: {
-        // AXS (SBX): X = (A & X) - immediate, setting flags like CMP.
-        temp = (this.REG_ACC & this.REG_X) - this.read(addr);
-        this.F_CARRY = temp >= 0 ? 1 : 0;
-        this.REG_X = this.F_ZERO = temp & 0xff;
-        this.F_SIGN = this.REG_X >> 7;
-        break;
-      }
-      case 60: {
-        // LAX: load A and X.
-        this.REG_ACC = this.REG_X = this.F_ZERO = this.read(addr);
-        this.F_SIGN = this.REG_ACC >> 7;
-        break;
-      }
-      case 61: {
-        // SAX: store A & X.
-        this.write(addr, this.REG_ACC & this.REG_X);
-        break;
-      }
-      case 62: {
-        // DCP: DEC memory, then CMP with A.
-        value = this.read(addr);
-        this.write(addr, value);
-        value = (value - 1) & 0xff;
-        this.write(addr, value);
-        this._compare(this.REG_ACC, value);
-        break;
-      }
-      case 63: {
-        // ISC: INC memory, then SBC.
-        value = this.read(addr);
-        this.write(addr, value);
-        value = (value + 1) & 0xff;
-        this.write(addr, value);
-        this._adc(value ^ 0xff);
-        break;
-      }
-      case 64: {
-        // RLA: ROL memory, then AND with A.
-        value = this.read(addr);
-        this.write(addr, value);
-        value = this._rol(value);
-        this.write(addr, value);
-        this.REG_ACC &= value;
-        this.F_SIGN = this.REG_ACC >> 7;
-        this.F_ZERO = this.REG_ACC;
-        break;
-      }
-      case 65: {
-        // RRA: ROR memory, then ADC.
-        value = this.read(addr);
-        this.write(addr, value);
-        value = this._ror(value);
-        this.write(addr, value);
-        this._adc(value);
-        break;
-      }
-      case 66: {
-        // SLO: ASL memory, then ORA with A.
-        value = this.read(addr);
-        this.write(addr, value);
-        value = this._asl(value);
-        this.write(addr, value);
-        this.REG_ACC |= value;
-        this.F_SIGN = this.REG_ACC >> 7;
-        this.F_ZERO = this.REG_ACC;
-        break;
-      }
-      case 67: {
-        // SRE: LSR memory, then EOR with A.
-        value = this.read(addr);
-        this.write(addr, value);
-        value = this._lsr(value);
-        this.write(addr, value);
-        this.REG_ACC ^= value;
-        this.F_SIGN = this.REG_ACC >> 7;
-        this.F_ZERO = this.REG_ACC;
-        break;
-      }
-      case 68: {
-        // SKB: 2-byte NOP that reads its immediate operand.
-        this.read(addr);
-        break;
-      }
-      case 69: {
-        // IGN: NOP that reads from memory using its addressing mode.
-        this.read(addr);
-        break;
-      }
-      case 71: {
-        // SHA (AHX): store A & X & (H+1).
-        this._shx(addr, this.REG_ACC & this.REG_X, baseHigh, crossed);
-        break;
-      }
-      case 72: {
-        // SHS (TAS): SP = A & X, then store SP & (H+1).
-        this.REG_SP = this.REG_ACC & this.REG_X;
-        this._shx(addr, this.REG_SP, baseHigh, crossed);
-        break;
-      }
-      case 73: {
-        // SHY: store Y & (H+1).
-        this._shx(addr, this.REG_Y, baseHigh, crossed);
-        break;
-      }
-      case 74: {
-        // SHX: store X & (H+1).
-        this._shx(addr, this.REG_X, baseHigh, crossed);
-        break;
-      }
-      case 75: {
-        // LAE (LAS): A = X = SP = memory & SP.
-        temp = this.read(addr) & this.REG_SP;
-        this.REG_ACC = this.REG_X = this.REG_SP = this.F_ZERO = temp;
-        this.F_SIGN = temp >> 7;
-        break;
-      }
-      case 76: {
-        // ANE (XAA): A = (A | magic) & X & immediate. The "magic" constant
-        // varies between chips; $FF is the most common value.
-        this.REG_ACC = this.F_ZERO =
-          (this.REG_ACC | 0xff) & this.REG_X & this.read(addr);
-        this.F_SIGN = this.REG_ACC >> 7;
-        break;
-      }
-      case 77: {
-        // LXA: A = X = (A | magic) & immediate.
-        this.REG_ACC =
-          this.REG_X =
-          this.F_ZERO =
-            (this.REG_ACC | 0xff) & this.read(addr);
-        this.F_SIGN = this.REG_ACC >> 7;
-        break;
-      }
-      default: {
-        // KIL/JAM opcodes lock up a real 6502.
-        throw new Error(
-          `Game crashed, invalid opcode at address $${((this.REG_PC - 1) & 0xffff).toString(16)}`,
-        );
-      }
-    }
-
-    // Service an interrupt if one was pending as of the second-to-last
-    // cycle of the instruction.
-    if (this.prevNeedNmi || this.prevRunIrq) {
-      this._interruptSequence(VECTOR_IRQ, false);
-    }
+    } while (untilFrameEnd && !this.ppu.frameEnded);
 
     return this.cycles - startCycles;
   }
