@@ -24,6 +24,9 @@ class ChannelNoise {
     this.tmp = 0;
     this.accValue = 0;
     this.accCount = 1;
+    // Cycles not run yet while the channel is silent (see
+    // PAPU._clockNoise()).
+    this.silentCycles = 0;
   }
 
   clockLengthCounter() {

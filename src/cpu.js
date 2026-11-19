@@ -639,6 +639,13 @@ const KIND_SPECIAL = 2;
 const OP_INS = new Uint8Array(256).fill(255);
 const OP_MODE = new Uint8Array(256);
 const OP_KIND = new Uint8Array(256);
+// OP_STEP[op] - which case of the addressing switch in emulate() to run:
+// the ADDR_* mode, except STEP_NONE for KIND_SPECIAL, and the indexed
+// modes that differ for KIND_WRITE (they always do the dummy read) get
+// ADDR_* + STEP_WRITE. So one switch does the whole addressing step.
+const OP_STEP = new Uint8Array(256);
+const STEP_NONE = 13;
+const STEP_WRITE = 6; // ADDR_ABSX -> 14, ADDR_ABSY -> 15, ADDR_POSTIDXIND -> 17
 
 for (const key of Object.keys(OPCODE_TABLE)) {
   const op = Number(key);
@@ -691,6 +698,19 @@ for (const key of Object.keys(OPCODE_TABLE)) {
     kind = KIND_SPECIAL;
   }
   OP_KIND[op] = kind;
+  // The case of the addressing switch in emulate() (see OP_STEP below).
+  if (kind === KIND_SPECIAL) {
+    OP_STEP[op] = STEP_NONE;
+  } else if (
+    kind === KIND_WRITE &&
+    (info.mode === ADDR_ABSX ||
+      info.mode === ADDR_ABSY ||
+      info.mode === ADDR_POSTIDXIND)
+  ) {
+    OP_STEP[op] = info.mode + STEP_WRITE;
+  } else {
+    OP_STEP[op] = info.mode;
+  }
 }
 
 // Interrupt vectors (addresses of the 16-bit handler pointers).
@@ -799,6 +819,32 @@ class CPU {
     // CPU cycle is either a "get" cycle or a "put" cycle.
     // See https://www.nesdev.org/wiki/DMA
     this.cycles = 0;
+    // The cycles whose PPU dots have been added to ppu.dotTarget, and the
+    // first cycle that needs the full per-cycle processing. See "Fast and
+    // slow cycles" below.
+    this.ppuCycles = 0;
+    this.nextEvent = 0;
+
+    // Idle loop detection (see _idleLoopCheck()): a count of writes and
+    // slow reads, whether skipping is allowed, and a snapshot of the state
+    // at the start of the last loop iteration.
+    this.sideEffects = 0;
+    this.predictedReads = 0;
+    this.loopPredictedReads = 0;
+    this.idleSkip = false;
+    this.loopPc = -1;
+    this.loopSideEffects = 0;
+    this.loopCycles = 0;
+    this.loopA = 0;
+    this.loopX = 0;
+    this.loopY = 0;
+    this.loopSP = 0;
+    this.loopC = 0;
+    this.loopZ = 0;
+    this.loopN = 0;
+    this.loopV = 0;
+    this.loopI = 0;
+    this.loopD = 0;
 
     // Tracks the last value on the CPU data bus. When reading from unmapped
     // addresses ("open bus"), the NES returns this value. Updated on every
@@ -854,6 +900,8 @@ class CPU {
     // True when PRG ROM reads ($8000-$FFFF) can come straight from cpu.mem
     // instead of going through the mapper. See _updatePrgReadPath().
     this.directPrgReads = false;
+    this.directReadStart = 0x10000;
+    this.scanlineMapper = false;
 
     // Shortcuts to the PPU and APU, which are advanced on every cycle.
     // (The NES sets these again once it has created all its components.)
@@ -865,8 +913,44 @@ class CPU {
   // Bus cycles
   // ==========================================================================
 
+  // --- Fast and slow cycles ---
+  //
+  // Most cycles are reads of RAM or PRG ROM, or writes to RAM, in which
+  // nothing but the CPU is involved: no DMA is waiting, the APU has nothing
+  // to do but count, the PPU has no event the CPU could notice, and the
+  // interrupt lines are quiet. For those, all the per-cycle bookkeeping in
+  // _endCycle() would leave everything as it is (apart from the PPU's dot
+  // count, which is caught up later), so read() and write() skip it.
+  //
+  // nextEvent is the first cycle that can't be done this way. It's worked
+  // out at the end of every slow cycle (_updateNextEvent()), and anything
+  // that changes the state it depends on outside of a slow cycle sets it
+  // to 0, so that the next cycle is a slow one and it gets worked out
+  // again. Setting it to 0 is always safe.
+
   // One CPU read cycle.
   read(addr) {
+    const c = this.cycles + 1;
+    if (c < this.nextEvent) {
+      if (addr >= this.directReadStart) {
+        // PRG ROM (see _updatePrgReadPath()).
+        this.cycles = c;
+        return (this.dataBus = this.mem[addr]);
+      }
+      if (addr < 0x2000) {
+        // Internal RAM, mirrored every 2KB.
+        this.cycles = c;
+        return (this.dataBus = this.mem[addr & 0x7ff]);
+      }
+    }
+    return this._readSlow(addr);
+  }
+
+  // A read cycle, with everything else that happens in the cycle.
+  _readSlow(addr) {
+    // (See _idleLoopCheck(). A $2002 read answered from the PPU's
+    // prediction is undone below.)
+    this.sideEffects++;
     if (this.dmaNeedHalt) {
       this._runDma(addr);
     }
@@ -893,7 +977,19 @@ class CPU {
       ) {
         // The PPU (or a mapper that watches it) may be involved: bring the
         // PPU up to date first. See PPU.catchUp().
-        this._syncPpu(addr);
+        if ((addr & 0xe007) === 0x2002) {
+          if (
+            this._syncPpuForStatus() &&
+            this.lastDmaEndCycle !== this.cycles - 1
+          ) {
+            // Reading $2002 again with the flags unchanged leaves
+            // everything as it was (see "$2002 polling" in the PPU).
+            this.sideEffects--;
+            this.predictedReads++;
+          }
+        } else {
+          this._syncPpu(addr);
+        }
       }
       value = this.nes.mmap.load(addr);
       if (this._gameGenieActive && addr >= 0x8000) {
@@ -911,17 +1007,49 @@ class CPU {
   // (the Zapper looks at the screen).
   _syncPpu(addr) {
     const ppu = this.ppu;
+    // Anything but a $2002 read might change the rendering.
+    ppu.statusPredValid = false;
+    // The dots of all the cycles before this one are owed.
+    const done = this.cycles - 1;
+    ppu.dotTarget += 3 * (done - this.ppuCycles);
+    this.ppuCycles = done;
     ppu.catchUp();
-    if (addr < 0x4000) {
-      // A PPU register access can change the PPU's upcoming events (e.g.
-      // enabling NMI or rendering), so re-check them this cycle.
+    if (addr < 0x4000 && (addr & 7) <= 2) {
+      // $2000-$2002 accesses can change the PPU's upcoming events and its
+      // NMI output (enabling NMI or rendering, clearing the VBlank flag),
+      // so re-check them this cycle. (The other registers can't.)
       ppu.nextEventDot = 0;
     }
+  }
+
+  // _syncPpu() for a $2002 (PPUSTATUS) read, which often doesn't need the
+  // PPU to be caught up. See "$2002 polling" in the PPU.
+  // Returns true if the PPU didn't need to be caught up.
+  _syncPpuForStatus() {
+    const ppu = this.ppu;
+    const owed = 3 * (this.cycles - 1 - this.ppuCycles);
+    if (ppu.statusPredicted(ppu.dotTarget + owed)) return true;
+    this._syncPpu(0x2002);
+    ppu.predictStatus();
+    return false;
   }
 
   // One CPU write cycle. Writes are never interrupted by DMA: if a DMA
   // becomes pending during a write, it waits for the next read cycle.
   write(addr, value) {
+    this.sideEffects++; // (see _idleLoopCheck())
+    const c = this.cycles + 1;
+    if (c < this.nextEvent && addr < 0x2000) {
+      // Internal RAM (see "Fast and slow cycles" above).
+      this.cycles = c;
+      this.dataBus = value;
+      this.mem[addr & 0x7ff] = value;
+      return;
+    }
+    this._writeSlow(addr, value);
+  }
+
+  _writeSlow(addr, value) {
     if (this.abortedDmaCycle === this.cycles + 1 && this.dmcDmaAbort) {
       // A pending 1-cycle aborted DMC DMA lands on a write: it vanishes.
       this.dmcDmaRunning = false;
@@ -940,6 +1068,12 @@ class CPU {
         this._syncPpu(addr);
       }
       this.nes.mmap.write(addr, value);
+      if (addr >= 0x8000 && this.scanlineMapper) {
+        // Writing a mapper register can change when its scanline counter
+        // raises an IRQ (see Mapper0.irqClocksUntilIrq()), which is one of
+        // the PPU's events: re-check them this cycle.
+        this.ppu.nextEventDot = 0;
+      }
     }
     this._endCycle();
   }
@@ -954,7 +1088,9 @@ class CPU {
   // step for that cycle instead. See PPU.catchUp().
   _endCycle() {
     const ppu = this.ppu;
-    ppu.dotTarget += 3;
+    // This cycle's 3 dots, and those of any fast cycles before it.
+    ppu.dotTarget += 3 * (this.cycles - this.ppuCycles);
+    this.ppuCycles = this.cycles;
     let nmi;
     if (ppu.dotTarget > ppu.nextEventDot) {
       // Runs the dots and records the NMI output at the poll point.
@@ -985,13 +1121,51 @@ class CPU {
     this.nmiLine = nmi;
     this.prevRunIrq = this.runIrq;
     this.runIrq = this.irqFlags !== 0 && this.F_INTERRUPT === 0;
+
+    this._updateNextEvent();
+  }
+
+  // Work out the next cycle that has to be a slow one (see "Fast and slow
+  // cycles" above).
+  _updateNextEvent() {
+    const ppu = this.ppu;
+    if (
+      this.dmaNeedHalt ||
+      this.dmcDmaAbort ||
+      this.needNmi ||
+      this.prevNeedNmi ||
+      this.runIrq ||
+      this.prevRunIrq ||
+      (this.irqFlags !== 0 && this.F_INTERRUPT === 0) ||
+      ppu.nmiOutput !== this.nmiLine
+    ) {
+      // A DMA is waiting, or the interrupt lines need sampling every cycle.
+      this.nextEvent = 0;
+      return;
+    }
+    // The APU's next event.
+    let next = this.papu.nextEventCycle;
+    // The PPU's: the first cycle c at the end of which the PPU is owed
+    // more dots than nextEventDot, i.e. dotTarget + 3 * (c - ppuCycles) >
+    // nextEventDot. See _endCycle().
+    const p =
+      this.ppuCycles + Math.floor((ppu.nextEventDot - ppu.dotTarget) / 3) + 1;
+    if (p < next) next = p;
+    this.nextEvent = next;
+  }
+
+  // Give the PPU the dots of the fast cycles since the last slow one, so
+  // that it can be caught up from outside the CPU (e.g. for a save state).
+  flushPpuCycles() {
+    this.ppu.dotTarget += 3 * (this.cycles - this.ppuCycles);
+    this.ppuCycles = this.cycles;
   }
 
   // Read the byte at PC and advance PC.
   _fetch() {
-    const v = this.read(this.REG_PC);
-    this.REG_PC = (this.REG_PC + 1) & 0xffff;
-    return v;
+    const pc = this.REG_PC;
+    this.REG_PC = (pc + 1) & 0xffff;
+    return this.read(pc);
   }
 
   push(value) {
@@ -1018,6 +1192,7 @@ class CPU {
   // mappers in this codebase use it); IRQ_RESET resets the CPU before the
   // next instruction; IRQ_NMI forces an NMI (used by tests).
   requestIrq(type) {
+    this.nextEvent = 0;
     if (type === this.IRQ_NORMAL) {
       this.irqFlags |= IRQ_SOURCE_MAPPER;
     } else if (type === this.IRQ_NMI) {
@@ -1032,11 +1207,13 @@ class CPU {
   // Release the cartridge IRQ line (mappers call this when the game
   // acknowledges the interrupt).
   clearIrq() {
+    this.nextEvent = 0;
     this.irqFlags &= ~IRQ_SOURCE_MAPPER;
   }
 
   // Assert or release one of the APU's IRQ lines.
   setIrqSource(source, active) {
+    this.nextEvent = 0;
     if (active) {
       this.irqFlags |= source;
     } else {
@@ -1050,6 +1227,7 @@ class CPU {
   }
 
   set irqRequested(value) {
+    this.nextEvent = 0;
     if (!value) {
       this.irqFlags = 0;
       this.resetPending = false;
@@ -1083,6 +1261,7 @@ class CPU {
 
   // Called by the APU when the DMC needs its next sample byte.
   startDmcDma() {
+    this.nextEvent = 0;
     this.dmcDmaRunning = true;
     this.dmcNeedDummy = true;
     this.dmaNeedHalt = true;
@@ -1093,6 +1272,7 @@ class CPU {
   // if it has just halted the CPU it gets aborted (the CPU still loses the
   // halt cycle). See https://www.nesdev.org/wiki/DMA#DMC_DMA_abort
   stopDmcDma() {
+    this.nextEvent = 0;
     if (!this.dmcDmaRunning) return;
     if (this.dmaNeedHalt && !this.oamDmaRunning) {
       this.dmcDmaRunning = false;
@@ -1107,6 +1287,7 @@ class CPU {
   // ChannelDM._requestDma). Unlike a normal DMA, it isn't delayed by write
   // cycles: if the next cycle is a write, it simply doesn't happen.
   startAbortedDmcDma() {
+    this.nextEvent = 0;
     if (this.dmcDmaRunning) return;
     this.dmcDmaRunning = true;
     this.dmcDmaAbort = true;
@@ -1116,6 +1297,7 @@ class CPU {
 
   // Called when the game writes to $4014.
   startOamDma(page) {
+    this.nextEvent = 0;
     this.oamDmaRunning = true;
     this.oamDmaPage = page;
     this.dmaNeedHalt = true;
@@ -1225,6 +1407,68 @@ class CPU {
     this._endCycle();
   }
 
+  // An OAM DMA in one go, in the usual case where nothing else can happen
+  // during it: the CPU was halted reading RAM or ROM (so its repeated reads
+  // have no side effects), the source is RAM or ROM, there's no DMC DMA,
+  // no interrupt or catch-up event can happen before the end, and the PPU
+  // isn't rendering (so OAM writes simply go to OAM[OAMADDR++]). Returns
+  // false, having done nothing, if any of that isn't so. The result is the
+  // same as the cycle-by-cycle loop in _runDmaCycles().
+  _quickOamDma(addr) {
+    if (!this.oamDmaRunning || this.dmcDmaRunning || this.dmcDmaAbort) {
+      return false;
+    }
+    const direct = this.directPrgReads;
+    if (!(addr < 0x2000 || (addr >= 0x8000 && direct))) return false;
+    const page = this.oamDmaPage;
+    if (!(page < 0x20 || (page >= 0x80 && direct))) return false;
+    const ppu = this.ppu;
+    if (
+      this.needNmi ||
+      this.prevNeedNmi ||
+      this.runIrq ||
+      this.prevRunIrq ||
+      (this.irqFlags !== 0 && this.F_INTERRUPT === 0) ||
+      ppu.nmiOutput !== this.nmiLine
+    ) {
+      return false;
+    }
+    // Halt cycle, an alignment cycle if the next one is a put (odd) cycle,
+    // then 256 get/put pairs.
+    const start = this.cycles;
+    const total = ((start + 2) & 1) === 0 ? 513 : 514;
+    const end = start + total;
+    if (this.papu.nextEventCycle <= end) return false;
+    const owed = ppu.dotTarget + 3 * (start - this.ppuCycles);
+    if (ppu.nextEventDot < owed + 3 * total) return false;
+    // Is the PPU (once caught up) somewhere it won't render?
+    this.flushPpuCycles();
+    ppu.catchUp();
+    const notRendering =
+      (!ppu.renderingOn && ppu.maskDelay === 0) ||
+      (ppu.line >= 240 &&
+        ppu.line < 261 &&
+        ppu._dotsUntil(261, 0) > 3 * (total + 1));
+    if (!notRendering) return false;
+
+    const mem = this.mem;
+    const mmap = this.nes.mmap;
+    const base = page << 8;
+    let value = 0;
+    for (let i = 0; i < 256; i++) {
+      const a = base | i;
+      value = mem[a < 0x2000 ? a & 0x7ff : a];
+      mmap.write(0x2004, value);
+    }
+    ppu.statusPredValid = false; // (see _syncPpu())
+    this._lastDmaReadAddr = base | 0xff;
+    this.dataBus = value;
+    this.cycles = end;
+    this.oamDmaRunning = false;
+    this.sideEffects++;
+    return true;
+  }
+
   // Run any pending DMA. Called at the start of a CPU read cycle when a DMA
   // has requested a halt. `addr` is the address the CPU was about to read;
   // the halted CPU keeps putting it on the bus during idle DMA cycles.
@@ -1236,6 +1480,7 @@ class CPU {
   _runDmaCycles(addr) {
     this.dmaNeedHalt = false;
     this._lastDmaReadAddr = addr;
+    if (this._quickOamDma(addr)) return;
 
     const isController = addr === 0x4016 || addr === 0x4017;
     // On an NES (as opposed to an original Famicom), the controller only
@@ -1326,37 +1571,46 @@ class CPU {
 
   // Executes one instruction (plus any interrupt that follows it, and any
   // DMA that interrupts it). Returns the number of CPU cycles that elapsed.
-  emulate() {
+  // If untilFrameEnd is true, keeps going until the PPU has finished the
+  // frame (see NES.frame()); doing that in here saves a call per
+  // instruction.
+  emulate(untilFrameEnd = false) {
     const startCycles = this.cycles;
+    // Idle loops are only skipped when running a whole frame (so that
+    // tests that step one instruction at a time see every iteration), and
+    // RAM may have been changed from outside since the last call.
+    this.idleSkip = untilFrameEnd;
+    this.loopPc = -1;
 
-    if (this.resetPending) {
-      this.resetPending = false;
-      this._interruptSequence(VECTOR_RESET);
-      return this.cycles - startCycles;
-    }
+    do {
+      if (this.resetPending) {
+        this.resetPending = false;
+        this.sideEffects++;
+        this._interruptSequence(VECTOR_RESET);
+        continue;
+      }
 
-    const opcode = this._fetch();
-    const ins = OP_INS[opcode];
-    const mode = OP_MODE[opcode];
+      const opcode = this._fetch();
+      const ins = OP_INS[opcode];
+      const mode = OP_MODE[opcode];
 
-    // ------------------------------------------------------------------
-    // Addressing: compute the effective address for memory operands,
-    // performing the bus cycles that the real CPU performs to do so.
-    // ------------------------------------------------------------------
-    let addr = 0;
-    // High byte of the base address before indexing, needed by the SHx
-    // unofficial instructions.
-    let baseHigh = 0;
-    // Whether indexing crossed a page boundary.
-    let crossed = false;
+      // ------------------------------------------------------------------
+      // Addressing: compute the effective address for memory operands,
+      // performing the bus cycles that the real CPU performs to do so.
+      // ------------------------------------------------------------------
+      let addr = 0;
+      // High byte of the base address before indexing, needed by the SHx
+      // unofficial instructions.
+      let baseHigh = 0;
+      // Whether indexing crossed a page boundary.
+      let crossed = false;
 
-    if (OP_KIND[opcode] !== KIND_SPECIAL) {
-      const write = OP_KIND[opcode] === KIND_WRITE;
-      switch (mode) {
+      const step = OP_STEP[opcode];
+      switch (step) {
         case 5: {
           // Immediate: the operand is the byte after the opcode.
           addr = this.REG_PC;
-          this.REG_PC = (this.REG_PC + 1) & 0xffff;
+          this.REG_PC = (addr + 1) & 0xffff;
           break;
         }
         case 0: {
@@ -1364,14 +1618,20 @@ class CPU {
           addr = this._fetch();
           break;
         }
-        case 6:
-        case 7: {
-          // Zero page,X / Zero page,Y. The CPU reads from the unindexed
-          // address while it adds the index (dummy read), and the result
-          // wraps within the zero page.
+        case 6: {
+          // Zero page,X. The CPU reads from the unindexed address while it
+          // adds the index (dummy read), and the result wraps within the
+          // zero page.
           const base = this._fetch();
           this.read(base);
-          addr = (base + (mode === 6 ? this.REG_X : this.REG_Y)) & 0xff;
+          addr = (base + this.REG_X) & 0xff;
+          break;
+        }
+        case 7: {
+          // Zero page,Y. As zero page,X.
+          const base = this._fetch();
+          this.read(base);
+          addr = (base + this.REG_Y) & 0xff;
           break;
         }
         case 3: {
@@ -1381,18 +1641,21 @@ class CPU {
           break;
         }
         case 8:
-        case 9: {
+        case 9:
+        case 8 + STEP_WRITE:
+        case 9 + STEP_WRITE: {
           // Absolute,X / Absolute,Y. The CPU first adds the index to the low
           // byte only and reads from that address. If no carry into the high
           // byte was needed, that read was correct (for read instructions);
           // otherwise it was a dummy read and the CPU reads again from the
-          // fixed-up address.
+          // fixed-up address. Stores and read-modify-write instructions
+          // always do the dummy read.
           const lo = this._fetch();
           baseHigh = this._fetch();
           const base = (baseHigh << 8) | lo;
-          addr = (base + (mode === 8 ? this.REG_X : this.REG_Y)) & 0xffff;
+          addr = (base + ((step & 1) === 0 ? this.REG_X : this.REG_Y)) & 0xffff;
           crossed = (addr & 0xff00) !== (base & 0xff00);
-          if (crossed || write) {
+          if (crossed || step > 9) {
             this.read((base & 0xff00) | (addr & 0xff));
           }
           break;
@@ -1406,7 +1669,8 @@ class CPU {
           addr = (this.read((ptr + 1) & 0xff) << 8) | lo;
           break;
         }
-        case 11: {
+        case 11:
+        case 11 + STEP_WRITE: {
           // (Indirect),Y: pointer in zero page, then add Y (with the same
           // page-crossing dummy read as Absolute,Y).
           const ptr = this._fetch();
@@ -1415,598 +1679,601 @@ class CPU {
           const base = (baseHigh << 8) | lo;
           addr = (base + this.REG_Y) & 0xffff;
           crossed = (addr & 0xff00) !== (base & 0xff00);
-          if (crossed || write) {
+          if (crossed || step !== 11) {
             this.read((base & 0xff00) | (addr & 0xff));
           }
           break;
         }
       }
-    }
 
-    // ------------------------------------------------------------------
-    // Execute. The case labels are raw integers (matching the INS_*
-    // constants) so V8 compiles the switch to a jump table.
-    // ------------------------------------------------------------------
-    let temp;
-    let value;
-    switch (ins) {
-      case 0: {
-        // ADC
-        this._adc(this.read(addr));
-        break;
-      }
-      case 1: {
-        // AND
-        this.REG_ACC &= this.read(addr);
-        this.F_SIGN = this.REG_ACC >> 7;
-        this.F_ZERO = this.REG_ACC;
-        break;
-      }
-      case 2: {
-        // ASL
-        if (mode === ADDR_ACC) {
-          this.read(this.REG_PC);
-          this.REG_ACC = this._asl(this.REG_ACC);
-        } else {
-          value = this.read(addr);
-          this.write(addr, value); // dummy write of the original value
-          this.write(addr, this._asl(value));
+      // ------------------------------------------------------------------
+      // Execute. The case labels are raw integers (matching the INS_*
+      // constants) so V8 compiles the switch to a jump table.
+      // ------------------------------------------------------------------
+      let temp;
+      let value;
+      switch (ins) {
+        case 0: {
+          // ADC
+          this._adc(this.read(addr));
+          break;
         }
-        break;
-      }
-      case 3: {
-        // BCC
-        this._branch(this.F_CARRY === 0);
-        break;
-      }
-      case 4: {
-        // BCS
-        this._branch(this.F_CARRY !== 0);
-        break;
-      }
-      case 5: {
-        // BEQ
-        this._branch(this.F_ZERO === 0);
-        break;
-      }
-      case 6: {
-        // BIT
-        value = this.read(addr);
-        this.F_SIGN = (value >> 7) & 1;
-        this.F_OVERFLOW = (value >> 6) & 1;
-        this.F_ZERO = value & this.REG_ACC;
-        break;
-      }
-      case 7: {
-        // BMI
-        this._branch(this.F_SIGN !== 0);
-        break;
-      }
-      case 8: {
-        // BNE
-        this._branch(this.F_ZERO !== 0);
-        break;
-      }
-      case 9: {
-        // BPL
-        this._branch(this.F_SIGN === 0);
-        break;
-      }
-      case 10: {
-        // BRK: a software interrupt. The byte after the opcode is read and
-        // skipped ("padding byte"), then it behaves like an IRQ except that
-        // the pushed status has the B flag set.
-        this._fetch();
-        this._interruptSequence(VECTOR_IRQ, true);
-        break;
-      }
-      case 11: {
-        // BVC
-        this._branch(this.F_OVERFLOW === 0);
-        break;
-      }
-      case 12: {
-        // BVS
-        this._branch(this.F_OVERFLOW !== 0);
-        break;
-      }
-      case 13: {
-        // CLC
-        this.read(this.REG_PC);
-        this.F_CARRY = 0;
-        break;
-      }
-      case 14: {
-        // CLD
-        this.read(this.REG_PC);
-        this.F_DECIMAL = 0;
-        break;
-      }
-      case 15: {
-        // CLI. The flag changes after this instruction's interrupt polling,
-        // so a pending IRQ is serviced only after the *next* instruction.
-        this.read(this.REG_PC);
-        this.F_INTERRUPT = 0;
-        break;
-      }
-      case 16: {
-        // CLV
-        this.read(this.REG_PC);
-        this.F_OVERFLOW = 0;
-        break;
-      }
-      case 17: {
-        // CMP
-        this._compare(this.REG_ACC, this.read(addr));
-        break;
-      }
-      case 18: {
-        // CPX
-        this._compare(this.REG_X, this.read(addr));
-        break;
-      }
-      case 19: {
-        // CPY
-        this._compare(this.REG_Y, this.read(addr));
-        break;
-      }
-      case 20: {
-        // DEC
-        value = this.read(addr);
-        this.write(addr, value);
-        value = (value - 1) & 0xff;
-        this.F_SIGN = value >> 7;
-        this.F_ZERO = value;
-        this.write(addr, value);
-        break;
-      }
-      case 21: {
-        // DEX
-        this.read(this.REG_PC);
-        this.REG_X = (this.REG_X - 1) & 0xff;
-        this.F_SIGN = this.REG_X >> 7;
-        this.F_ZERO = this.REG_X;
-        break;
-      }
-      case 22: {
-        // DEY
-        this.read(this.REG_PC);
-        this.REG_Y = (this.REG_Y - 1) & 0xff;
-        this.F_SIGN = this.REG_Y >> 7;
-        this.F_ZERO = this.REG_Y;
-        break;
-      }
-      case 23: {
-        // EOR
-        this.REG_ACC ^= this.read(addr);
-        this.F_SIGN = this.REG_ACC >> 7;
-        this.F_ZERO = this.REG_ACC;
-        break;
-      }
-      case 24: {
-        // INC
-        value = this.read(addr);
-        this.write(addr, value);
-        value = (value + 1) & 0xff;
-        this.F_SIGN = value >> 7;
-        this.F_ZERO = value;
-        this.write(addr, value);
-        break;
-      }
-      case 25: {
-        // INX
-        this.read(this.REG_PC);
-        this.REG_X = (this.REG_X + 1) & 0xff;
-        this.F_SIGN = this.REG_X >> 7;
-        this.F_ZERO = this.REG_X;
-        break;
-      }
-      case 26: {
-        // INY
-        this.read(this.REG_PC);
-        this.REG_Y = (this.REG_Y + 1) & 0xff;
-        this.F_SIGN = this.REG_Y >> 7;
-        this.F_ZERO = this.REG_Y;
-        break;
-      }
-      case 27: {
-        // JMP
-        if (mode === ADDR_INDABS) {
-          // JMP (indirect). The famous 6502 bug: the pointer's high byte is
-          // read from the same page as its low byte, so JMP ($10FF) reads
-          // $10FF and $1000.
+        case 1: {
+          // AND
+          this.REG_ACC &= this.read(addr);
+          this.F_SIGN = this.REG_ACC >> 7;
+          this.F_ZERO = this.REG_ACC;
+          break;
+        }
+        case 2: {
+          // ASL
+          if (mode === ADDR_ACC) {
+            this.read(this.REG_PC);
+            this.REG_ACC = this._asl(this.REG_ACC);
+          } else {
+            value = this.read(addr);
+            this.write(addr, value); // dummy write of the original value
+            this.write(addr, this._asl(value));
+          }
+          break;
+        }
+        case 3: {
+          // BCC
+          this._branch(this.F_CARRY === 0);
+          break;
+        }
+        case 4: {
+          // BCS
+          this._branch(this.F_CARRY !== 0);
+          break;
+        }
+        case 5: {
+          // BEQ
+          this._branch(this.F_ZERO === 0);
+          break;
+        }
+        case 6: {
+          // BIT
+          value = this.read(addr);
+          this.F_SIGN = (value >> 7) & 1;
+          this.F_OVERFLOW = (value >> 6) & 1;
+          this.F_ZERO = value & this.REG_ACC;
+          break;
+        }
+        case 7: {
+          // BMI
+          this._branch(this.F_SIGN !== 0);
+          break;
+        }
+        case 8: {
+          // BNE
+          this._branch(this.F_ZERO !== 0);
+          break;
+        }
+        case 9: {
+          // BPL
+          this._branch(this.F_SIGN === 0);
+          break;
+        }
+        case 10: {
+          // BRK: a software interrupt. The byte after the opcode is read and
+          // skipped ("padding byte"), then it behaves like an IRQ except that
+          // the pushed status has the B flag set.
+          this._fetch();
+          this._interruptSequence(VECTOR_IRQ, true);
+          break;
+        }
+        case 11: {
+          // BVC
+          this._branch(this.F_OVERFLOW === 0);
+          break;
+        }
+        case 12: {
+          // BVS
+          this._branch(this.F_OVERFLOW !== 0);
+          break;
+        }
+        case 13: {
+          // CLC
+          this.read(this.REG_PC);
+          this.F_CARRY = 0;
+          break;
+        }
+        case 14: {
+          // CLD
+          this.read(this.REG_PC);
+          this.F_DECIMAL = 0;
+          break;
+        }
+        case 15: {
+          // CLI. The flag changes after this instruction's interrupt polling,
+          // so a pending IRQ is serviced only after the *next* instruction.
+          this.read(this.REG_PC);
+          this.F_INTERRUPT = 0;
+          this.nextEvent = 0; // the IRQ line may need sampling now
+          break;
+        }
+        case 16: {
+          // CLV
+          this.read(this.REG_PC);
+          this.F_OVERFLOW = 0;
+          break;
+        }
+        case 17: {
+          // CMP
+          this._compare(this.REG_ACC, this.read(addr));
+          break;
+        }
+        case 18: {
+          // CPX
+          this._compare(this.REG_X, this.read(addr));
+          break;
+        }
+        case 19: {
+          // CPY
+          this._compare(this.REG_Y, this.read(addr));
+          break;
+        }
+        case 20: {
+          // DEC
+          value = this.read(addr);
+          this.write(addr, value);
+          value = (value - 1) & 0xff;
+          this.F_SIGN = value >> 7;
+          this.F_ZERO = value;
+          this.write(addr, value);
+          break;
+        }
+        case 21: {
+          // DEX
+          this.read(this.REG_PC);
+          this.REG_X = (this.REG_X - 1) & 0xff;
+          this.F_SIGN = this.REG_X >> 7;
+          this.F_ZERO = this.REG_X;
+          break;
+        }
+        case 22: {
+          // DEY
+          this.read(this.REG_PC);
+          this.REG_Y = (this.REG_Y - 1) & 0xff;
+          this.F_SIGN = this.REG_Y >> 7;
+          this.F_ZERO = this.REG_Y;
+          break;
+        }
+        case 23: {
+          // EOR
+          this.REG_ACC ^= this.read(addr);
+          this.F_SIGN = this.REG_ACC >> 7;
+          this.F_ZERO = this.REG_ACC;
+          break;
+        }
+        case 24: {
+          // INC
+          value = this.read(addr);
+          this.write(addr, value);
+          value = (value + 1) & 0xff;
+          this.F_SIGN = value >> 7;
+          this.F_ZERO = value;
+          this.write(addr, value);
+          break;
+        }
+        case 25: {
+          // INX
+          this.read(this.REG_PC);
+          this.REG_X = (this.REG_X + 1) & 0xff;
+          this.F_SIGN = this.REG_X >> 7;
+          this.F_ZERO = this.REG_X;
+          break;
+        }
+        case 26: {
+          // INY
+          this.read(this.REG_PC);
+          this.REG_Y = (this.REG_Y + 1) & 0xff;
+          this.F_SIGN = this.REG_Y >> 7;
+          this.F_ZERO = this.REG_Y;
+          break;
+        }
+        case 27: {
+          // JMP
+          if (mode === ADDR_INDABS) {
+            // JMP (indirect). The famous 6502 bug: the pointer's high byte is
+            // read from the same page as its low byte, so JMP ($10FF) reads
+            // $10FF and $1000.
+            const lo = this._fetch();
+            const hi = this._fetch();
+            const ptr = (hi << 8) | lo;
+            const pcl = this.read(ptr);
+            const pch = this.read((ptr & 0xff00) | ((ptr + 1) & 0xff));
+            this.REG_PC = (pch << 8) | pcl;
+          } else {
+            const from = this.REG_PC;
+            this.REG_PC = addr;
+            if (addr < from) this._idleLoopCheck(addr);
+          }
+          break;
+        }
+        case 28: {
+          // JSR. Cycle order: fetch low byte of target, dummy read of the
+          // stack, push return address (high, low), then fetch the high byte
+          // of the target. The high byte fetch is the last bus operation, so
+          // it's what's left on the data bus when the subroutine starts.
           const lo = this._fetch();
-          const hi = this._fetch();
-          const ptr = (hi << 8) | lo;
-          const pcl = this.read(ptr);
-          const pch = this.read((ptr & 0xff00) | ((ptr + 1) & 0xff));
+          this.read(0x100 | this.REG_SP);
+          this.push(this.REG_PC >> 8);
+          this.push(this.REG_PC & 0xff);
+          const hi = this.read(this.REG_PC);
+          this.REG_PC = (hi << 8) | lo;
+          break;
+        }
+        case 29: {
+          // LDA
+          this.REG_ACC = this.F_ZERO = this.read(addr);
+          this.F_SIGN = this.REG_ACC >> 7;
+          break;
+        }
+        case 30: {
+          // LDX
+          this.REG_X = this.F_ZERO = this.read(addr);
+          this.F_SIGN = this.REG_X >> 7;
+          break;
+        }
+        case 31: {
+          // LDY
+          this.REG_Y = this.F_ZERO = this.read(addr);
+          this.F_SIGN = this.REG_Y >> 7;
+          break;
+        }
+        case 32: {
+          // LSR
+          if (mode === ADDR_ACC) {
+            this.read(this.REG_PC);
+            this.REG_ACC = this._lsr(this.REG_ACC);
+          } else {
+            value = this.read(addr);
+            this.write(addr, value);
+            this.write(addr, this._lsr(value));
+          }
+          break;
+        }
+        case 33: {
+          // NOP (implied)
+          this.read(this.REG_PC);
+          break;
+        }
+        case 34: {
+          // ORA
+          this.REG_ACC |= this.read(addr);
+          this.F_SIGN = this.REG_ACC >> 7;
+          this.F_ZERO = this.REG_ACC;
+          break;
+        }
+        case 35: {
+          // PHA
+          this.read(this.REG_PC);
+          this.push(this.REG_ACC);
+          break;
+        }
+        case 36: {
+          // PHP. The pushed copy always has bits 4 (B) and 5 set.
+          this.read(this.REG_PC);
+          this.push(this.getStatus() | 0x30);
+          break;
+        }
+        case 37: {
+          // PLA
+          this.read(this.REG_PC);
+          this.read(0x100 | this.REG_SP); // dummy read while incrementing SP
+          this.REG_ACC = this.F_ZERO = this.pull();
+          this.F_SIGN = this.REG_ACC >> 7;
+          break;
+        }
+        case 38: {
+          // PLP. Like CLI/SEI, the new I flag only takes effect for interrupt
+          // polling after this instruction.
+          this.read(this.REG_PC);
+          this.read(0x100 | this.REG_SP);
+          this.setStatusFromStack(this.pull());
+          break;
+        }
+        case 39: {
+          // ROL
+          if (mode === ADDR_ACC) {
+            this.read(this.REG_PC);
+            this.REG_ACC = this._rol(this.REG_ACC);
+          } else {
+            value = this.read(addr);
+            this.write(addr, value);
+            this.write(addr, this._rol(value));
+          }
+          break;
+        }
+        case 40: {
+          // ROR
+          if (mode === ADDR_ACC) {
+            this.read(this.REG_PC);
+            this.REG_ACC = this._ror(this.REG_ACC);
+          } else {
+            value = this.read(addr);
+            this.write(addr, value);
+            this.write(addr, this._ror(value));
+          }
+          break;
+        }
+        case 41: {
+          // RTI. The status is restored before the last two cycles, so unlike
+          // CLI/PLP, a newly cleared I flag takes effect immediately.
+          this.read(this.REG_PC);
+          this.read(0x100 | this.REG_SP);
+          this.setStatusFromStack(this.pull());
+          const pcl = this.pull();
+          const pch = this.pull();
           this.REG_PC = (pch << 8) | pcl;
-        } else {
-          this.REG_PC = addr;
+          break;
         }
-        break;
-      }
-      case 28: {
-        // JSR. Cycle order: fetch low byte of target, dummy read of the
-        // stack, push return address (high, low), then fetch the high byte
-        // of the target. The high byte fetch is the last bus operation, so
-        // it's what's left on the data bus when the subroutine starts.
-        const lo = this._fetch();
-        this.read(0x100 | this.REG_SP);
-        this.push(this.REG_PC >> 8);
-        this.push(this.REG_PC & 0xff);
-        const hi = this.read(this.REG_PC);
-        this.REG_PC = (hi << 8) | lo;
-        break;
-      }
-      case 29: {
-        // LDA
-        this.REG_ACC = this.F_ZERO = this.read(addr);
-        this.F_SIGN = this.REG_ACC >> 7;
-        break;
-      }
-      case 30: {
-        // LDX
-        this.REG_X = this.F_ZERO = this.read(addr);
-        this.F_SIGN = this.REG_X >> 7;
-        break;
-      }
-      case 31: {
-        // LDY
-        this.REG_Y = this.F_ZERO = this.read(addr);
-        this.F_SIGN = this.REG_Y >> 7;
-        break;
-      }
-      case 32: {
-        // LSR
-        if (mode === ADDR_ACC) {
+        case 42: {
+          // RTS
           this.read(this.REG_PC);
-          this.REG_ACC = this._lsr(this.REG_ACC);
-        } else {
+          this.read(0x100 | this.REG_SP);
+          const pcl = this.pull();
+          const pch = this.pull();
+          this.REG_PC = (pch << 8) | pcl;
+          this.read(this.REG_PC); // dummy read while incrementing PC
+          this.REG_PC = (this.REG_PC + 1) & 0xffff;
+          break;
+        }
+        case 43: {
+          // SBC
+          this._adc(this.read(addr) ^ 0xff);
+          break;
+        }
+        case 44: {
+          // SEC
+          this.read(this.REG_PC);
+          this.F_CARRY = 1;
+          break;
+        }
+        case 45: {
+          // SED
+          this.read(this.REG_PC);
+          this.F_DECIMAL = 1;
+          break;
+        }
+        case 46: {
+          // SEI
+          this.read(this.REG_PC);
+          this.F_INTERRUPT = 1;
+          break;
+        }
+        case 47: {
+          // STA
+          this.write(addr, this.REG_ACC);
+          break;
+        }
+        case 48: {
+          // STX
+          this.write(addr, this.REG_X);
+          break;
+        }
+        case 49: {
+          // STY
+          this.write(addr, this.REG_Y);
+          break;
+        }
+        case 50: {
+          // TAX
+          this.read(this.REG_PC);
+          this.REG_X = this.F_ZERO = this.REG_ACC;
+          this.F_SIGN = this.REG_ACC >> 7;
+          break;
+        }
+        case 51: {
+          // TAY
+          this.read(this.REG_PC);
+          this.REG_Y = this.F_ZERO = this.REG_ACC;
+          this.F_SIGN = this.REG_ACC >> 7;
+          break;
+        }
+        case 52: {
+          // TSX
+          this.read(this.REG_PC);
+          this.REG_X = this.F_ZERO = this.REG_SP;
+          this.F_SIGN = this.REG_SP >> 7;
+          break;
+        }
+        case 53: {
+          // TXA
+          this.read(this.REG_PC);
+          this.REG_ACC = this.F_ZERO = this.REG_X;
+          this.F_SIGN = this.REG_X >> 7;
+          break;
+        }
+        case 54: {
+          // TXS (doesn't affect flags)
+          this.read(this.REG_PC);
+          this.REG_SP = this.REG_X;
+          break;
+        }
+        case 55: {
+          // TYA
+          this.read(this.REG_PC);
+          this.REG_ACC = this.F_ZERO = this.REG_Y;
+          this.F_SIGN = this.REG_Y >> 7;
+          break;
+        }
+
+        // ---------------- Unofficial opcodes ----------------
+        case 56: {
+          // ALR (ASR): AND immediate, then LSR A.
+          this.REG_ACC = this._lsr(this.REG_ACC & this.read(addr));
+          break;
+        }
+        case 57: {
+          // ANC: AND immediate, then copy bit 7 of the result into carry.
+          this.REG_ACC &= this.read(addr);
+          this.F_SIGN = this.F_CARRY = this.REG_ACC >> 7;
+          this.F_ZERO = this.REG_ACC;
+          break;
+        }
+        case 58: {
+          // ARR: AND immediate, then ROR A, with C and V set from bits 6 and
+          // 5 of the result in a peculiar way (a side effect of the decimal
+          // mode adder hardware).
+          temp = this.REG_ACC & this.read(addr);
+          this.REG_ACC = ((temp >> 1) | (this.F_CARRY << 7)) & 0xff;
+          this.F_ZERO = this.REG_ACC;
+          this.F_SIGN = this.REG_ACC >> 7;
+          this.F_CARRY = (this.REG_ACC >> 6) & 1;
+          this.F_OVERFLOW = ((this.REG_ACC >> 6) ^ (this.REG_ACC >> 5)) & 1;
+          break;
+        }
+        case 59: {
+          // AXS (SBX): X = (A & X) - immediate, setting flags like CMP.
+          temp = (this.REG_ACC & this.REG_X) - this.read(addr);
+          this.F_CARRY = temp >= 0 ? 1 : 0;
+          this.REG_X = this.F_ZERO = temp & 0xff;
+          this.F_SIGN = this.REG_X >> 7;
+          break;
+        }
+        case 60: {
+          // LAX: load A and X.
+          this.REG_ACC = this.REG_X = this.F_ZERO = this.read(addr);
+          this.F_SIGN = this.REG_ACC >> 7;
+          break;
+        }
+        case 61: {
+          // SAX: store A & X.
+          this.write(addr, this.REG_ACC & this.REG_X);
+          break;
+        }
+        case 62: {
+          // DCP: DEC memory, then CMP with A.
           value = this.read(addr);
           this.write(addr, value);
-          this.write(addr, this._lsr(value));
+          value = (value - 1) & 0xff;
+          this.write(addr, value);
+          this._compare(this.REG_ACC, value);
+          break;
         }
-        break;
-      }
-      case 33: {
-        // NOP (implied)
-        this.read(this.REG_PC);
-        break;
-      }
-      case 34: {
-        // ORA
-        this.REG_ACC |= this.read(addr);
-        this.F_SIGN = this.REG_ACC >> 7;
-        this.F_ZERO = this.REG_ACC;
-        break;
-      }
-      case 35: {
-        // PHA
-        this.read(this.REG_PC);
-        this.push(this.REG_ACC);
-        break;
-      }
-      case 36: {
-        // PHP. The pushed copy always has bits 4 (B) and 5 set.
-        this.read(this.REG_PC);
-        this.push(this.getStatus() | 0x30);
-        break;
-      }
-      case 37: {
-        // PLA
-        this.read(this.REG_PC);
-        this.read(0x100 | this.REG_SP); // dummy read while incrementing SP
-        this.REG_ACC = this.F_ZERO = this.pull();
-        this.F_SIGN = this.REG_ACC >> 7;
-        break;
-      }
-      case 38: {
-        // PLP. Like CLI/SEI, the new I flag only takes effect for interrupt
-        // polling after this instruction.
-        this.read(this.REG_PC);
-        this.read(0x100 | this.REG_SP);
-        this.setStatusFromStack(this.pull());
-        break;
-      }
-      case 39: {
-        // ROL
-        if (mode === ADDR_ACC) {
-          this.read(this.REG_PC);
-          this.REG_ACC = this._rol(this.REG_ACC);
-        } else {
+        case 63: {
+          // ISC: INC memory, then SBC.
           value = this.read(addr);
           this.write(addr, value);
-          this.write(addr, this._rol(value));
+          value = (value + 1) & 0xff;
+          this.write(addr, value);
+          this._adc(value ^ 0xff);
+          break;
         }
-        break;
-      }
-      case 40: {
-        // ROR
-        if (mode === ADDR_ACC) {
-          this.read(this.REG_PC);
-          this.REG_ACC = this._ror(this.REG_ACC);
-        } else {
+        case 64: {
+          // RLA: ROL memory, then AND with A.
           value = this.read(addr);
           this.write(addr, value);
-          this.write(addr, this._ror(value));
+          value = this._rol(value);
+          this.write(addr, value);
+          this.REG_ACC &= value;
+          this.F_SIGN = this.REG_ACC >> 7;
+          this.F_ZERO = this.REG_ACC;
+          break;
         }
-        break;
-      }
-      case 41: {
-        // RTI. The status is restored before the last two cycles, so unlike
-        // CLI/PLP, a newly cleared I flag takes effect immediately.
-        this.read(this.REG_PC);
-        this.read(0x100 | this.REG_SP);
-        this.setStatusFromStack(this.pull());
-        const pcl = this.pull();
-        const pch = this.pull();
-        this.REG_PC = (pch << 8) | pcl;
-        break;
-      }
-      case 42: {
-        // RTS
-        this.read(this.REG_PC);
-        this.read(0x100 | this.REG_SP);
-        const pcl = this.pull();
-        const pch = this.pull();
-        this.REG_PC = (pch << 8) | pcl;
-        this.read(this.REG_PC); // dummy read while incrementing PC
-        this.REG_PC = (this.REG_PC + 1) & 0xffff;
-        break;
-      }
-      case 43: {
-        // SBC
-        this._adc(this.read(addr) ^ 0xff);
-        break;
-      }
-      case 44: {
-        // SEC
-        this.read(this.REG_PC);
-        this.F_CARRY = 1;
-        break;
-      }
-      case 45: {
-        // SED
-        this.read(this.REG_PC);
-        this.F_DECIMAL = 1;
-        break;
-      }
-      case 46: {
-        // SEI
-        this.read(this.REG_PC);
-        this.F_INTERRUPT = 1;
-        break;
-      }
-      case 47: {
-        // STA
-        this.write(addr, this.REG_ACC);
-        break;
-      }
-      case 48: {
-        // STX
-        this.write(addr, this.REG_X);
-        break;
-      }
-      case 49: {
-        // STY
-        this.write(addr, this.REG_Y);
-        break;
-      }
-      case 50: {
-        // TAX
-        this.read(this.REG_PC);
-        this.REG_X = this.F_ZERO = this.REG_ACC;
-        this.F_SIGN = this.REG_ACC >> 7;
-        break;
-      }
-      case 51: {
-        // TAY
-        this.read(this.REG_PC);
-        this.REG_Y = this.F_ZERO = this.REG_ACC;
-        this.F_SIGN = this.REG_ACC >> 7;
-        break;
-      }
-      case 52: {
-        // TSX
-        this.read(this.REG_PC);
-        this.REG_X = this.F_ZERO = this.REG_SP;
-        this.F_SIGN = this.REG_SP >> 7;
-        break;
-      }
-      case 53: {
-        // TXA
-        this.read(this.REG_PC);
-        this.REG_ACC = this.F_ZERO = this.REG_X;
-        this.F_SIGN = this.REG_X >> 7;
-        break;
-      }
-      case 54: {
-        // TXS (doesn't affect flags)
-        this.read(this.REG_PC);
-        this.REG_SP = this.REG_X;
-        break;
-      }
-      case 55: {
-        // TYA
-        this.read(this.REG_PC);
-        this.REG_ACC = this.F_ZERO = this.REG_Y;
-        this.F_SIGN = this.REG_Y >> 7;
-        break;
+        case 65: {
+          // RRA: ROR memory, then ADC.
+          value = this.read(addr);
+          this.write(addr, value);
+          value = this._ror(value);
+          this.write(addr, value);
+          this._adc(value);
+          break;
+        }
+        case 66: {
+          // SLO: ASL memory, then ORA with A.
+          value = this.read(addr);
+          this.write(addr, value);
+          value = this._asl(value);
+          this.write(addr, value);
+          this.REG_ACC |= value;
+          this.F_SIGN = this.REG_ACC >> 7;
+          this.F_ZERO = this.REG_ACC;
+          break;
+        }
+        case 67: {
+          // SRE: LSR memory, then EOR with A.
+          value = this.read(addr);
+          this.write(addr, value);
+          value = this._lsr(value);
+          this.write(addr, value);
+          this.REG_ACC ^= value;
+          this.F_SIGN = this.REG_ACC >> 7;
+          this.F_ZERO = this.REG_ACC;
+          break;
+        }
+        case 68: {
+          // SKB: 2-byte NOP that reads its immediate operand.
+          this.read(addr);
+          break;
+        }
+        case 69: {
+          // IGN: NOP that reads from memory using its addressing mode.
+          this.read(addr);
+          break;
+        }
+        case 71: {
+          // SHA (AHX): store A & X & (H+1).
+          this._shx(addr, this.REG_ACC & this.REG_X, baseHigh, crossed);
+          break;
+        }
+        case 72: {
+          // SHS (TAS): SP = A & X, then store SP & (H+1).
+          this.REG_SP = this.REG_ACC & this.REG_X;
+          this._shx(addr, this.REG_SP, baseHigh, crossed);
+          break;
+        }
+        case 73: {
+          // SHY: store Y & (H+1).
+          this._shx(addr, this.REG_Y, baseHigh, crossed);
+          break;
+        }
+        case 74: {
+          // SHX: store X & (H+1).
+          this._shx(addr, this.REG_X, baseHigh, crossed);
+          break;
+        }
+        case 75: {
+          // LAE (LAS): A = X = SP = memory & SP.
+          temp = this.read(addr) & this.REG_SP;
+          this.REG_ACC = this.REG_X = this.REG_SP = this.F_ZERO = temp;
+          this.F_SIGN = temp >> 7;
+          break;
+        }
+        case 76: {
+          // ANE (XAA): A = (A | magic) & X & immediate. The "magic" constant
+          // varies between chips; $FF is the most common value.
+          this.REG_ACC = this.F_ZERO =
+            (this.REG_ACC | 0xff) & this.REG_X & this.read(addr);
+          this.F_SIGN = this.REG_ACC >> 7;
+          break;
+        }
+        case 77: {
+          // LXA: A = X = (A | magic) & immediate.
+          this.REG_ACC =
+            this.REG_X =
+            this.F_ZERO =
+              (this.REG_ACC | 0xff) & this.read(addr);
+          this.F_SIGN = this.REG_ACC >> 7;
+          break;
+        }
+        default: {
+          // KIL/JAM opcodes lock up a real 6502.
+          throw new Error(
+            `Game crashed, invalid opcode at address $${((this.REG_PC - 1) & 0xffff).toString(16)}`,
+          );
+        }
       }
 
-      // ---------------- Unofficial opcodes ----------------
-      case 56: {
-        // ALR (ASR): AND immediate, then LSR A.
-        this.REG_ACC = this._lsr(this.REG_ACC & this.read(addr));
-        break;
+      // Service an interrupt if one was pending as of the second-to-last
+      // cycle of the instruction.
+      if (this.prevNeedNmi || this.prevRunIrq) {
+        this._interruptSequence(VECTOR_IRQ, false);
       }
-      case 57: {
-        // ANC: AND immediate, then copy bit 7 of the result into carry.
-        this.REG_ACC &= this.read(addr);
-        this.F_SIGN = this.F_CARRY = this.REG_ACC >> 7;
-        this.F_ZERO = this.REG_ACC;
-        break;
-      }
-      case 58: {
-        // ARR: AND immediate, then ROR A, with C and V set from bits 6 and
-        // 5 of the result in a peculiar way (a side effect of the decimal
-        // mode adder hardware).
-        temp = this.REG_ACC & this.read(addr);
-        this.REG_ACC = ((temp >> 1) | (this.F_CARRY << 7)) & 0xff;
-        this.F_ZERO = this.REG_ACC;
-        this.F_SIGN = this.REG_ACC >> 7;
-        this.F_CARRY = (this.REG_ACC >> 6) & 1;
-        this.F_OVERFLOW = ((this.REG_ACC >> 6) ^ (this.REG_ACC >> 5)) & 1;
-        break;
-      }
-      case 59: {
-        // AXS (SBX): X = (A & X) - immediate, setting flags like CMP.
-        temp = (this.REG_ACC & this.REG_X) - this.read(addr);
-        this.F_CARRY = temp >= 0 ? 1 : 0;
-        this.REG_X = this.F_ZERO = temp & 0xff;
-        this.F_SIGN = this.REG_X >> 7;
-        break;
-      }
-      case 60: {
-        // LAX: load A and X.
-        this.REG_ACC = this.REG_X = this.F_ZERO = this.read(addr);
-        this.F_SIGN = this.REG_ACC >> 7;
-        break;
-      }
-      case 61: {
-        // SAX: store A & X.
-        this.write(addr, this.REG_ACC & this.REG_X);
-        break;
-      }
-      case 62: {
-        // DCP: DEC memory, then CMP with A.
-        value = this.read(addr);
-        this.write(addr, value);
-        value = (value - 1) & 0xff;
-        this.write(addr, value);
-        this._compare(this.REG_ACC, value);
-        break;
-      }
-      case 63: {
-        // ISC: INC memory, then SBC.
-        value = this.read(addr);
-        this.write(addr, value);
-        value = (value + 1) & 0xff;
-        this.write(addr, value);
-        this._adc(value ^ 0xff);
-        break;
-      }
-      case 64: {
-        // RLA: ROL memory, then AND with A.
-        value = this.read(addr);
-        this.write(addr, value);
-        value = this._rol(value);
-        this.write(addr, value);
-        this.REG_ACC &= value;
-        this.F_SIGN = this.REG_ACC >> 7;
-        this.F_ZERO = this.REG_ACC;
-        break;
-      }
-      case 65: {
-        // RRA: ROR memory, then ADC.
-        value = this.read(addr);
-        this.write(addr, value);
-        value = this._ror(value);
-        this.write(addr, value);
-        this._adc(value);
-        break;
-      }
-      case 66: {
-        // SLO: ASL memory, then ORA with A.
-        value = this.read(addr);
-        this.write(addr, value);
-        value = this._asl(value);
-        this.write(addr, value);
-        this.REG_ACC |= value;
-        this.F_SIGN = this.REG_ACC >> 7;
-        this.F_ZERO = this.REG_ACC;
-        break;
-      }
-      case 67: {
-        // SRE: LSR memory, then EOR with A.
-        value = this.read(addr);
-        this.write(addr, value);
-        value = this._lsr(value);
-        this.write(addr, value);
-        this.REG_ACC ^= value;
-        this.F_SIGN = this.REG_ACC >> 7;
-        this.F_ZERO = this.REG_ACC;
-        break;
-      }
-      case 68: {
-        // SKB: 2-byte NOP that reads its immediate operand.
-        this.read(addr);
-        break;
-      }
-      case 69: {
-        // IGN: NOP that reads from memory using its addressing mode.
-        this.read(addr);
-        break;
-      }
-      case 71: {
-        // SHA (AHX): store A & X & (H+1).
-        this._shx(addr, this.REG_ACC & this.REG_X, baseHigh, crossed);
-        break;
-      }
-      case 72: {
-        // SHS (TAS): SP = A & X, then store SP & (H+1).
-        this.REG_SP = this.REG_ACC & this.REG_X;
-        this._shx(addr, this.REG_SP, baseHigh, crossed);
-        break;
-      }
-      case 73: {
-        // SHY: store Y & (H+1).
-        this._shx(addr, this.REG_Y, baseHigh, crossed);
-        break;
-      }
-      case 74: {
-        // SHX: store X & (H+1).
-        this._shx(addr, this.REG_X, baseHigh, crossed);
-        break;
-      }
-      case 75: {
-        // LAE (LAS): A = X = SP = memory & SP.
-        temp = this.read(addr) & this.REG_SP;
-        this.REG_ACC = this.REG_X = this.REG_SP = this.F_ZERO = temp;
-        this.F_SIGN = temp >> 7;
-        break;
-      }
-      case 76: {
-        // ANE (XAA): A = (A | magic) & X & immediate. The "magic" constant
-        // varies between chips; $FF is the most common value.
-        this.REG_ACC = this.F_ZERO =
-          (this.REG_ACC | 0xff) & this.REG_X & this.read(addr);
-        this.F_SIGN = this.REG_ACC >> 7;
-        break;
-      }
-      case 77: {
-        // LXA: A = X = (A | magic) & immediate.
-        this.REG_ACC =
-          this.REG_X =
-          this.F_ZERO =
-            (this.REG_ACC | 0xff) & this.read(addr);
-        this.F_SIGN = this.REG_ACC >> 7;
-        break;
-      }
-      default: {
-        // KIL/JAM opcodes lock up a real 6502.
-        throw new Error(
-          `Game crashed, invalid opcode at address $${((this.REG_PC - 1) & 0xffff).toString(16)}`,
-        );
-      }
-    }
-
-    // Service an interrupt if one was pending as of the second-to-last
-    // cycle of the instruction.
-    if (this.prevNeedNmi || this.prevRunIrq) {
-      this._interruptSequence(VECTOR_IRQ, false);
-    }
+    } while (untilFrameEnd && !this.ppu.frameEnded);
 
     return this.cycles - startCycles;
   }
@@ -2079,7 +2346,75 @@ class CPU {
     if ((target & 0xff00) !== (this.REG_PC & 0xff00)) {
       this.read((this.REG_PC & 0xff00) | (target & 0xff));
     }
+    const from = this.REG_PC;
     this.REG_PC = target;
+    if (target < from) this._idleLoopCheck(target);
+  }
+
+  // --- Idle loops ---
+  //
+  // Games often wait for the next frame by spinning in a loop like
+  //   wait: LDA frameCounter / CMP lastFrame / BEQ wait
+  // until the NMI handler changes a variable in RAM. Running those loops
+  // takes most of the CPU time in many games, but it's easy to skip them
+  // exactly: if an iteration of a loop made no writes and only read RAM
+  // and ROM (no I/O registers, and nothing else happened, i.e. all its
+  // cycles were fast ones), and left the registers and flags as they were
+  // at the start of it, then the next iteration will do exactly the same,
+  // and so on, until something outside the CPU happens: an interrupt, DMA,
+  // or event (see "Fast and slow cycles"). So we can just add the cycles of
+  // as many whole iterations as fit before nextEvent.
+  //
+  // This is called after a jump or branch backwards, with the new PC. It
+  // compares the state with a snapshot taken the last time the same jump
+  // was taken.
+  _idleLoopCheck(target) {
+    if (!this.idleSkip) return;
+    if (
+      target === this.loopPc &&
+      this.sideEffects === this.loopSideEffects &&
+      this.REG_ACC === this.loopA &&
+      this.REG_X === this.loopX &&
+      this.REG_Y === this.loopY &&
+      this.REG_SP === this.loopSP &&
+      this.F_CARRY === this.loopC &&
+      this.F_ZERO === this.loopZ &&
+      this.F_SIGN === this.loopN &&
+      this.F_OVERFLOW === this.loopV &&
+      this.F_INTERRUPT === this.loopI &&
+      this.F_DECIMAL === this.loopD
+    ) {
+      // The iteration that just finished changed nothing.
+      const length = this.cycles - this.loopCycles;
+      let n = Math.floor((this.nextEvent - 1 - this.cycles) / length);
+      if (this.predictedReads !== this.loopPredictedReads) {
+        // It read $2002: only skip while the reads can still be answered
+        // from the PPU's prediction.
+        const last = this.ppu.statusPredLastCycle(this.ppuCycles);
+        const m = Math.floor((last - this.cycles) / length);
+        if (m < n) n = m;
+        this.loopPredictedReads = this.predictedReads;
+      }
+      if (n > 0 && n < 0x40000000) {
+        this.cycles += n * length;
+      }
+      this.loopCycles = this.cycles;
+      return;
+    }
+    this.loopPc = target;
+    this.loopSideEffects = this.sideEffects;
+    this.loopPredictedReads = this.predictedReads;
+    this.loopCycles = this.cycles;
+    this.loopA = this.REG_ACC;
+    this.loopX = this.REG_X;
+    this.loopY = this.REG_Y;
+    this.loopSP = this.REG_SP;
+    this.loopC = this.F_CARRY;
+    this.loopZ = this.F_ZERO;
+    this.loopN = this.F_SIGN;
+    this.loopV = this.F_OVERFLOW;
+    this.loopI = this.F_INTERRUPT;
+    this.loopD = this.F_DECIMAL;
   }
 
   // SHA/SHX/SHY/SHS: store `value & (H+1)` where H is the high byte of the
@@ -2169,6 +2504,7 @@ class CPU {
   }
 
   setStatus(st) {
+    this.nextEvent = 0; // the I flag may have changed
     this.F_CARRY = st & 1;
     this.F_ZERO = ((st >> 1) & 1) === 1 ? 0 : 1;
     this.F_INTERRUPT = (st >> 2) & 1;
@@ -2184,6 +2520,7 @@ class CPU {
   // 6502 and are ignored when pulling status from the stack.
   // See https://www.nesdev.org/wiki/Status_flags#The_B_flag
   setStatusFromStack(st) {
+    this.nextEvent = 0; // the I flag may have changed
     this.F_CARRY = st & 1;
     this.F_ZERO = ((st >> 1) & 1) === 1 ? 0 : 1;
     this.F_INTERRUPT = (st >> 2) & 1;
@@ -2206,6 +2543,10 @@ class CPU {
     const mmap = this.nes.mmap;
     this.directPrgReads =
       !this._gameGenieActive && !!mmap && mmap.readsPrgFromCpuMem();
+    // The fast path in read() covers addresses from here up.
+    this.directReadStart = this.directPrgReads ? 0x8000 : 0x10000;
+    // See _writeSlow().
+    this.scanlineMapper = !!mmap && mmap.countsScanlines();
   }
 
   static JSON_PROPERTIES = [
@@ -2249,6 +2590,8 @@ class CPU {
 
   fromJSON(s) {
     fromJSON(this, s);
+    this.ppuCycles = this.cycles;
+    this.nextEvent = 0;
   }
 }
 

@@ -22,6 +22,42 @@ const FRAME_STEPS_5 = [7457, 14913, 22371, 29829, 37281];
 const FRAME_PERIOD_4 = 29830; // Total CPU cycles for 4-step sequence
 const FRAME_PERIOD_5 = 37282; // Total CPU cycles for 5-step sequence
 
+// --- Noise shift register ---
+//
+// The noise channel's output comes from a 15-bit linear feedback shift
+// register: each step shifts it left one place, shifting in the XOR of
+// bits 14 and 13 (mode 0) or 14 and 8 (mode 1, the "short" mode). The
+// output is on (the channel's volume) when the bit shifted in is 0.
+// See https://www.nesdev.org/wiki/APU_Noise
+function noiseStep(state, mode) {
+  const feedback = ((state >> 14) ^ (state >> (mode === 0 ? 13 : 8))) & 1;
+  return ((state << 1) & 0x7fff) | feedback;
+}
+
+// Tables to run the shift register 8 steps at once: for each state, the
+// state 8 steps later (next8) and how many of those 8 steps turned the
+// output on (ones8). Built when first needed.
+const NOISE_TABLES = [null, null];
+function noiseTables(mode) {
+  let tables = NOISE_TABLES[mode];
+  if (tables === null) {
+    const next8 = new Uint16Array(0x8000);
+    const ones8 = new Uint8Array(0x8000);
+    for (let s = 0; s < 0x8000; s++) {
+      let t = s;
+      let ones = 0;
+      for (let i = 0; i < 8; i++) {
+        t = noiseStep(t, mode);
+        ones += (t & 1) ^ 1;
+      }
+      next8[s] = t;
+      ones8[s] = ones;
+    }
+    tables = NOISE_TABLES[mode] = { next8, ones8 };
+  }
+  return tables;
+}
+
 class PAPU {
   constructor(nes) {
     this.nes = nes;
@@ -103,10 +139,8 @@ class PAPU {
     this.frameIrqClearDelay = 0;
     // Counter value at which the frame counter next has something to do.
     this.nextFrameEvent = FRAME_STEPS_4[0];
-    // CPU cycles not yet run through the audio synthesis (_flushAudio), and
-    // how many to accumulate before running them.
+    // CPU cycles not yet run through the audio synthesis (_flushAudio).
     this.pendingAudioCycles = 0;
-    this.audioFlushAt = 1;
     this.accCount = 0;
     this.smpSquare1 = 0;
     this.smpSquare2 = 0;
@@ -304,7 +338,16 @@ class PAPU {
     this.frameCycleCounter += n;
     // The DMC timer counts on even cycles (see clockCycle()).
     const a = this.lastCycle;
-    this.dmc.timer -= 2 * (((a + n) >> 1) - (a >> 1));
+    const dmc = this.dmc;
+    const even = ((a + n) >> 1) - (a >> 1);
+    const timer = dmc.timer - 2 * even;
+    if (timer > 0) {
+      dmc.timer = timer;
+    } else {
+      // The timer expired, which isn't an event while the DMC is idle
+      // (see _scheduleNextEvent()): the output unit just counts.
+      dmc.idleTimer(even);
+    }
   }
 
   // Work out the next cycle (after lastCycle) on which clockCycle() has
@@ -319,26 +362,26 @@ class PAPU {
     }
     // Frame counter step.
     let next = last + (this.nextFrameEvent - this.frameCycleCounter);
-    // Audio output sample.
-    if (this.emulateSound) {
-      const a = last + (this.audioFlushAt - this.pendingAudioCycles);
-      if (a < next) next = a;
+    // (Audio output samples aren't events: the CPU can't see them, so the
+    // synthesis just runs whenever channel state is about to change, and at
+    // the end of each frame. See _flushAudio().)
+    // DMC timer expiry: it loses 2 on each even cycle. While the DMC is
+    // idle (silent with an empty sample buffer) nothing the CPU can see
+    // happens then, so it's not an event (see _advance()).
+    if (!(dmc.silence && dmc.bufferEmpty)) {
+      let even = last + 1;
+      if (even & 1) even++;
+      const steps = (dmc.timer + 1) >> 1;
+      const d = steps > 1 ? even + 2 * (steps - 1) : even;
+      if (d < next) next = d;
     }
-    // DMC timer expiry: it loses 2 on each even cycle.
-    let even = last + 1;
-    if (even & 1) even++;
-    const steps = (dmc.timer + 1) >> 1;
-    const d = steps > 1 ? even + 2 * (steps - 1) : even;
-    if (d < next) next = d;
     this.nextEventCycle = next > last ? next : last + 1;
   }
 
   // Clock the APU by one CPU cycle (an event cycle; see catchUp()).
   clockCycle(cycle) {
     // Batched audio synthesis (skipped entirely if sound is off).
-    if (this.emulateSound && ++this.pendingAudioCycles >= this.audioFlushAt) {
-      this._flushAudio();
-    }
+    if (this.emulateSound) this.pendingAudioCycles++;
 
     const dmc = this.dmc;
     // Rarely-active countdowns: the deferred clear of the frame interrupt
@@ -388,9 +431,33 @@ class PAPU {
       this._clockChannels(n);
       nCycles -= n;
     }
-    // Unless something changes channel state first, run the next batch
-    // when the next output sample is due.
-    this.audioFlushAt = this._cyclesToNextSample();
+    // Channel state is about to change.
+    this._runSilentChannels();
+  }
+
+  // Catch up the channels that are being run lazily while silent.
+  _runSilentChannels() {
+    if (this.square1.silentCycles !== 0) this._runSilentSquare(this.square1);
+    if (this.square2.silentCycles !== 0) this._runSilentSquare(this.square2);
+    if (this.noise.silentCycles !== 0) this._runSilentNoise();
+  }
+
+  // Produce all the audio output samples due by the current CPU cycle.
+  // Called at the end of each frame, so that a frame's samples are all
+  // delivered by the time nes.frame() returns. Cycles after the last
+  // sample stay pending: the triangle channel's output is interpolated at
+  // the end of each batch of cycles (see accSample()), so splitting a
+  // sample's cycles into two batches would change it slightly.
+  flushAudioOutput() {
+    if (!this.emulateSound) return;
+    this.catchUp(this.nes.cpu.cycles);
+    let n;
+    while (this.pendingAudioCycles >= (n = this._cyclesToNextSample())) {
+      this.pendingAudioCycles -= n;
+      this._clockChannels(n);
+    }
+    this._scheduleNextEvent();
+    this.nes.cpu.nextEvent = 0; // (see "Fast and slow cycles" in cpu.js)
   }
 
   // CPU cycles until the next output sample is produced (at least 1).
@@ -407,27 +474,27 @@ class PAPU {
     let square2 = this.square2;
     let noise = this.noise;
 
-    // Clock Triangle channel Prog timer:
+    // Clock the triangle channel's timer. Each time it expires (every
+    // progTimerMax + 1 cycles), the waveform steps, if the linear and
+    // length counters allow it. Only the final step matters for the output
+    // value, so the steps are counted rather than run one at a time.
     if (triangle.progTimerMax > 0) {
-      triangle.progTimerCount -= nCycles;
-      while (triangle.progTimerCount <= 0) {
-        triangle.progTimerCount += triangle.progTimerMax + 1;
+      let count = triangle.progTimerCount - nCycles;
+      if (count <= 0) {
+        const period = triangle.progTimerMax + 1;
+        const steps = Math.floor(-count / period) + 1;
+        count += steps * period;
         if (triangle.linearCounter > 0 && triangle.lengthCounter > 0) {
-          triangle.triangleCounter++;
-          triangle.triangleCounter &= 0x1f;
-
+          const counter = (triangle.triangleCounter + steps) & 0x1f;
+          triangle.triangleCounter = counter;
           if (triangle.isEnabled) {
-            if (triangle.triangleCounter >= 0x10) {
-              // Normal value.
-              triangle.sampleValue = triangle.triangleCounter & 0xf;
-            } else {
-              // Inverted value.
-              triangle.sampleValue = 0xf - (triangle.triangleCounter & 0xf);
-            }
-            triangle.sampleValue <<= 4;
+            // The first half of the sequence counts down, the second up.
+            triangle.sampleValue =
+              (counter >= 0x10 ? counter & 0xf : 0xf - (counter & 0xf)) << 4;
           }
         }
       }
+      triangle.progTimerCount = count;
     }
 
     // Clock the square channels. Their output is accumulated exactly (each
@@ -454,26 +521,22 @@ class PAPU {
   // Run a square channel's timer for nCycles CPU cycles. Returns the sum of
   // its output over those cycles.
   _clockSquare(square, nCycles) {
+    if (!(
+      square.isEnabled &&
+      square.lengthCounter > 0 &&
+      square.progTimerMax > 7
+    )) {
+      // Silent (see ChannelSquare.updateSampleValue()): the output is 0 on
+      // every step. It stays silent until something changes the channel,
+      // which only happens after a flush (see _flushAudio()), so leave
+      // working out where the waveform ends up until then.
+      square.silentCycles += nCycles;
+      return 0;
+    }
     const period = (square.progTimerMax + 1) << 1;
     let count = square.progTimerCount;
     if (count < 0) count = 0;
     let remaining = nCycles;
-    if (
-      !(square.isEnabled && square.lengthCounter > 0 && square.progTimerMax > 7)
-    ) {
-      // Silent (see ChannelSquare.updateSampleValue()): the output is 0 on
-      // every step, so just work out where the waveform ends up.
-      if (count > remaining) {
-        square.progTimerCount = count - remaining;
-      } else {
-        const rest = remaining - count;
-        const steps = 1 + Math.floor(rest / period);
-        square.squareCounter = (square.squareCounter + steps) & 0x7;
-        square.progTimerCount = period - (rest % period);
-        square.sampleValue = 0;
-      }
-      return 0;
-    }
     let sum = 0;
     // The waveform steps when the timer reaches 0.
     while (count <= remaining) {
@@ -487,11 +550,63 @@ class PAPU {
     return sum + square.sampleValue * remaining;
   }
 
+  // Catch up a square channel's cycles postponed by _clockSquare().
+  _runSilentSquare(square) {
+    const remaining = square.silentCycles;
+    square.silentCycles = 0;
+    const period = (square.progTimerMax + 1) << 1;
+    let count = square.progTimerCount;
+    if (count < 0) count = 0;
+    if (count > remaining) {
+      square.progTimerCount = count - remaining;
+    } else {
+      let rest = remaining - count;
+      let steps = 1;
+      if (rest < 4 * period) {
+        // (Usually just a step or two: avoid the slow division.)
+        while (rest >= period) {
+          rest -= period;
+          steps++;
+        }
+      } else {
+        steps += Math.floor(rest / period);
+        rest %= period;
+      }
+      square.squareCounter = (square.squareCounter + steps) & 0x7;
+      square.progTimerCount = period - rest;
+      square.sampleValue = 0;
+    }
+  }
+
   // Run the noise channel's timer for nCycles CPU cycles, accumulating its
   // output into noise.accValue/accCount. The output changes on the cycle
   // the timer reaches 0, and that cycle already counts with the new value.
   _clockNoise(noise, nCycles) {
     noise.accCount += nCycles;
+    if (
+      noise.sampleValue === 0 &&
+      !(noise.isEnabled && noise.lengthCounter > 0 && noise.masterVolume > 0)
+    ) {
+      // Silent, and it stays silent (the volume can only change after a
+      // flush, see _flushAudio()): the output is 0 whatever the shift
+      // register does, so leave running it until it matters.
+      noise.silentCycles += nCycles;
+      return;
+    }
+    if (noise.silentCycles !== 0) this._runSilentNoise();
+    this._runNoise(noise, nCycles);
+  }
+
+  // Catch up the noise channel's cycles postponed by _clockNoise().
+  _runSilentNoise() {
+    const noise = this.noise;
+    const n = noise.silentCycles;
+    noise.silentCycles = 0;
+    // (The output is 0, so this adds nothing to the channel's output.)
+    this._runNoise(noise, n);
+  }
+
+  _runNoise(noise, nCycles) {
     if (noise.progTimerMax <= 0) {
       noise.progTimerCount -= nCycles;
       noise.accValue += nCycles * noise.sampleValue;
@@ -500,30 +615,58 @@ class PAPU {
     let count = noise.progTimerCount;
     if (count < 1) count = 1;
     let remaining = nCycles;
-    let sum = 0;
-    while (count <= remaining) {
-      sum += noise.sampleValue * (count - 1);
-      remaining -= count;
-      // Step the 15-bit shift register (the "random" bit generator).
-      noise.shiftReg <<= 1;
-      noise.tmp =
-        ((noise.shiftReg << (noise.randomMode === 0 ? 1 : 6)) ^
-          noise.shiftReg) &
-        0x8000;
-      if (noise.tmp !== 0) {
-        noise.shiftReg |= 0x01;
-        noise.randomBit = 0;
-        noise.sampleValue = 0;
-      } else {
-        noise.randomBit = 1;
-        noise.sampleValue =
-          noise.isEnabled && noise.lengthCounter > 0 ? noise.masterVolume : 0;
-      }
-      sum += noise.sampleValue;
-      count = noise.progTimerMax;
+    if (count > remaining) {
+      // The timer doesn't reach 0.
+      noise.progTimerCount = count - remaining;
+      noise.accValue += noise.sampleValue * remaining;
+      return;
     }
-    noise.progTimerCount = count - remaining;
-    noise.accValue += sum + noise.sampleValue * remaining;
+    // The timer reaches 0 on cycle `count`, and then every `period` cycles.
+    // Each time, the shift register steps and the output becomes `volume`
+    // or 0 (the channel's volume can't change in here). The output on a
+    // step's cycle is already the new one.
+    const period = noise.progTimerMax;
+    const mode = noise.randomMode === 0 ? 0 : 1;
+    const volume =
+      noise.isEnabled && noise.lengthCounter > 0 ? noise.masterVolume : 0;
+    // The output so far, until the first step.
+    let sum = noise.sampleValue * (count - 1);
+    remaining -= count;
+    let state = noiseStep(noise.shiftReg & 0x7fff, mode);
+    const firstBit = (state & 1) ^ 1; // 1 = output on (see noiseStep())
+    // k more steps.
+    const k = (remaining / period) | 0;
+    remaining -= k * period;
+    let ones = 0; // number of those steps with the output on
+    let j = k;
+    if (j >= 8) {
+      const tables = noiseTables(mode);
+      const next8 = tables.next8;
+      const ones8 = tables.ones8;
+      while (j >= 8) {
+        ones += ones8[state];
+        state = next8[state];
+        j -= 8;
+      }
+    }
+    for (; j > 0; j--) {
+      state = noiseStep(state, mode);
+      ones += (state & 1) ^ 1;
+    }
+    const lastBit = (state & 1) ^ 1;
+    // Each step's output lasts `period` cycles, except the last one's,
+    // which lasts 1 + remaining.
+    sum +=
+      volume *
+      ((period - 1) * (firstBit + ones - lastBit) +
+        (firstBit + ones) +
+        lastBit * remaining);
+    noise.shiftReg = state;
+    noise.tmp = lastBit ? 0 : 0x8000;
+    noise.randomBit = lastBit;
+    noise.sampleValue = lastBit * volume;
+    noise.progTimerCount = period - remaining;
+    noise.accValue += sum;
   }
 
   // Set or clear the frame interrupt flag, updating the CPU's IRQ line.
@@ -713,71 +856,69 @@ class PAPU {
 
   // Samples the channels, mixes the output together, then writes to buffer.
   sample() {
-    let sq_index, tnd_index;
-
-    if (this.accCount > 0) {
-      this.smpSquare1 <<= 4;
-      this.smpSquare1 = Math.floor(this.smpSquare1 / this.accCount);
-
-      this.smpSquare2 <<= 4;
-      this.smpSquare2 = Math.floor(this.smpSquare2 / this.accCount);
-
-      this.smpTriangle = Math.floor(this.smpTriangle / this.accCount);
-
-      this.smpDmc <<= 4;
-      this.smpDmc = Math.floor(this.smpDmc / this.accCount);
-
+    let square1, square2, triangle, dmc;
+    const n = this.accCount;
+    if (n > 0) {
+      // The average of each channel's output since the last sample.
+      // (Divisions are slow, and silent channels are common.)
+      const s1 = this.smpSquare1;
+      const s2 = this.smpSquare2;
+      const t = this.smpTriangle;
+      const d = this.smpDmc;
+      square1 = s1 === 0 ? 0 : Math.floor((s1 << 4) / n);
+      square2 = s2 === 0 ? 0 : Math.floor((s2 << 4) / n);
+      triangle = t === 0 ? 0 : Math.floor(t / n);
+      dmc = d === 0 ? 0 : Math.floor((d << 4) / n);
       this.accCount = 0;
     } else {
-      this.smpSquare1 = this.square1.sampleValue << 4;
-      this.smpSquare2 = this.square2.sampleValue << 4;
-      this.smpTriangle = this.triangle.sampleValue;
-      this.smpDmc = this.dmc.sample << 4;
+      square1 = this.square1.sampleValue << 4;
+      square2 = this.square2.sampleValue << 4;
+      triangle = this.triangle.sampleValue;
+      dmc = this.dmc.sample << 4;
     }
 
-    let smpNoise = Math.floor((this.noise.accValue << 4) / this.noise.accCount);
-    this.noise.accValue = smpNoise >> 4;
-    this.noise.accCount = 1;
+    const noiseChannel = this.noise;
+    const noiseAcc = noiseChannel.accValue;
+    const noise =
+      noiseAcc === 0 ? 0 : Math.floor((noiseAcc << 4) / noiseChannel.accCount);
+    noiseChannel.accValue = noise >> 4;
+    noiseChannel.accCount = 1;
 
-    // Stereo sound.
+    // Stereo sound: mix each side through the DAC lookup tables.
+    const squareTable = this.square_table;
+    const tndTable = this.tnd_table;
+    const squareMax = squareTable.length - 1;
+    const tndMax = tndTable.length - 1;
+    const triangle3 = 3 * triangle;
+    const noise2 = noise << 1;
 
     // Left channel:
-    sq_index =
-      (this.smpSquare1 * this.stereoPosLSquare1 +
-        this.smpSquare2 * this.stereoPosLSquare2) >>
+    let sq_index =
+      (square1 * this.stereoPosLSquare1 + square2 * this.stereoPosLSquare2) >>
       8;
-    tnd_index =
-      (3 * this.smpTriangle * this.stereoPosLTriangle +
-        (smpNoise << 1) * this.stereoPosLNoise +
-        this.smpDmc * this.stereoPosLDMC) >>
+    let tnd_index =
+      (triangle3 * this.stereoPosLTriangle +
+        noise2 * this.stereoPosLNoise +
+        dmc * this.stereoPosLDMC) >>
       8;
-    if (sq_index >= this.square_table.length) {
-      sq_index = this.square_table.length - 1;
-    }
-    if (tnd_index >= this.tnd_table.length) {
-      tnd_index = this.tnd_table.length - 1;
-    }
+    if (sq_index > squareMax) sq_index = squareMax;
+    if (tnd_index > tndMax) tnd_index = tndMax;
     let sampleValueL =
-      this.square_table[sq_index] + this.tnd_table[tnd_index] - this.dcValue;
+      squareTable[sq_index] + tndTable[tnd_index] - this.dcValue;
 
     // Right channel:
     sq_index =
-      (this.smpSquare1 * this.stereoPosRSquare1 +
-        this.smpSquare2 * this.stereoPosRSquare2) >>
+      (square1 * this.stereoPosRSquare1 + square2 * this.stereoPosRSquare2) >>
       8;
     tnd_index =
-      (3 * this.smpTriangle * this.stereoPosRTriangle +
-        (smpNoise << 1) * this.stereoPosRNoise +
-        this.smpDmc * this.stereoPosRDMC) >>
+      (triangle3 * this.stereoPosRTriangle +
+        noise2 * this.stereoPosRNoise +
+        dmc * this.stereoPosRDMC) >>
       8;
-    if (sq_index >= this.square_table.length) {
-      sq_index = this.square_table.length - 1;
-    }
-    if (tnd_index >= this.tnd_table.length) {
-      tnd_index = this.tnd_table.length - 1;
-    }
+    if (sq_index > squareMax) sq_index = squareMax;
+    if (tnd_index > tndMax) tnd_index = tndMax;
     let sampleValueR =
-      this.square_table[sq_index] + this.tnd_table[tnd_index] - this.dcValue;
+      squareTable[sq_index] + tndTable[tnd_index] - this.dcValue;
 
     // Remove DC from left channel:
     let smpDiffL = sampleValueL - this.prevSampleL;
@@ -940,8 +1081,8 @@ class PAPU {
     let max_sqr = 0;
     let max_tnd = 0;
 
-    this.square_table = new Array(32 * 16);
-    this.tnd_table = new Array(204 * 16);
+    this.square_table = new Int32Array(32 * 16);
+    this.tnd_table = new Int32Array(204 * 16);
 
     for (i = 0; i < 32 * 16; i++) {
       value = 95.52 / (8128.0 / (i / 16.0) + 100.0);
@@ -973,6 +1114,7 @@ class PAPU {
 
   toJSON() {
     this.catchUp(this.nes.cpu.cycles);
+    this._runSilentChannels();
     let obj = toJSON(this);
     obj.dmc = this.dmc.toJSON();
     obj.noise = this.noise.toJSON();
@@ -1002,7 +1144,6 @@ class PAPU {
     "nextFrameEvent",
     "pendingAudioCycles",
     "lastCycle",
-    "audioFlushAt",
     "startedPlaying",
     "recordOutput",
     "frameCycleCounter",

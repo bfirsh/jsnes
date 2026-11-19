@@ -295,6 +295,9 @@ function runAccuracyCoin(romData, alignment = { ppuDots: 0, cpuCycles: 0 }) {
     nes.ppu._tick();
   }
   nes.cpu.cycles += alignment.cpuCycles;
+  // (Only the CPU/APU phase should change: don't make the PPU owe dots for
+  // these cycles. See "Fast and slow cycles" in cpu.js.)
+  nes.cpu.ppuCycles += alignment.cpuCycles;
 
   // Run frames to let the ROM initialize and display the menu.
   // The cursor starts at $FF (top of page, highlighting the page index).

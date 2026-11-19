@@ -45,6 +45,9 @@ class ChannelSquare {
     this.updateSweepPeriod = false;
     this.sweepResult = 0;
     this.sampleValue = 0;
+    // Cycles not run yet while the channel is silent (see
+    // PAPU._clockSquare()).
+    this.silentCycles = 0;
   }
 
   clockLengthCounter() {
